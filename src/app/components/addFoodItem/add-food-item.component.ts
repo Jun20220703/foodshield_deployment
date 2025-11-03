@@ -26,7 +26,7 @@ export class AddFoodItemComponent {
 
     this.foodForm = this.fb.group({
       name: ['', Validators.required],
-      qty: ['', [Validators.required, Validators.pattern(/^\d+$/)]], // ← 数字のみ
+      qty: ['', [Validators.required, Validators.pattern(/^\d+$/)]], // only allow Number
       expiry: ['', Validators.required],
       category: ['', Validators.required],
       storage: ['', Validators.required],
