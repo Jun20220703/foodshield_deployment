@@ -493,4 +493,13 @@
   z-index: 10;
 }
 
+.empty-alert {
+  text-align: center;
+  font-size: 1.8rem;   /* 字体更大 */
+  color: #7a7a7a;
+  margin-top: 250px;   /* 往下放一点 */
+  font-weight: bold;
+  font-style: italic;
+}
+
 

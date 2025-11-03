@@ -109,6 +109,12 @@
     </div>
     <!-- ✅ Filter Drawer END -->
 
+    <!-- ✅ 空状态提示：居中显示 -->
+    <div *ngIf="successMessage" class="empty-alert">
+      {{ successMessage }}
+    </div>
+
+
     <!-- 🔹 渲染 Storage → Category → Item -->
     <div *ngFor="let loc of viewLocs" class="location-block">
       <h1 *ngIf="selectedLocation === 'All'" class="location-title">{{ loc.name }}</h1>

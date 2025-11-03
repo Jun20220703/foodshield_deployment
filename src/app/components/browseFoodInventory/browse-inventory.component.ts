@@ -5,6 +5,11 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { BrowseFoodService, Food } from '../../services/browse-food.service';
 import { Router } from '@angular/router';
 
+// ⭐新增：用于判断是否在浏览器端
+import { isPlatformBrowser } from '@angular/common';
+import { Inject, PLATFORM_ID } from '@angular/core';
+
+
 
 interface Item {
   _id: string;
@@ -55,12 +60,16 @@ export class InventoryComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private browseService: BrowseFoodService,
     private router: Router   // ✅ 新增
+    
   ) {}
 
   /** 页面状态 */
   viewTitle: string = 'Inventory';
   selectedSource: 'inventory' | 'donation' = 'inventory';
   selectedLocation: string = 'All';
+
+    // ✅ 新增：提示消息
+  successMessage: string | null = null;
 
   showFilter = false;
   showSearch = false;
@@ -285,18 +294,39 @@ export class InventoryComponent implements OnInit {
           categories: loc.categories
             .map((cat) => ({
               ...cat,
-              items: cat.items.filter((i) =>
-                i.name.toLowerCase().includes(q)
-              ),
+              items: cat.items.filter((i) => i.name.toLowerCase().includes(q)),
             }))
             .filter((cat) => cat.items.length > 0),
         }))
         .filter((loc) => loc.categories.length > 0);
+
+      // ✅ 如果没找到任何结果
+      if (locs.length === 0) {
+        alert(`${this.searchQuery} does not exist ❌`);
+
+        // 清空搜索并刷新所有项目
+        this.searchQuery = '';
+        this.refreshView();
+        return; // 防止继续执行
+      }
     }
 
     this.viewLocs = locs;
     this.cdr.detectChanges();
+
+    // ✅ 空状态提示逻辑
+    if (this.viewLocs.length === 0) {
+      if (this.selectedSource === 'inventory') {
+        this.successMessage = "There is no food items in inventory 🍂";
+      } else if (this.selectedSource === 'donation') {
+        this.successMessage = "There is no donation items available 🍂";
+      }
+    } else {
+      this.successMessage = null;
+    }
   }
+
+
 
   /** ✅ UI 控制方法（补齐防止报错） */
   toggleFilterPanel() {
@@ -418,9 +448,14 @@ export class InventoryComponent implements OnInit {
     this.refreshView();
   }
 
-  /** 数量调整 */
+  /** 数量增加 */
   increaseSelected(item: Item) {
-    if (item.selectedQty < item.qty) item.selectedQty++;
+    if (item.selectedQty < item.qty) {
+      item.selectedQty++;
+    } else {
+      // ✅ 已经到最大数量了
+      alert(`${item.name} reach the maximum quantity 🚫`);
+    }
   }
 
   decreaseSelected(item: Item) {
@@ -452,21 +487,43 @@ export class InventoryComponent implements OnInit {
       if (!this.confirmItem || !this.confirmAction) return;
 
       if (this.confirmAction === 'used' || this.confirmAction === 'meal') {
-        // …原有数量更新逻辑
+        const item = this.confirmItem;
+        const newQty = item.qty - item.selectedQty;
+
+        this.browseService.updateFoodQty(item._id, newQty).subscribe({
+          next: () => {
+            // ✅ 更新前端 qty
+            item.qty = newQty;
+            item.selectedQty = 0;
+
+            // ✅ 浏览器弹窗提示
+            alert(`\nUsed ${item.name} successfully✅`);
+          },
+          error: (err) => {
+            console.error('❌ 更新失败:', err);
+            alert(`\nFailed to update ${item.name}❌`);
+          },
+        });
+
       }
 
       if (this.confirmAction === 'donate') {
-        this.router.navigate(['/manage-inventory'], { queryParams: { donateId: this.confirmItem._id } });
+        this.router.navigate(['/manage-inventory'], {
+          queryParams: { donateId: this.confirmItem._id },
+        });
       }
 
-      // ✅ 新增：确认 Edit 后再跳转
       if (this.confirmAction === 'edit') {
-        const editId = (this.confirmItem as any).donationId || this.confirmItem._id;
-        this.router.navigate(['/donation-list'], { queryParams: { editId, returnTo: 'browse' } });
+        const editId =
+          (this.confirmItem as any).donationId || this.confirmItem._id;
+        this.router.navigate(['/donation-list'], {
+          queryParams: { editId, returnTo: 'browse' },
+        });
       }
 
       this.closeConfirm();
     }
+
 
 
 
