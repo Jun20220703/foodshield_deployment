@@ -11,6 +11,7 @@ import { DonationListComponent } from './components/donationList/donation-list.c
 import { VerificationComponent } from './components/verification/verification.component';
 import { EditFoodComponent } from './components/editFood/edit-food.component';
 import { EditDonationComponent } from './components/editDonation/edit-donation.component';
+import { NotificationsListComponent } from './components/notifications/notifications-list.component';
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -24,5 +25,6 @@ export const routes: Routes = [
   { path: 'verification', component: VerificationComponent},
   { path: 'edit-food/:id', component: EditFoodComponent},
   { path: 'edit-donation/:id', component:EditDonationComponent},
+  { path: 'notification-list', component:NotificationsListComponent},
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];
