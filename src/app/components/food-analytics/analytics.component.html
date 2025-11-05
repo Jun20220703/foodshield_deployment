@@ -1,0 +1,96 @@
+<!-- src/app/analytics/analytics.component.html -->
+<div class="layout">
+  <!-- Sidebar lives outside; you already have it -->
+  <app-sidebar></app-sidebar>
+
+  <!-- Main content -->
+  <div class="content analytics-page">
+    <!-- Header KPI cards -->
+    <section class="kpis">
+        <div class="kpi kpi-consumed">
+            <div class="kpi-title">
+            {{ range() === 'month' ? 'Monthly Consumed' : 'Yearly Consumed' }}
+            </div>
+            <div class="kpi-value">{{ consumed() }}</div>
+        </div>
+
+        <div class="kpi kpi-donation">
+            <div class="kpi-title">
+            {{ range() === 'month' ? 'Monthly Donation' : 'Yearly Donation' }}
+            </div>
+            <div class="kpi-value">{{ donation() }}</div>
+        </div>
+
+        <div class="kpi kpi-expired">
+            <div class="kpi-title">
+            {{ range() === 'month' ? 'Monthly Expired' : 'Yearly Expired' }}
+            </div>
+            <div class="kpi-value">{{ expired() }}</div>
+        </div>
+        </section>
+
+
+    <!-- Charts row -->
+    <section class="charts-row">
+      <!-- Pie card -->
+      <div class="panel pie-panel">
+        <!-- left stacked toggle like prototype -->
+        <div class="toggle-stack">
+          <button
+            class="pill"
+            [class.active]="range()==='month'"
+            (click)="setRange('month')">
+            Month
+          </button>
+          <button
+            class="pill"
+            [class.disabled]="range()==='month'"
+            [class.active]="range()==='year'"
+            (click)="setRange('year')">
+            Year
+          </button>
+        </div>
+
+        <div class="panel-body">
+          <div class="chart-wrap" *ngIf="!loading(); else loadingTpl">
+            <canvas baseChart
+              [data]="pieData()"
+              [options]="pieOptions"
+              chartType="pie">
+            </canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bar card (top expired) -->
+      <div class="panel bar-panel">
+        <div class="status-tags">
+          <span class="tag tag-expired">Expired</span>
+          <span class="tag tag-donated">Donated</span>
+          <span class="tag tag-consumed">Consumed</span>
+        </div>
+
+        <div class="bar-headings">
+          <div class="bar-subtitle">Top Expired Food</div>
+          <div class="bar-topname" *ngIf="data()?.topExpired?.[0]">
+            {{ data()!.topExpired[0].name }}
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <div class="chart-wrap" *ngIf="!loading(); else loadingTpl">
+            <canvas baseChart
+              [data]="barData()"
+              [options]="barOptions"
+              chartType="bar">
+            </canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <ng-template #loadingTpl>
+      <div class="loading">Loading…</div>
+    </ng-template>
+  </div>
+</div>

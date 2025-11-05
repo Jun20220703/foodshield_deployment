@@ -11,6 +11,7 @@ import { DonationListComponent } from './components/donationList/donation-list.c
 import { VerificationComponent } from './components/verification/verification.component';
 import { EditFoodComponent } from './components/editFood/edit-food.component';
 import { EditDonationComponent } from './components/editDonation/edit-donation.component';
+
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -18,11 +19,19 @@ export const routes: Routes = [
   { path: 'login', component: LoginPageComponent },
   { path: 'account-settings', component: AccountSettingsComponent },
   { path: 'planWeeklyMeal', component: PlanWeeklyMealComponent },
-  { path: 'manage-inventory', component: ManageFoodInventory},
-  { path: 'add-food', component: AddFoodItemComponent},
-  { path: 'donation-list', component: DonationListComponent},
-  { path: 'verification', component: VerificationComponent},
-  { path: 'edit-food/:id', component: EditFoodComponent},
-  { path: 'edit-donation/:id', component:EditDonationComponent},
+  { path: 'manage-inventory', component: ManageFoodInventory },
+  { path: 'add-food', component: AddFoodItemComponent },
+  { path: 'donation-list', component: DonationListComponent },
+  { path: 'verification', component: VerificationComponent },
+  { path: 'edit-food/:id', component: EditFoodComponent },
+  { path: 'edit-donation/:id', component: EditDonationComponent },
+
+  // ✅ NEW ROUTE FOR ANALYTICS
+  { 
+    path: 'analytics',
+    loadComponent: () => import('./components/food-analytics/analytics.component')
+      .then(m => m.AnalyticsComponent)
+  },
+
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];
