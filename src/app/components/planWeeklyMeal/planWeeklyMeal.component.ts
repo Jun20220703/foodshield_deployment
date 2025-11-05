@@ -9,6 +9,7 @@ interface DayInfo {
   fullDate: Date;
   isCurrentMonth: boolean; // 현재 표시 중인 달인지 여부
   isToday: boolean; // 오늘 날짜인지 여부
+  isPast: boolean; // 지난 날짜인지 여부
 }
 
 interface MonthYear {
@@ -108,29 +109,30 @@ export class PlanWeeklyMealComponent implements OnInit {
     
     // 오늘 날짜 확인
     const today = new Date();
-    const todayDate = today.getDate();
-    const todayMonth = today.getMonth();
-    const todayYear = today.getFullYear();
+    today.setHours(0, 0, 0, 0); // 시간을 00:00:00으로 설정하여 날짜만 비교
     
     this.weekDays = [];
     for (let i = 0; i < 7; i++) {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
+      day.setHours(0, 0, 0, 0); // 시간을 00:00:00으로 설정하여 날짜만 비교
       
       // 현재 표시 중인 달(targetMonth)과 일치하는지 확인
       const isCurrentMonth = day.getMonth() === this.targetMonth && day.getFullYear() === this.targetYear;
       
       // 오늘 날짜인지 확인
-      const isToday = day.getDate() === todayDate && 
-                      day.getMonth() === todayMonth && 
-                      day.getFullYear() === todayYear;
+      const isToday = day.getTime() === today.getTime();
+      
+      // 지난 날짜인지 확인 (오늘 이전)
+      const isPast = day.getTime() < today.getTime();
       
       this.weekDays.push({
         name: dayNames[day.getDay()],
         date: day.getDate(),
         fullDate: day,
         isCurrentMonth: isCurrentMonth,
-        isToday: isToday
+        isToday: isToday,
+        isPast: isPast
       });
     }
     

@@ -18,7 +18,7 @@
       <div class="week-days">
         <button class="week-nav-arrow left" (click)="previousDay($event)" title="Previous day">‹</button>
         <div class="day-column" *ngFor="let day of weekDays">
-          <div class="day-card">
+          <div class="day-card" [class.past-day]="day.isPast">
             <div class="day-header">
               <div class="day-name">{{ day.name }}</div>
               <div class="day-number" [class.today]="day.isToday">{{ day.date }}</div>
