@@ -125,10 +125,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
-    
-    setTimeout(() => {
-      this.isNavigating = false;
-    }, 100);
+    this.isNavigating = false;
   }
 
   nextWeek() {
@@ -143,10 +140,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
-    
-    setTimeout(() => {
-      this.isNavigating = false;
-    }, 100);
+    this.isNavigating = false;
   }
 
   previousMonth(event?: Event) {
@@ -199,10 +193,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     
     this.cdr.detectChanges();
-    
-    setTimeout(() => {
-      this.isNavigating = false;
-    }, 100);
+    this.isNavigating = false;
   }
 
   nextMonth(event?: Event) {
@@ -255,10 +246,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     
     this.cdr.detectChanges();
-    
-    setTimeout(() => {
-      this.isNavigating = false;
-    }, 100);
+    this.isNavigating = false;
   }
 
   previousDay(event?: Event) {
@@ -280,10 +268,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
-    
-    setTimeout(() => {
-      this.isNavigating = false;
-    }, 100);
+    this.isNavigating = false;
   }
 
   nextDay(event?: Event) {
@@ -305,10 +290,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
-    
-    setTimeout(() => {
-      this.isNavigating = false;
-    }, 100);
+    this.isNavigating = false;
   }
 
   // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
