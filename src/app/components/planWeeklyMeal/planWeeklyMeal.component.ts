@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../sidebar/sidebar.component';
@@ -72,8 +72,9 @@ export class PlanWeeklyMealComponent implements OnInit {
   ];
   
   filteredInventory: InventoryItem[] = [];
+  private isNavigating: boolean = false; // 중복 호출 방지
 
-  constructor() {}
+  constructor(private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {
     this.initializeWeekDays();
@@ -115,7 +116,17 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
   }
 
-  previousMonth() {
+  previousMonth(event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (this.isNavigating) {
+      return;
+    }
+    
+    this.isNavigating = true;
     // 현재 주의 요일 이름과 날짜 숫자를 완전히 고정 (절대 변경하지 않음)
     const currentDayNames = this.weekDays.map(day => day.name); // 요일 이름 고정 (Sun, Mon, Tue...)
     const currentDates = this.weekDays.map(day => day.date); // 날짜 숫자 고정 (18, 19, 20...)
@@ -143,9 +154,24 @@ export class PlanWeeklyMealComponent implements OnInit {
     // 월 이름만 업데이트
     this.currentDate = this.weekDays[0].fullDate;
     this.currentMonth = this.currentDate.toLocaleString('default', { month: 'long' });
+    this.cdr.detectChanges();
+    
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 100);
   }
 
-  nextMonth() {
+  nextMonth(event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (this.isNavigating) {
+      return;
+    }
+    
+    this.isNavigating = true;
     // 현재 주의 요일 이름과 날짜 숫자를 완전히 고정 (절대 변경하지 않음)
     const currentDayNames = this.weekDays.map(day => day.name); // 요일 이름 고정 (Sun, Mon, Tue...)
     const currentDates = this.weekDays.map(day => day.date); // 날짜 숫자 고정 (18, 19, 20...)
@@ -173,18 +199,59 @@ export class PlanWeeklyMealComponent implements OnInit {
     // 월 이름만 업데이트
     this.currentDate = this.weekDays[0].fullDate;
     this.currentMonth = this.currentDate.toLocaleString('default', { month: 'long' });
+    this.cdr.detectChanges();
+    
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 100);
   }
 
-  previousDay() {
+  previousDay(event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (this.isNavigating) {
+      return;
+    }
+    
+    this.isNavigating = true;
+    
     // 실제 달력에 맞춰 하루 전으로 이동
-    this.currentDate.setDate(this.currentDate.getDate() - 1);
+    const newDate = new Date(this.currentDate);
+    newDate.setDate(newDate.getDate() - 1);
+    this.currentDate = new Date(newDate);
     this.initializeWeekDays();
+    this.cdr.detectChanges();
+    
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 100);
   }
 
-  nextDay() {
+  nextDay(event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (this.isNavigating) {
+      return;
+    }
+    
+    this.isNavigating = true;
+    
     // 실제 달력에 맞춰 하루 후로 이동
-    this.currentDate.setDate(this.currentDate.getDate() + 1);
+    const newDate = new Date(this.currentDate);
+    newDate.setDate(newDate.getDate() + 1);
+    this.currentDate = new Date(newDate);
     this.initializeWeekDays();
+    this.cdr.detectChanges();
+    
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 100);
   }
 
   filterInventory() {

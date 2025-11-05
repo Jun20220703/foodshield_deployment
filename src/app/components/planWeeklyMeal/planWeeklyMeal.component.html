@@ -10,13 +10,13 @@
     <h2 class="section-title">Calendar View</h2>
     <div class="calendar-container">
       <div class="month-header">
-        <button class="nav-arrow" (click)="previousMonth()">‹</button>
+        <button class="nav-arrow" (click)="previousMonth($event)">‹</button>
         <span class="month-name">{{ currentMonth }}</span>
-        <button class="nav-arrow" (click)="nextMonth()">›</button>
+        <button class="nav-arrow" (click)="nextMonth($event)">›</button>
       </div>
       
       <div class="week-days">
-        <button class="week-nav-arrow left" (click)="previousDay()" title="Previous day">‹</button>
+        <button class="week-nav-arrow left" (click)="previousDay($event)" title="Previous day">‹</button>
         <div class="day-column" *ngFor="let day of weekDays">
           <div class="day-card">
             <div class="day-header">
@@ -31,7 +31,7 @@
             </div>
           </div>
         </div>
-        <button class="week-nav-arrow right" (click)="nextDay()" title="Next day">›</button>
+        <button class="week-nav-arrow right" (click)="nextDay($event)" title="Next day">›</button>
       </div>
     </div>
   </div>
