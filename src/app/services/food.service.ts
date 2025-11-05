@@ -61,10 +61,10 @@ getDonations(): Observable<any[]> {
 }
 
     
-    updateFoodStatus(foodId: string, status: string): Observable<any> {
-        const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
-        return this.http.patch(`${this.apiUrl}/${foodId}/status`, { status }, { headers });
-    }
+  updateFoodStatus(foodId: string, status: string): Observable<any> {
+      const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+      return this.http.patch(`${this.apiUrl}/${foodId}/status`, { status }, { headers });
+  }
 
        // 追加：ID で食品を取得
   getFoodById(id: string): Observable<any> {
@@ -74,6 +74,22 @@ getDonations(): Observable<any[]> {
   // 追加：食品を更新
   updateFood(id: string, food: any): Observable<any> {
     return this.http.put(`${this.apiUrl}/${id}`, food);
+  }
+
+  sendExpiryNotification(food: any){
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user?.id;
+
+    return this.http.post('http://localhost:5001/api/notifications', {
+      userId, 
+      type: 'expiry',
+      title: 'Food Expiring Soon',
+      message: `Your item "${food.name}" will expire on ${food.expiry}. Please take action soon.`
+    });
+  }
+
+  checkExpiringFoods(userId: string){
+    return this.http.post('http://localhost:5001/api/notifications/check-expiry', { userId });
   }
 
   

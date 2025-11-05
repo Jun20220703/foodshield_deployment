@@ -65,6 +65,17 @@ loadFoods() {
       console.log('Filtered food items:', this.foodItems);
 
         this.cdr.detectChanges();
+      
+      this.foodItems.forEach(food => {
+        const expiry = new Date(food.expiry);
+        const diffInDays = (expiry.getTime() - today.getTime()) / (1000 * 3600 * 24);
+        if(diffInDays <= 3 && diffInDays >= 0){
+          this.foodService.sendExpiryNotification(food).subscribe({
+            next: ()=> console.log(`📢 Notification sent for ${food.name}`),
+            error: (err) => console.error('❌ Failed to send expiry notification', err)
+          });
+        }
+      })
     },
     error: (err) => {
       console.error('Error loading foods:', err);
@@ -140,6 +151,13 @@ confirmDonate() {
     this.donateError = 'Pickup location and availability are required.';
     return;
   }
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userId = user?.id;
+
+  if(!userId){
+    this.donateError = 'User not logged in.';
+    return;
+  }
 
 
   const donationData = {
@@ -147,7 +165,8 @@ confirmDonate() {
     qty: this.selectedDonateItem.qty,
     location: this.donationDetails.location,
     availability: this.donationDetails.availability,
-    notes: this.donationDetails.notes
+    notes: this.donationDetails.notes,
+    owner: userId
   };
 
   console.log('🧾 donationData before sending:', donationData); // ✅ 追加
@@ -158,6 +177,7 @@ confirmDonate() {
       this.foodService.updateFoodStatus(this.selectedDonateItem._id, 'donation').subscribe({
         next: (updateRes) => {
           console.log('Food status updated to donation:', updateRes);
+          alert('Donation successfully added!');
           // モーダル閉じて再読み込み
           this.showDonateModal = false;
           this.selectedDonateItem = null;
