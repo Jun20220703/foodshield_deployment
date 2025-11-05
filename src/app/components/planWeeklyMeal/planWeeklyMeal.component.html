@@ -24,9 +24,15 @@
               <div class="day-number" [class.today]="day.isToday">{{ day.date }}</div>
             </div>
             <div class="meal-slots">
-              <div class="meal-slot" *ngFor="let meal of mealTypes">
+              <div class="meal-slot" *ngFor="let meal of mealTypes" 
+                   (click)="selectMealSlot(day, meal)"
+                   [class.has-meal]="hasMeal(day, meal)"
+                   [class.selected]="selectedDay && selectedDay.fullDate.getTime() === day.fullDate.getTime() && selectedMealType === meal">
                 <div class="meal-indicator"></div>
                 <div class="meal-name">{{ meal }}</div>
+                <div class="meal-content" *ngIf="hasMeal(day, meal)">
+                  {{ getMealName(day, meal) }}
+                </div>
               </div>
             </div>
           </div>
@@ -92,6 +98,25 @@
           </div>
         </div>
       </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meal Options Modal -->
+  <div class="meal-options-overlay" *ngIf="showMealOptions" (click)="closeMealOptions()">
+    <div class="meal-options-container" (click)="$event.stopPropagation()">
+      <div class="meal-options-header">
+        <h3>No meals added...</h3>
+      </div>
+      <div class="meal-options-content">
+        <div class="meal-option-card add-own" (click)="addOwnMeal()">
+          <div class="option-question">Do you want to add your own meal?</div>
+          <button class="option-button">Add</button>
+        </div>
+        <div class="meal-option-card browse" (click)="browseRecipes()">
+          <div class="option-question">Do you want to browse more recipes?</div>
+          <button class="option-button">Browse</button>
+        </div>
       </div>
     </div>
   </div>

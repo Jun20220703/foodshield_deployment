@@ -25,6 +25,13 @@ interface InventoryItem {
   expiry: string;
 }
 
+interface MealPlan {
+  dateKey: string; // YYYY-MM-DD 형식
+  mealType: string; // Breakfast, Lunch, Dinner, Snack
+  mealName: string;
+  ingredients?: string[];
+}
+
 @Component({
   selector: 'app-plan-weekly-meal',
   standalone: true,
@@ -42,6 +49,12 @@ export class PlanWeeklyMealComponent implements OnInit {
   
   searchTerm: string = '';
   selectedItemIndex: number = -1;
+  
+  // Meal planning data
+  mealPlans: Map<string, MealPlan> = new Map(); // key: "YYYY-MM-DD-mealType"
+  selectedDay: DayInfo | null = null;
+  selectedMealType: string | null = null;
+  showMealOptions: boolean = false;
   
   inventory: InventoryItem[] = [
     {
@@ -375,6 +388,85 @@ export class PlanWeeklyMealComponent implements OnInit {
       'Other': '📦'
     };
     return icons[category] || '📦';
+  }
+
+  // 날짜 키 생성 (YYYY-MM-DD)
+  getDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // Meal slot 클릭 핸들러
+  selectMealSlot(day: DayInfo, mealType: string) {
+    this.selectedDay = day;
+    this.selectedMealType = mealType;
+    
+    const dateKey = this.getDateKey(day.fullDate);
+    const mealKey = `${dateKey}-${mealType}`;
+    
+    // 해당 meal에 계획이 있는지 확인
+    const hasMeal = this.mealPlans.has(mealKey);
+    
+    if (!hasMeal) {
+      // meal이 없으면 옵션 표시
+      this.showMealOptions = true;
+    } else {
+      // meal이 있으면 편집 가능하도록 (추후 구현)
+      this.showMealOptions = false;
+    }
+    
+    this.cdr.detectChanges();
+  }
+
+  // Meal 옵션 닫기
+  closeMealOptions() {
+    this.showMealOptions = false;
+    this.selectedDay = null;
+    this.selectedMealType = null;
+    this.cdr.detectChanges();
+  }
+
+  // Add your own meal 버튼 클릭
+  addOwnMeal() {
+    if (this.selectedDay && this.selectedMealType) {
+      // TODO: 사용자가 직접 meal을 추가할 수 있는 폼 표시
+      console.log('Add own meal for', this.selectedDay.date, this.selectedMealType);
+      // 임시로 meal 추가
+      const dateKey = this.getDateKey(this.selectedDay.fullDate);
+      const mealKey = `${dateKey}-${this.selectedMealType}`;
+      this.mealPlans.set(mealKey, {
+        dateKey: dateKey,
+        mealType: this.selectedMealType,
+        mealName: 'Custom Meal'
+      });
+      this.closeMealOptions();
+    }
+  }
+
+  // Browse recipes 버튼 클릭
+  browseRecipes() {
+    if (this.selectedDay && this.selectedMealType) {
+      // TODO: 레시피 브라우저 표시
+      console.log('Browse recipes for', this.selectedDay.date, this.selectedMealType);
+      this.closeMealOptions();
+    }
+  }
+
+  // 특정 날짜와 meal 타입에 meal이 있는지 확인
+  hasMeal(day: DayInfo, mealType: string): boolean {
+    const dateKey = this.getDateKey(day.fullDate);
+    const mealKey = `${dateKey}-${mealType}`;
+    return this.mealPlans.has(mealKey);
+  }
+
+  // 특정 날짜와 meal 타입의 meal 이름 가져오기
+  getMealName(day: DayInfo, mealType: string): string {
+    const dateKey = this.getDateKey(day.fullDate);
+    const mealKey = `${dateKey}-${mealType}`;
+    const meal = this.mealPlans.get(mealKey);
+    return meal ? meal.mealName : '';
   }
 }
 

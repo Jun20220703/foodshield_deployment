@@ -230,7 +230,7 @@
 
 .meal-slot {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   background: #f8f9fa;
   border: 1px solid #e8f5e8;
   border-radius: 8px;
@@ -239,6 +239,13 @@
   position: relative;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.meal-slot .meal-indicator {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .meal-slot:hover {
@@ -260,7 +267,127 @@
   font-size: 0.85rem;
   font-weight: 500;
   color: #1a1a1a;
+  margin-left: 14px;
+  margin-bottom: 4px;
+}
+
+.meal-slot.has-meal {
+  background: #e8f5e8;
+  border-color: #4a7c59;
+}
+
+.meal-slot.selected {
+  background: #d4edda;
+  border-color: #4a7c59;
+  border-width: 2px;
+}
+
+.meal-content {
+  font-size: 0.75rem;
+  color: #4a7c59;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* Meal Options Modal */
+.meal-options-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.meal-options-container {
+  background: #e8f5e8;
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 800px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.meal-options-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.meal-options-header h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #4a7c59;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+.meal-options-content {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+.meal-option-card {
   flex: 1;
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.meal-option-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.meal-option-card.add-own {
+  background: linear-gradient(135deg, #a8d5e2 0%, #7fb3d3 100%);
+}
+
+.meal-option-card.browse {
+  background: linear-gradient(135deg, #ffb3ba 0%, #ff9aa2 100%);
+}
+
+.option-question {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  margin-bottom: 20px;
+  font-family: 'Inter', sans-serif;
+}
+
+.option-button {
+  background: white;
+  border: none;
+  border-radius: 25px;
+  padding: 12px 30px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.option-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.option-button:active {
+  transform: scale(0.95);
 }
 
 /* Inventory Section */
