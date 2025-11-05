@@ -105,35 +105,7 @@ export class PlanWeeklyMealComponent implements OnInit {
       });
     }
     
-    // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
-    const monthCounts = new Map<number, { count: number; year: number }>();
-    for (const day of this.weekDays) {
-      const month = day.fullDate.getMonth();
-      const year = day.fullDate.getFullYear();
-      const key = month;
-      if (!monthCounts.has(key) || monthCounts.get(key)!.year !== year) {
-        monthCounts.set(key, { count: 0, year: year });
-      }
-      monthCounts.get(key)!.count++;
-    }
-    
-    // 가장 많은 날짜를 가진 달 찾기
-    let maxCount = 0;
-    let maxMonth = this.targetMonth;
-    let maxYear = this.targetYear;
-    for (const [month, data] of monthCounts.entries()) {
-      if (data.count > maxCount) {
-        maxCount = data.count;
-        maxMonth = month;
-        maxYear = data.year;
-      }
-    }
-    
-    // targetMonth와 targetYear 업데이트
-    this.targetMonth = maxMonth;
-    this.targetYear = maxYear;
-    
-    // Update month name
+    // Update month name based on targetMonth (set by month arrows or day navigation)
     this.currentMonth = new Date(this.targetYear, this.targetMonth, 1).toLocaleString('default', { month: 'long' });
   }
 
@@ -227,17 +199,19 @@ export class PlanWeeklyMealComponent implements OnInit {
     // 하루 전으로 이동 = 이전 주의 일요일로 이동
     const newDate = new Date(this.currentDate);
     newDate.setDate(newDate.getDate() - 7);
-    
-    // 새로운 날짜의 월과 연도 확인
-    const newMonth = newDate.getMonth();
-    const newYear = newDate.getFullYear();
-    
-    // targetMonth와 targetYear 업데이트
-    this.targetMonth = newMonth;
-    this.targetYear = newYear;
     this.currentDate = new Date(newDate);
     
+    // weekDays 업데이트
     this.initializeWeekDays();
+    
+    // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
+    this.updateTargetMonthFromWeek();
+    
+    // targetMonth가 변경되었을 수 있으므로 isCurrentMonth만 업데이트
+    this.weekDays.forEach(day => {
+      day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
+    });
+    
     this.cdr.detectChanges();
   }
 
@@ -251,17 +225,19 @@ export class PlanWeeklyMealComponent implements OnInit {
     // 하루 후로 이동 = 다음 주의 일요일로 이동
     const newDate = new Date(this.currentDate);
     newDate.setDate(newDate.getDate() + 7);
-    
-    // 새로운 날짜의 월과 연도 확인
-    const newMonth = newDate.getMonth();
-    const newYear = newDate.getFullYear();
-    
-    // targetMonth와 targetYear 업데이트
-    this.targetMonth = newMonth;
-    this.targetYear = newYear;
     this.currentDate = new Date(newDate);
     
+    // weekDays 업데이트
     this.initializeWeekDays();
+    
+    // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
+    this.updateTargetMonthFromWeek();
+    
+    // targetMonth가 변경되었을 수 있으므로 isCurrentMonth만 업데이트
+    this.weekDays.forEach(day => {
+      day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
+    });
+    
     this.cdr.detectChanges();
   }
 
@@ -294,30 +270,6 @@ export class PlanWeeklyMealComponent implements OnInit {
       const maxValue = monthCounts.get(maxKey)!;
       const newTargetYear = maxValue.year;
       const newTargetMonth = maxKey % 12;
-      
-      // 달이 변경되었고, 새 달의 첫 날이 주에 포함되어 있으면 해당 달의 첫 주로 이동
-      if (this.targetMonth !== newTargetMonth || this.targetYear !== newTargetYear) {
-        const firstDayOfNewMonth = new Date(newTargetYear, newTargetMonth, 1);
-        const dayOfWeek = firstDayOfNewMonth.getDay(); // 0 = Sunday
-        const startOfWeek = new Date(firstDayOfNewMonth);
-        startOfWeek.setDate(firstDayOfNewMonth.getDate() - dayOfWeek);
-        
-        // 새 달의 첫 날이 현재 주에 포함되어 있는지 확인
-        const isFirstDayInWeek = this.weekDays.some(day => 
-          day.fullDate.getDate() === 1 && 
-          day.fullDate.getMonth() === newTargetMonth &&
-          day.fullDate.getFullYear() === newTargetYear
-        );
-        
-        if (isFirstDayInWeek) {
-          // 새 달의 첫 주로 이동
-          this.targetYear = newTargetYear;
-          this.targetMonth = newTargetMonth;
-          this.currentDate = new Date(startOfWeek);
-          this.initializeWeekDays();
-          return;
-        }
-      }
       
       this.targetYear = newTargetYear;
       this.targetMonth = newTargetMonth;
