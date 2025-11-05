@@ -7,6 +7,7 @@ interface DayInfo {
   name: string;
   date: number;
   fullDate: Date;
+  isCurrentMonth: boolean; // 현재 표시 중인 달인지 여부
 }
 
 interface InventoryItem {
@@ -29,6 +30,8 @@ export class PlanWeeklyMealComponent implements OnInit {
   weekDays: DayInfo[] = [];
   mealTypes: string[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
   currentDate: Date = new Date(); // Track the current calendar date
+  targetMonth: number = new Date().getMonth(); // 현재 표시 중인 달의 인덱스
+  targetYear: number = new Date().getFullYear(); // 현재 표시 중인 달의 연도
   
   searchTerm: string = '';
   selectedItemIndex: number = -1;
@@ -95,25 +98,53 @@ export class PlanWeeklyMealComponent implements OnInit {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
       
+      // 현재 표시 중인 달(targetMonth)과 일치하는지 확인
+      const isCurrentMonth = day.getMonth() === this.targetMonth && day.getFullYear() === this.targetYear;
+      
       this.weekDays.push({
         name: dayNames[day.getDay()],
         date: day.getDate(),
-        fullDate: day
+        fullDate: day,
+        isCurrentMonth: isCurrentMonth
       });
     }
     
     // Update month name
-    this.currentMonth = startOfWeek.toLocaleString('default', { month: 'long' });
+    this.currentMonth = new Date(this.targetYear, this.targetMonth, 1).toLocaleString('default', { month: 'long' });
   }
 
   previousWeek() {
-    this.currentDate.setDate(this.currentDate.getDate() - 7);
+    if (this.isNavigating) {
+      return;
+    }
+    
+    this.isNavigating = true;
+    const newDate = new Date(this.currentDate);
+    newDate.setDate(newDate.getDate() - 7);
+    this.currentDate = newDate;
     this.initializeWeekDays();
+    this.cdr.detectChanges();
+    
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 100);
   }
 
   nextWeek() {
-    this.currentDate.setDate(this.currentDate.getDate() + 7);
+    if (this.isNavigating) {
+      return;
+    }
+    
+    this.isNavigating = true;
+    const newDate = new Date(this.currentDate);
+    newDate.setDate(newDate.getDate() + 7);
+    this.currentDate = newDate;
     this.initializeWeekDays();
+    this.cdr.detectChanges();
+    
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 100);
   }
 
   previousMonth(event?: Event) {
@@ -127,33 +158,44 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
     
     this.isNavigating = true;
-    // 현재 주의 요일 이름과 날짜 숫자를 완전히 고정 (절대 변경하지 않음)
-    const currentDayNames = this.weekDays.map(day => day.name); // 요일 이름 고정 (Sun, Mon, Tue...)
-    const currentDates = this.weekDays.map(day => day.date); // 날짜 숫자 고정 (18, 19, 20...)
-    const firstDayOfWeek = this.weekDays[0].fullDate;
     
-    // 이전 달로 이동
-    const newMonth = firstDayOfWeek.getMonth() - 1;
-    const newYear = newMonth < 0 ? firstDayOfWeek.getFullYear() - 1 : firstDayOfWeek.getFullYear();
+    // 주에 가장 많은 날짜가 있는 달을 현재 달로 사용
+    const monthCounts = new Map<number, number>();
+    this.weekDays.forEach(day => {
+      const month = day.fullDate.getMonth();
+      monthCounts.set(month, (monthCounts.get(month) || 0) + 1);
+    });
+    
+    let currentMonthIndex = this.weekDays[0].fullDate.getMonth();
+    let maxCount = monthCounts.get(currentMonthIndex) || 0;
+    monthCounts.forEach((count, month) => {
+      if (count > maxCount) {
+        maxCount = count;
+        currentMonthIndex = month;
+      }
+    });
+    
+    const currentYear = this.weekDays[0].fullDate.getFullYear();
+    
+    // 이전 달 계산
+    const newMonth = currentMonthIndex - 1;
+    const newYear = newMonth < 0 ? currentYear - 1 : currentYear;
     const actualNewMonth = newMonth < 0 ? 11 : newMonth;
     
-    // 주의 요일 이름과 날짜 숫자를 완전히 고정하면서 월만 변경
-    this.weekDays = [];
-    for (let i = 0; i < 7; i++) {
-      // 날짜 숫자 완전히 고정 (조정하지 않음)
-      const targetDate = currentDates[i];
-      const day = new Date(newYear, actualNewMonth, targetDate);
-      
-      this.weekDays.push({
-        name: currentDayNames[i], // 원래 요일 이름 그대로 사용 (완전 고정)
-        date: targetDate, // 원래 날짜 숫자 그대로 사용 (완전 고정)
-        fullDate: day
-      });
-    }
+    // 해당 달의 1일을 찾고, 그 주의 일요일을 찾기
+    const firstDayOfMonth = new Date(newYear, actualNewMonth, 1);
+    const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+    const startOfWeek = new Date(firstDayOfMonth);
+    startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
     
-    // 월 이름만 업데이트
-    this.currentDate = this.weekDays[0].fullDate;
-    this.currentMonth = this.currentDate.toLocaleString('default', { month: 'long' });
+    // 목표 달과 연도 업데이트
+    this.targetMonth = actualNewMonth;
+    this.targetYear = newYear;
+    
+    // 해당 달의 첫 주를 표시
+    this.currentDate = new Date(startOfWeek);
+    this.initializeWeekDays();
+    
     this.cdr.detectChanges();
     
     setTimeout(() => {
@@ -172,33 +214,44 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
     
     this.isNavigating = true;
-    // 현재 주의 요일 이름과 날짜 숫자를 완전히 고정 (절대 변경하지 않음)
-    const currentDayNames = this.weekDays.map(day => day.name); // 요일 이름 고정 (Sun, Mon, Tue...)
-    const currentDates = this.weekDays.map(day => day.date); // 날짜 숫자 고정 (18, 19, 20...)
-    const firstDayOfWeek = this.weekDays[0].fullDate;
     
-    // 다음 달로 이동
-    const newMonth = firstDayOfWeek.getMonth() + 1;
-    const newYear = newMonth > 11 ? firstDayOfWeek.getFullYear() + 1 : firstDayOfWeek.getFullYear();
+    // 주에 가장 많은 날짜가 있는 달을 현재 달로 사용
+    const monthCounts = new Map<number, number>();
+    this.weekDays.forEach(day => {
+      const month = day.fullDate.getMonth();
+      monthCounts.set(month, (monthCounts.get(month) || 0) + 1);
+    });
+    
+    let currentMonthIndex = this.weekDays[0].fullDate.getMonth();
+    let maxCount = monthCounts.get(currentMonthIndex) || 0;
+    monthCounts.forEach((count, month) => {
+      if (count > maxCount) {
+        maxCount = count;
+        currentMonthIndex = month;
+      }
+    });
+    
+    const currentYear = this.weekDays[0].fullDate.getFullYear();
+    
+    // 다음 달 계산
+    const newMonth = currentMonthIndex + 1;
+    const newYear = newMonth > 11 ? currentYear + 1 : currentYear;
     const actualNewMonth = newMonth > 11 ? 0 : newMonth;
     
-    // 주의 요일 이름과 날짜 숫자를 완전히 고정하면서 월만 변경
-    this.weekDays = [];
-    for (let i = 0; i < 7; i++) {
-      // 날짜 숫자 완전히 고정 (조정하지 않음)
-      const targetDate = currentDates[i];
-      const day = new Date(newYear, actualNewMonth, targetDate);
-      
-      this.weekDays.push({
-        name: currentDayNames[i], // 원래 요일 이름 그대로 사용 (완전 고정)
-        date: targetDate, // 원래 날짜 숫자 그대로 사용 (완전 고정)
-        fullDate: day
-      });
-    }
+    // 해당 달의 1일을 찾고, 그 주의 일요일을 찾기
+    const firstDayOfMonth = new Date(newYear, actualNewMonth, 1);
+    const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+    const startOfWeek = new Date(firstDayOfMonth);
+    startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
     
-    // 월 이름만 업데이트
-    this.currentDate = this.weekDays[0].fullDate;
-    this.currentMonth = this.currentDate.toLocaleString('default', { month: 'long' });
+    // 목표 달과 연도 업데이트
+    this.targetMonth = actualNewMonth;
+    this.targetYear = newYear;
+    
+    // 해당 달의 첫 주를 표시
+    this.currentDate = new Date(startOfWeek);
+    this.initializeWeekDays();
+    
     this.cdr.detectChanges();
     
     setTimeout(() => {
