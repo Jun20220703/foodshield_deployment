@@ -56,7 +56,7 @@
   padding: 25px;
   position: relative;
   margin-top: 20px;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 
@@ -97,9 +97,10 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   position: relative;
+  padding: 0 5px;
 }
 
 .day-column {
@@ -107,6 +108,7 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
+  min-width: 0;
 }
 
 .day-card {
@@ -120,6 +122,8 @@
   flex-direction: column;
   border: 2px solid #e8f5e8;
   transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .day-card.empty-day .day-header {
@@ -179,9 +183,14 @@
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
-  z-index: 10;
+  position: relative;
+  z-index: 1000;
   align-self: flex-start;
   margin-top: 20px;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .week-nav-arrow:hover {
