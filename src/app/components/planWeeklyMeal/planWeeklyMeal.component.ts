@@ -123,6 +123,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     newDate.setDate(newDate.getDate() - 7);
     this.currentDate = newDate;
     this.initializeWeekDays();
+    this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
     
     setTimeout(() => {
@@ -140,6 +141,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     newDate.setDate(newDate.getDate() + 7);
     this.currentDate = newDate;
     this.initializeWeekDays();
+    this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
     
     setTimeout(() => {
@@ -276,6 +278,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     newDate.setDate(newDate.getDate() - 1);
     this.currentDate = new Date(newDate);
     this.initializeWeekDays();
+    this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
     
     setTimeout(() => {
@@ -300,11 +303,50 @@ export class PlanWeeklyMealComponent implements OnInit {
     newDate.setDate(newDate.getDate() + 1);
     this.currentDate = new Date(newDate);
     this.initializeWeekDays();
+    this.updateTargetMonthFromWeek();
     this.cdr.detectChanges();
     
     setTimeout(() => {
       this.isNavigating = false;
     }, 100);
+  }
+
+  // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
+  updateTargetMonthFromWeek() {
+    const monthCounts = new Map<number, { count: number; year: number }>();
+    
+    this.weekDays.forEach(day => {
+      const month = day.fullDate.getMonth();
+      const year = day.fullDate.getFullYear();
+      const key = year * 12 + month;
+      
+      if (!monthCounts.has(key)) {
+        monthCounts.set(key, { count: 0, year: year });
+      }
+      monthCounts.get(key)!.count++;
+    });
+    
+    let maxKey = -1;
+    let maxCount = 0;
+    
+    monthCounts.forEach((value, key) => {
+      if (value.count > maxCount) {
+        maxCount = value.count;
+        maxKey = key;
+      }
+    });
+    
+    if (maxKey >= 0) {
+      const maxValue = monthCounts.get(maxKey)!;
+      this.targetYear = maxValue.year;
+      this.targetMonth = maxKey % 12;
+      
+      // weekDays의 isCurrentMonth 업데이트
+      this.weekDays.forEach(day => {
+        day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && 
+                             day.fullDate.getFullYear() === this.targetYear;
+      });
+    }
   }
 
   filterInventory() {
