@@ -176,18 +176,14 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   previousDay() {
-    // 현재 주의 첫날을 기준으로 하루 전으로 이동
-    const firstDayOfWeek = new Date(this.weekDays[0].fullDate);
-    firstDayOfWeek.setDate(firstDayOfWeek.getDate() - 1);
-    this.currentDate = firstDayOfWeek;
+    // 실제 달력에 맞춰 하루 전으로 이동
+    this.currentDate.setDate(this.currentDate.getDate() - 1);
     this.initializeWeekDays();
   }
 
   nextDay() {
-    // 현재 주의 첫날을 기준으로 하루 후로 이동
-    const firstDayOfWeek = new Date(this.weekDays[0].fullDate);
-    firstDayOfWeek.setDate(firstDayOfWeek.getDate() + 1);
-    this.currentDate = firstDayOfWeek;
+    // 실제 달력에 맞춰 하루 후로 이동
+    this.currentDate.setDate(this.currentDate.getDate() + 1);
     this.initializeWeekDays();
   }
 
