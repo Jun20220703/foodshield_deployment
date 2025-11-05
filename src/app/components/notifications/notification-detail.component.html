@@ -1,0 +1,18 @@
+<div class="layout">
+  <app-sidebar></app-sidebar> 
+
+  <main class="content">
+    <button class="back" (click)="back()">&lt; Back to Notification</button>
+
+    <div *ngIf="notification" class="card">
+      <h2 class="header">
+        [{{ notification.type | titlecase }}] {{ notification.title }}
+      </h2>
+      <p class="date">
+        {{ notification.createdAt | date: 'dd MMMM yyyy, h:mm a' }}
+      </p>
+      <hr />
+      <p class="body">{{ notification.message }}</p>
+    </div>
+  </main>
+</div>

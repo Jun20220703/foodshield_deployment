@@ -1,0 +1,90 @@
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+  background: #f6f6f4;
+
+}
+
+.content {
+  padding: 32px 28px;
+  margin-left:100px;
+
+}
+
+.title {
+  font-size: 28px;
+  margin-bottom: 12px;
+  font-family: 'Nunito', sans-serif;
+  color: #2e3d2e;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tabs button {
+  background: #fff;
+  border: 1px solid #9caf9a;
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #2b3a2d;
+}
+
+.tabs button.active {
+  background: #3f6644;
+  color: #fff;
+}
+
+/* Notification rows */
+.row {
+  display: grid;
+  grid-template-columns: 150px 1fr 150px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  background: #fff;
+  border: 1px solid #dce3da;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.row.unread {
+  background: #fbfff8;
+  font-weight: 600;
+}
+
+.row:hover {
+  border-color: #90b790;
+  background: #f0f9f0;
+}
+
+.col.type {
+  color: #2e5332;
+  font-weight: 700;
+}
+
+.col.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col.date {
+  text-align: right;
+  color: #4b574d;
+}
+
+.empty {
+  text-align: center;
+  padding: 16px;
+  background: #fff;
+  border: 1px dashed #c1c8bf;
+  border-radius: 10px;
+  color: #6a7368;
+  margin-top: 16px;
+}
