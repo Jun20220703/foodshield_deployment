@@ -23,4 +23,17 @@ router.post('/', async (req, res) => {
   }
 });
 
+// 既読状態を更新
+router.patch('/:id/read', async (req, res) => {
+  try {
+    const updated = await Notification.findByIdAndUpdate(
+      req.params.id,
+      { read: true },
+      { new: true }
+    );
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 module.exports = router;
