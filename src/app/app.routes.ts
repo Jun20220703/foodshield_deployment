@@ -10,6 +10,7 @@ import { AddFoodItemComponent } from './components/addFoodItem/add-food-item.com
 import { DonationListComponent } from './components/donationList/donation-list.component';
 import { VerificationComponent } from './components/verification/verification.component';
 import { EditFoodComponent } from './components/editFood/edit-food.component';
+import { AddCustomMealComponent } from './components/planWeeklyMeal/addCustomMeal/add-custom-meal.component';
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -19,6 +20,7 @@ export const routes: Routes = [
   { path: 'planWeeklyMeal', component: PlanWeeklyMealComponent },
   { path: 'manage-inventory', component: ManageFoodInventory},
   { path: 'add-food', component: AddFoodItemComponent},
+  { path: 'add-custom-meal', component: AddCustomMealComponent},
   { path: 'donation-list', component: DonationListComponent},
   { path: 'verification', component: VerificationComponent},
   { path: 'edit-food/:id', component: EditFoodComponent},

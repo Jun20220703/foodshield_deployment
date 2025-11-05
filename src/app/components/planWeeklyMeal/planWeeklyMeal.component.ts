@@ -1,6 +1,7 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 
 interface DayInfo {
@@ -96,7 +97,10 @@ export class PlanWeeklyMealComponent implements OnInit {
   
   filteredInventory: InventoryItem[] = [];
 
-  constructor(private cdr: ChangeDetectorRef) {}
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private router: Router
+  ) {}
 
   ngOnInit() {
     // currentDate를 주의 시작점(일요일)로 설정
@@ -429,24 +433,37 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   // Add your own meal 버튼 클릭
-  addOwnMeal() {
+  addOwnMeal(event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    console.log('addOwnMeal called', { selectedDay: this.selectedDay, selectedMealType: this.selectedMealType });
+    
     if (this.selectedDay && this.selectedMealType) {
-      // TODO: 사용자가 직접 meal을 추가할 수 있는 폼 표시
-      console.log('Add own meal for', this.selectedDay.date, this.selectedMealType);
-      // 임시로 meal 추가
       const dateKey = this.getDateKey(this.selectedDay.fullDate);
-      const mealKey = `${dateKey}-${this.selectedMealType}`;
-      this.mealPlans.set(mealKey, {
-        dateKey: dateKey,
-        mealType: this.selectedMealType,
-        mealName: 'Custom Meal'
+      console.log('Navigating to add-custom-meal with:', { date: dateKey, mealType: this.selectedMealType });
+      // Add Custom meals 페이지로 이동하며 날짜와 meal type 전달
+      this.router.navigate(['/add-custom-meal'], {
+        queryParams: {
+          date: dateKey,
+          mealType: this.selectedMealType
+        }
       });
-      this.closeMealOptions();
+    } else {
+      console.warn('Cannot navigate: selectedDay or selectedMealType is missing');
+      alert('Please select a meal slot first');
     }
   }
 
   // Browse recipes 버튼 클릭
-  browseRecipes() {
+  browseRecipes(event?: Event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
     if (this.selectedDay && this.selectedMealType) {
       // TODO: 레시피 브라우저 표시
       console.log('Browse recipes for', this.selectedDay.date, this.selectedMealType);

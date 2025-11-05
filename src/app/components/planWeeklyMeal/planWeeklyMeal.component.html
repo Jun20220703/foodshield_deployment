@@ -46,13 +46,13 @@
           <h3>No meals added...</h3>
         </div>
         <div class="meal-options-content">
-          <div class="meal-option-card add-own" (click)="addOwnMeal()">
+          <div class="meal-option-card add-own" (click)="addOwnMeal($event)">
             <div class="option-question">Do you want to add your own meal?</div>
-            <button class="option-button">Add</button>
+            <button class="option-button" type="button" (click)="addOwnMeal($event); $event.stopPropagation()">Add</button>
           </div>
-          <div class="meal-option-card browse" (click)="browseRecipes()">
+          <div class="meal-option-card browse" (click)="browseRecipes($event)">
             <div class="option-question">Do you want to browse more recipes?</div>
-            <button class="option-button">Browse</button>
+            <button class="option-button" type="button" (click)="browseRecipes($event); $event.stopPropagation()">Browse</button>
           </div>
         </div>
         <div class="close-options-wrapper">
