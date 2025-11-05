@@ -79,6 +79,17 @@ export class PlanWeeklyMealComponent implements OnInit {
   constructor(private cdr: ChangeDetectorRef) {}
 
   ngOnInit() {
+    // currentDate를 주의 시작점(일요일)로 설정
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - currentDay); // 일요일로 이동
+    this.currentDate = new Date(startOfWeek);
+    
+    // targetMonth와 targetYear를 현재 달로 설정
+    this.targetMonth = today.getMonth();
+    this.targetYear = today.getFullYear();
+    
     this.initializeWeekDays();
     this.filteredInventory = [...this.inventory];
   }
@@ -146,12 +157,14 @@ export class PlanWeeklyMealComponent implements OnInit {
     const startOfWeek = new Date(firstDayOfMonth);
     startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
     
-    // 목표 달과 연도 업데이트
+    // 목표 달과 연도 업데이트 (먼저 설정)
     this.targetMonth = actualNewMonth;
     this.targetYear = newYear;
     
     // 해당 달의 첫 주를 표시
     this.currentDate = new Date(startOfWeek);
+    
+    // initializeWeekDays 호출 (targetMonth가 이미 설정되어 있음)
     this.initializeWeekDays();
     
     this.cdr.detectChanges();
@@ -178,12 +191,14 @@ export class PlanWeeklyMealComponent implements OnInit {
     const startOfWeek = new Date(firstDayOfMonth);
     startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
     
-    // 목표 달과 연도 업데이트
+    // 목표 달과 연도 업데이트 (먼저 설정)
     this.targetMonth = actualNewMonth;
     this.targetYear = newYear;
     
     // 해당 달의 첫 주를 표시
     this.currentDate = new Date(startOfWeek);
+    
+    // initializeWeekDays 호출 (targetMonth가 이미 설정되어 있음)
     this.initializeWeekDays();
     
     this.cdr.detectChanges();
@@ -207,10 +222,8 @@ export class PlanWeeklyMealComponent implements OnInit {
     // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
     this.updateTargetMonthFromWeek();
     
-    // targetMonth가 변경되었을 수 있으므로 isCurrentMonth만 업데이트
-    this.weekDays.forEach(day => {
-      day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
-    });
+    // targetMonth가 변경되었을 수 있으므로 다시 initializeWeekDays 호출하여 달 이름 업데이트
+    this.initializeWeekDays();
     
     this.cdr.detectChanges();
   }
@@ -233,10 +246,8 @@ export class PlanWeeklyMealComponent implements OnInit {
     // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
     this.updateTargetMonthFromWeek();
     
-    // targetMonth가 변경되었을 수 있으므로 isCurrentMonth만 업데이트
-    this.weekDays.forEach(day => {
-      day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
-    });
+    // targetMonth가 변경되었을 수 있으므로 다시 initializeWeekDays 호출하여 달 이름 업데이트
+    this.initializeWeekDays();
     
     this.cdr.detectChanges();
   }
@@ -273,15 +284,6 @@ export class PlanWeeklyMealComponent implements OnInit {
       
       this.targetYear = newTargetYear;
       this.targetMonth = newTargetMonth;
-      
-      // weekDays 배열을 새로 만들어서 변경 감지 트리거
-      const updatedWeekDays = this.weekDays.map(day => ({
-        ...day,
-        isCurrentMonth: day.fullDate.getMonth() === this.targetMonth && 
-                        day.fullDate.getFullYear() === this.targetYear
-      }));
-      
-      this.weekDays = updatedWeekDays;
     }
   }
 
