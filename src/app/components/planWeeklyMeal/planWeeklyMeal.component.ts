@@ -10,6 +10,11 @@ interface DayInfo {
   isCurrentMonth: boolean; // 현재 표시 중인 달인지 여부
 }
 
+interface MonthYear {
+  month: number;
+  year: number;
+}
+
 interface InventoryItem {
   name: string;
   quantity: number;
@@ -151,18 +156,31 @@ export class PlanWeeklyMealComponent implements OnInit {
     const newYear = newMonth < 0 ? currentYear - 1 : currentYear;
     const actualNewMonth = newMonth < 0 ? 11 : newMonth;
     
-    // 해당 달의 1일을 찾고, 그 주의 일요일을 찾기
-    const firstDayOfMonth = new Date(newYear, actualNewMonth, 1);
-    const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
-    const startOfWeek = new Date(firstDayOfMonth);
-    startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
+    // 현재 주의 이전 주를 계산 (끊긴 곳부터 이어지게)
+    const prevWeekDate = new Date(this.currentDate);
+    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
     
-    // 목표 달과 연도 업데이트 (먼저 설정)
-    this.targetMonth = actualNewMonth;
-    this.targetYear = newYear;
+    // 이전 주가 이전 달에 속하는지 확인
+    const prevWeekMonth = prevWeekDate.getMonth();
+    const prevWeekYear = prevWeekDate.getFullYear();
     
-    // 해당 달의 첫 주를 표시
-    this.currentDate = new Date(startOfWeek);
+    // 이전 주가 이전 달에 속하면 그 주를 표시, 아니면 이전 달의 첫 주를 표시
+    if (prevWeekMonth === actualNewMonth && prevWeekYear === newYear) {
+      // 끊긴 곳부터 이어지기
+      this.currentDate = new Date(prevWeekDate);
+      this.targetMonth = actualNewMonth;
+      this.targetYear = newYear;
+    } else {
+      // 이전 달의 첫 주를 표시
+      const firstDayOfMonth = new Date(newYear, actualNewMonth, 1);
+      const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+      const startOfWeek = new Date(firstDayOfMonth);
+      startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
+      
+      this.currentDate = new Date(startOfWeek);
+      this.targetMonth = actualNewMonth;
+      this.targetYear = newYear;
+    }
     
     // initializeWeekDays 호출 (targetMonth가 이미 설정되어 있음)
     this.initializeWeekDays();
@@ -185,18 +203,31 @@ export class PlanWeeklyMealComponent implements OnInit {
     const newYear = newMonth > 11 ? currentYear + 1 : currentYear;
     const actualNewMonth = newMonth > 11 ? 0 : newMonth;
     
-    // 해당 달의 1일을 찾고, 그 주의 일요일을 찾기
-    const firstDayOfMonth = new Date(newYear, actualNewMonth, 1);
-    const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
-    const startOfWeek = new Date(firstDayOfMonth);
-    startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
+    // 현재 주의 다음 주를 계산 (끊긴 곳부터 이어지게)
+    const nextWeekDate = new Date(this.currentDate);
+    nextWeekDate.setDate(nextWeekDate.getDate() + 7);
     
-    // 목표 달과 연도 업데이트 (먼저 설정)
-    this.targetMonth = actualNewMonth;
-    this.targetYear = newYear;
+    // 다음 주가 다음 달에 속하는지 확인
+    const nextWeekMonth = nextWeekDate.getMonth();
+    const nextWeekYear = nextWeekDate.getFullYear();
     
-    // 해당 달의 첫 주를 표시
-    this.currentDate = new Date(startOfWeek);
+    // 다음 주가 다음 달에 속하면 그 주를 표시, 아니면 다음 달의 첫 주를 표시
+    if (nextWeekMonth === actualNewMonth && nextWeekYear === newYear) {
+      // 끊긴 곳부터 이어지기
+      this.currentDate = new Date(nextWeekDate);
+      this.targetMonth = actualNewMonth;
+      this.targetYear = newYear;
+    } else {
+      // 다음 달의 첫 주를 표시
+      const firstDayOfMonth = new Date(newYear, actualNewMonth, 1);
+      const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+      const startOfWeek = new Date(firstDayOfMonth);
+      startOfWeek.setDate(firstDayOfMonth.getDate() - dayOfWeek); // 일요일로 이동
+      
+      this.currentDate = new Date(startOfWeek);
+      this.targetMonth = actualNewMonth;
+      this.targetYear = newYear;
+    }
     
     // initializeWeekDays 호출 (targetMonth가 이미 설정되어 있음)
     this.initializeWeekDays();
@@ -211,7 +242,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
     
     // currentDate는 주의 시작점(일요일)을 가리킴
-    // 하루 전으로 이동 = 이전 주의 일요일로 이동
+    // 이전 주의 일요일로 이동 (단순히 7일 전으로) - 모든 주를 순차적으로 표시
     const newDate = new Date(this.currentDate);
     newDate.setDate(newDate.getDate() - 7);
     this.currentDate = new Date(newDate);
@@ -220,10 +251,16 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     
     // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
+    // 첫 주와 마지막 주가 빠지지 않도록 로직 보장
     this.updateTargetMonthFromWeek();
     
-    // targetMonth가 변경되었을 수 있으므로 다시 initializeWeekDays 호출하여 달 이름 업데이트
-    this.initializeWeekDays();
+    // targetMonth가 변경되었을 수 있으므로 달 이름 업데이트
+    this.currentMonth = new Date(this.targetYear, this.targetMonth, 1).toLocaleString('default', { month: 'long' });
+    
+    // isCurrentMonth 업데이트 - 모든 날짜는 표시되지만, 현재 달이 아닌 날짜는 빈 칸으로
+    this.weekDays.forEach(day => {
+      day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
+    });
     
     this.cdr.detectChanges();
   }
@@ -235,7 +272,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
     
     // currentDate는 주의 시작점(일요일)을 가리킴
-    // 하루 후로 이동 = 다음 주의 일요일로 이동
+    // 다음 주의 일요일로 이동 (단순히 7일 후로) - 모든 주를 순차적으로 표시
     const newDate = new Date(this.currentDate);
     newDate.setDate(newDate.getDate() + 7);
     this.currentDate = new Date(newDate);
@@ -244,10 +281,16 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.initializeWeekDays();
     
     // 주에 가장 많은 날짜가 있는 달을 targetMonth로 업데이트
+    // 첫 주와 마지막 주가 빠지지 않도록 로직 보장
     this.updateTargetMonthFromWeek();
     
-    // targetMonth가 변경되었을 수 있으므로 다시 initializeWeekDays 호출하여 달 이름 업데이트
-    this.initializeWeekDays();
+    // targetMonth가 변경되었을 수 있으므로 달 이름 업데이트
+    this.currentMonth = new Date(this.targetYear, this.targetMonth, 1).toLocaleString('default', { month: 'long' });
+    
+    // isCurrentMonth 업데이트 - 모든 날짜는 표시되지만, 현재 달이 아닌 날짜는 빈 칸으로
+    this.weekDays.forEach(day => {
+      day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
+    });
     
     this.cdr.detectChanges();
   }
@@ -256,6 +299,7 @@ export class PlanWeeklyMealComponent implements OnInit {
   updateTargetMonthFromWeek() {
     const monthCounts = new Map<number, { count: number; year: number }>();
     
+    // 주의 모든 날짜를 확인하여 각 달의 날짜 개수 계산
     this.weekDays.forEach(day => {
       const month = day.fullDate.getMonth();
       const year = day.fullDate.getFullYear();
@@ -267,6 +311,7 @@ export class PlanWeeklyMealComponent implements OnInit {
       monthCounts.get(key)!.count++;
     });
     
+    // 가장 많은 날짜가 있는 달 찾기
     let maxKey = -1;
     let maxCount = 0;
     
@@ -277,13 +322,11 @@ export class PlanWeeklyMealComponent implements OnInit {
       }
     });
     
+    // 가장 많은 날짜가 있는 달을 targetMonth로 설정
     if (maxKey >= 0) {
       const maxValue = monthCounts.get(maxKey)!;
-      const newTargetYear = maxValue.year;
-      const newTargetMonth = maxKey % 12;
-      
-      this.targetYear = newTargetYear;
-      this.targetMonth = newTargetMonth;
+      this.targetYear = maxValue.year;
+      this.targetMonth = maxKey % 12;
     }
   }
 
