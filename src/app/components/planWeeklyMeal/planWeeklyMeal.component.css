@@ -313,6 +313,8 @@
   display: flex;
   gap: 20px;
   justify-content: center;
+  align-items: center;
+  position: relative;
 }
 
 .meal-option-card {
@@ -372,6 +374,78 @@
 
 .option-button:active {
   transform: scale(0.95);
+}
+
+.close-options-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 25px;
+}
+
+.close-options-button {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 2px solid #4a7c59;
+  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4a7c59;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(74, 124, 89, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.close-options-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #4a7c59 0%, #5a8c69 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.close-options-button svg {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.3s ease;
+}
+
+.close-options-button svg path {
+  stroke: currentColor;
+  transition: stroke 0.3s ease;
+}
+
+.close-options-button:hover {
+  border-color: #4a7c59;
+  box-shadow: 0 4px 16px rgba(74, 124, 89, 0.25);
+  transform: translateY(-2px);
+  color: white;
+}
+
+.close-options-button:hover::before {
+  opacity: 1;
+}
+
+.close-options-button:hover svg {
+  transform: translateY(-2px);
+}
+
+.close-options-button:hover svg path {
+  stroke: white;
+}
+
+.close-options-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(74, 124, 89, 0.15);
 }
 
 /* Inventory Section */
