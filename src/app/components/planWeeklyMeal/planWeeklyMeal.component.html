@@ -21,7 +21,7 @@
           <div class="day-card">
             <div class="day-header">
               <div class="day-name">{{ day.name }}</div>
-              <div class="day-number">{{ day.date }}</div>
+              <div class="day-number" [class.today]="day.isToday">{{ day.date }}</div>
             </div>
             <div class="meal-slots">
               <div class="meal-slot" *ngFor="let meal of mealTypes">

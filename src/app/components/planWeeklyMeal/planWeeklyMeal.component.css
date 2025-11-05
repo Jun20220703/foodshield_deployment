@@ -169,6 +169,11 @@
   font-size: 1.1rem;
 }
 
+.day-number.today {
+  background: #9fdf9f; /* 연두색 */
+  color: #1a1a1a; /* 텍스트는 어두운 색으로 */
+}
+
 .week-nav-arrow {
   background: #f8f9fa;
   border: 1px solid #e8f5e8;
