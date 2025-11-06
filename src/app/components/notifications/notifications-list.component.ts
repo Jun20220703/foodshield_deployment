@@ -1,51 +1,74 @@
 import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
-import { AppNotification, NotificationService } from '../../services/notification.service';
-import { SidebarComponent } from "../sidebar/sidebar.component";
+import { NotificationService, Notification } from '../../services/notification.service';
+import { SidebarComponent } from '../sidebar/sidebar.component';
 import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-notifications-list',
   templateUrl: './notifications-list.component.html',
   styleUrls: ['./notifications-list.component.css'],
-  imports: [SidebarComponent, CommonModule]
+  imports:[SidebarComponent,CommonModule ]
 })
 export class NotificationsListComponent implements OnInit {
-  all: AppNotification[] = [];
-  unread: AppNotification[] = [];
-  read: AppNotification[] = [];
+  notifications: Notification[] = [];
   activeTab: 'all' | 'unread' | 'read' = 'all';
 
-  constructor(private ns: NotificationService, private router: Router) {}
+  constructor(private notificationService: NotificationService) {}
 
-  ngOnInit() {
-    this.refresh();
-    this.ns.notifications$.subscribe(() => this.refresh());
+  ngOnInit(): void {
+    this.loadNotifications();
   }
 
-  refresh() {
-    const all = this.ns.getAll();
-    this.all = all;
-    this.unread = all.filter(n => !n.read);
-    this.read = all.filter(n => n.read);
+  // 🔹 通知を取得
+  loadNotifications(): void {
+    this.notificationService.getNotifications().subscribe({
+      next: (data) => (this.notifications = data),
+      error: (err) => console.error('Error fetching notifications:', err),
+    });
   }
 
-  openDetail(n: AppNotification) {
-    this.router.navigate(['/notifications', n.id]);
-  }
-
-  setTab(tab: 'all' | 'unread' | 'read') {
+  // 🔹 タブ切り替え
+  setTab(tab: 'all' | 'unread' | 'read'): void {
     this.activeTab = tab;
   }
 
-  displayed(): AppNotification[] {
-    if (this.activeTab === 'unread') return this.unread;
-    if (this.activeTab === 'read') return this.read;
-    return this.all;
+  // 🔹 各タブで表示する通知をフィルタリング
+  displayed(): Notification[] {
+    switch (this.activeTab) {
+      case 'unread':
+        return this.notifications.filter((n) => !n.read);
+      case 'read':
+        return this.notifications.filter((n) => n.read);
+      default:
+        return this.notifications;
+    }
   }
 
-  badge(type: AppNotification['type']) {
-    if (type === 'inventory') return 'Inventory';
-    if (type === 'donation') return 'Donation';
-    return 'Meal Plan';
+  // 🔹 各通知タイプのバッジ表示
+  badge(type: string): string {
+    switch (type) {
+      case 'donation': return 'Donation';
+      case 'inventory': return 'Inventory';
+      case 'system': return 'System';
+      default: return 'Notice';
+    }
+  }
+
+  // 🔹 通知詳細を開く（クリック時）
+  openDetail(n: Notification): void {
+    if (!n.read && n._id) {
+      this.notificationService.markAsRead(n._id).subscribe(() => {
+        n.read = true; // 即時UI更新
+      });
+    }
+    console.log('Open detail:', n);
+  }
+
+  // 🔹 未読・既読一覧の取得（HTMLで表示数に使用）
+  get unread(): Notification[] {
+    return this.notifications.filter((n) => !n.read);
+  }
+
+  get read(): Notification[] {
+    return this.notifications.filter((n) => n.read);
   }
 }

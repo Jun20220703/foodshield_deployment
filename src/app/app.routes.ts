@@ -25,6 +25,6 @@ export const routes: Routes = [
   { path: 'verification', component: VerificationComponent},
   { path: 'edit-food/:id', component: EditFoodComponent},
   { path: 'edit-donation/:id', component:EditDonationComponent},
-  { path: 'notification-list', component:NotificationsListComponent},
+  { path: 'notifications-list', component:NotificationsListComponent},
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];

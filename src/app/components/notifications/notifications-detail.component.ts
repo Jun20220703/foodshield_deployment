@@ -1,6 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+/*import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AppNotification, NotificationService } from '../../services/notification.service';
+import { Notification, NotificationService } from '../../services/notification.service';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { CommonModule } from '@angular/common';
 @Component({
@@ -10,7 +10,7 @@ import { CommonModule } from '@angular/common';
   imports: [SidebarComponent, CommonModule]
 })
 export class NotificationDetailComponent implements OnInit {
-  notification?: AppNotification;
+  notification?: Notification;
 
   constructor(
     private route: ActivatedRoute,
@@ -33,4 +33,4 @@ export class NotificationDetailComponent implements OnInit {
   back() {
     this.router.navigate(['/notifications']);
   }
-}
+}*/
