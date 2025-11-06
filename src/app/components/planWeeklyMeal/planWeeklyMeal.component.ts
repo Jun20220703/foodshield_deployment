@@ -84,6 +84,14 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   loadInventory() {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping inventory load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = user.id;
 
