@@ -459,6 +459,11 @@ export class PlanWeeklyMealComponent implements OnInit {
       event.stopPropagation();
     }
     
+    // 과거 날짜인 경우 동작하지 않음
+    if (this.isPastDateSelected()) {
+      return;
+    }
+    
     console.log('addOwnMeal called', { selectedDay: this.selectedDay, selectedMealType: this.selectedMealType });
     
     if (this.selectedDay && this.selectedMealType) {
@@ -482,6 +487,11 @@ export class PlanWeeklyMealComponent implements OnInit {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
+    }
+    
+    // 과거 날짜인 경우 동작하지 않음
+    if (this.isPastDateSelected()) {
+      return;
     }
     
     if (this.selectedDay && this.selectedMealType) {
@@ -512,6 +522,18 @@ export class PlanWeeklyMealComponent implements OnInit {
     const mealKey = `${dateKey}-${mealType}`;
     const meal = this.mealPlans.get(mealKey);
     return meal ? meal.mealName : '';
+  }
+
+  // 선택된 날짜가 과거 날짜인지 확인
+  isPastDateSelected(): boolean {
+    if (!this.selectedDay) {
+      return false;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(this.selectedDay.fullDate);
+    selectedDate.setHours(0, 0, 0, 0);
+    return selectedDate.getTime() < today.getTime();
   }
 }
 

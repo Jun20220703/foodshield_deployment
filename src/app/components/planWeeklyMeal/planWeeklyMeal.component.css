@@ -333,9 +333,15 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.meal-option-card:hover {
+.meal-option-card:hover:not(.disabled) {
   transform: translateY(-5px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.meal-option-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .meal-option-card.add-own {
@@ -368,13 +374,20 @@
   font-family: 'Inter', sans-serif;
 }
 
-.option-button:hover {
+.option-button:hover:not(:disabled) {
   transform: scale(1.05);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.option-button:active {
+.option-button:active:not(:disabled) {
   transform: scale(0.95);
+}
+
+.option-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #e0e0e0;
+  color: #999;
 }
 
 .close-options-wrapper {
