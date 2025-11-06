@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
-const Food = reauire('../models/Food');
+const Food = require('../models/Food');
 const { sendNotification } = require('../services/notificationService');
 // 全通知を取得
 router.get('/', async (req, res) => {
@@ -39,6 +39,7 @@ router.patch('/:id/read', async (req, res) => {
 });
 
 // 🟢 NEW: 賞味期限チェックAPI（Notificationページ用）
+// 🟢 NEW: 賞味期限チェックAPI（Notificationページ用）
 router.post('/check-expiry', async (req, res) => {
   try {
     const { userId } = req.body;
@@ -58,32 +59,39 @@ router.post('/check-expiry', async (req, res) => {
 
       // 3日以内に期限切れ
       if (diffInDays <= 3 && diffInDays >= 0) {
-        // 同じfoodに対する通知が既にあるか確認（重複防止）
-        const exists = await Notification.findOne({
+        // ✅ 同じ食材に対してまだ通知が送られていないか確認
+        const existingNotification = await Notification.findOne({
           userId,
           type: 'expiry',
-          'meta.foodId': food._id
+          'meta.foodId': food._id, // 食材IDで重複確認
+          read: false               // まだ未読のものだけ対象
         });
-        if (exists) continue;
 
-        // 新しい通知を作成
+        if (existingNotification) {
+          console.log(`⚠️ Skipped duplicate notification for ${food.name}`);
+          continue; // 同じ通知があるならスキップ
+        }
+
+        // ✅ 新しい通知を作成
         await sendNotification({
           userId,
           type: 'expiry',
           title: 'Food Expiring Soon',
           message: `Your item "${food.name}" will expire on ${food.expiry}. Please take action soon.`,
-          meta: { foodId: food._id } // メタ情報として記録
+          meta: { foodId: food._id },
+          read: false
         });
         sentCount++;
       }
     }
 
-    res.json({ message: `Checked ${foods.length} foods, sent ${sentCount} notifications.` });
+    res.json({ message: `Checked ${foods.length} foods, sent ${sentCount} new notifications.` });
   } catch (err) {
     console.error('Error checking expiry:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 
 module.exports = router;

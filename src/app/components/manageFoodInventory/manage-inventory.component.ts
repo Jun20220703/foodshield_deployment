@@ -65,17 +65,6 @@ loadFoods() {
       console.log('Filtered food items:', this.foodItems);
 
         this.cdr.detectChanges();
-      
-      this.foodItems.forEach(food => {
-        const expiry = new Date(food.expiry);
-        const diffInDays = (expiry.getTime() - today.getTime()) / (1000 * 3600 * 24);
-        if(diffInDays <= 3 && diffInDays >= 0){
-          this.foodService.sendExpiryNotification(food).subscribe({
-            next: ()=> console.log(`📢 Notification sent for ${food.name}`),
-            error: (err) => console.error('❌ Failed to send expiry notification', err)
-          });
-        }
-      })
     },
     error: (err) => {
       console.error('Error loading foods:', err);
