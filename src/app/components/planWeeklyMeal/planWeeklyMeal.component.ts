@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
+import { FoodService, Food } from '../../services/food.service';
 
 interface DayInfo {
   name: string;
@@ -57,49 +58,13 @@ export class PlanWeeklyMealComponent implements OnInit {
   selectedMealType: string | null = null;
   showMealOptions: boolean = false;
   
-  inventory: InventoryItem[] = [
-    {
-      name: 'Apple',
-      quantity: 4,
-      category: 'Fruit',
-      marked: false,
-      expiry: '12/11/2025'
-    },
-    {
-      name: 'Avocado',
-      quantity: 6,
-      category: 'Fruit',
-      marked: false,
-      expiry: '25/11/2025'
-    },
-    {
-      name: 'Banana',
-      quantity: 2,
-      category: 'Fruit',
-      marked: false,
-      expiry: '30/9/2025'
-    },
-    {
-      name: 'Broccoli',
-      quantity: 3,
-      category: 'Vegetable',
-      marked: false,
-      expiry: '17/10/2025'
-    },
-    {
-      name: 'Chicken',
-      quantity: 3,
-      category: 'Meat',
-      marked: true,
-      expiry: '19/9/2025'
-    }
-  ];
-  
+  inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
 
   constructor(
     private cdr: ChangeDetectorRef,
-    private router: Router
+    private router: Router,
+    private foodService: FoodService
   ) {}
 
   ngOnInit() {
@@ -115,7 +80,54 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.targetYear = today.getFullYear();
     
     this.initializeWeekDays();
-    this.filteredInventory = [...this.inventory];
+    this.loadInventory();
+  }
+
+  loadInventory() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    this.foodService.getFoods(userId).subscribe({
+      next: (data: Food[]) => {
+        // status가 'inventory'인 항목만 필터링하고 InventoryItem 형식으로 변환
+        this.inventory = data
+          .filter((f: any) => f.owner === userId && f.status === 'inventory')
+          .map((food: any) => {
+            // expiry 날짜 포맷팅 (Date 객체를 DD/MM/YYYY 형식으로)
+            let expiryStr = '';
+            if (food.expiry) {
+              const expiryDate = new Date(food.expiry);
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
+
+            return {
+              name: food.name,
+              quantity: food.qty || 0,
+              category: food.category || 'Other',
+              marked: food.marked || false,
+              expiry: expiryStr
+            };
+          });
+        
+        this.filteredInventory = [...this.inventory];
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error loading inventory:', err);
+        this.inventory = [];
+        this.filteredInventory = [];
+      }
+    });
   }
 
   initializeWeekDays() {
