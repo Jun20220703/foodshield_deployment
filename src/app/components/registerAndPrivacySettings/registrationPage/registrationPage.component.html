@@ -7,33 +7,33 @@
   <form #registrationForm="ngForm" (ngSubmit)="onSubmit(registrationForm)">
     <div class="input-group">
       <label for="name">Name*:</label>
-      <input type="text" id="name" name="name" ngModel required placeholder="eg) Junhyeong Kim" #nameInput>
-      <span class="icon clear" (click)="clearInput(nameInput)">&#10006;</span>
+      <input type="text" id="name" name="name" [(ngModel)]="name" required placeholder="eg) Junhyeong Kim">
+      <span class="icon clear" (click)="clearName()">&#10006;</span>
     </div>
 
     <div class="input-group">
       <label for="email">Email*:</label>
-      <input type="email" id="email" name="email" ngModel required placeholder="eg) example@gmail.com" #emailInput (input)="onEmailChange(emailInput.value)">
-      <span class="icon clear" (click)="clearInput(emailInput)">&#10006;</span>
+      <input type="email" id="email" name="email" [(ngModel)]="email" required placeholder="eg) example@gmail.com" (input)="onEmailChange(email)">
+      <span class="icon clear" (click)="clearEmail()">&#10006;</span>
       <div class="error-message" *ngIf="emailError">{{ emailError }}</div>
     </div>
 
     <div class="input-group">
       <label for="password">Password*:</label>
-      <input type="password" id="password" name="password" [(ngModel)]="password" required placeholder="eg) Junkaiyane230@" #passwordInput (input)="onPasswordChange(passwordInput.value)">
-      <span class="icon clear" (click)="clearInput(passwordInput)">&#10006;</span>
+      <input type="password" id="password" name="password" [(ngModel)]="password" required placeholder="eg) Junkaiyane230@" (input)="onPasswordChange(password)">
+      <span class="icon clear" (click)="clearPassword()">&#10006;</span>
       <div class="error-message" *ngIf="passwordError">{{ passwordError }}</div>
     </div>
 
     <div class="input-group">
       <label for="confirmPassword">Confirm Password*:</label>
-      <input type="password" id="confirmPassword" name="confirmPassword" [(ngModel)]="confirmPassword" required placeholder="eg) *************" #confirmPasswordInput>
-      <span class="icon clear" (click)="clearInput(confirmPasswordInput)">&#10006;</span>
+      <input type="password" id="confirmPassword" name="confirmPassword" [(ngModel)]="confirmPassword" required placeholder="eg) *************">
+      <span class="icon clear" (click)="clearConfirmPassword()">&#10006;</span>
     </div>
 
     <div class="input-group">
       <label for="householdSize">Household Size(Optional):</label>
-      <select id="householdSize" name="householdSize" ngModel required>
+      <select id="householdSize" name="householdSize" [(ngModel)]="householdSize" required>
         <option value="" disabled selected>Size</option>
         <option value="No-Selection">No Selection</option>
         <option value="1">1</option>
@@ -52,9 +52,9 @@
 
     <div class="input-group">
       <label for="dob">Date of Birth*:</label>
-      <input type="date" id="dob" name="dob" ngModel required #dobInput>
+      <input type="date" id="dob" name="dob" [(ngModel)]="dob" required #dobInput>
       <span class="icon calendar-icon" (click)="openDatePicker(dobInput)">📅</span>
-      <span class="icon clear" (click)="clearInput(dobInput)">&#10006;</span>
+      <span class="icon clear" (click)="clearDob()">&#10006;</span>
     </div>
 
     <button type="submit" class="register-btn">Register</button>

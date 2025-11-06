@@ -27,7 +27,7 @@
         <tr *ngFor="let item of foodItems">
           <td>{{ item.name }}</td>
           <td>{{ item.qty }}</td>
-          <td>{{ item.expiry }}</td>
+          <td>{{ item.expiry | date:'yyyy-MM-dd' }}</td>
           <td>{{ item.category }}</td>
           <td>{{ item.storage }}</td>
           <td>{{ item.notes }}</td>
@@ -35,10 +35,7 @@
             <!-- テーブル内のボタン -->
             <button type="button" (click)="openEditPage(item)">Edit</button>
             <button type="button" (click)="openDeleteModal(item)">Delete</button>
-            <button 
-              type="button" 
-              *ngIf="isExpiringSoon(item.expiry)"
-              (click)="openDonateModal(item)">Donate</button> 
+            <button type="button" (click)="openDonateModal(item)">Donate</button> 
           </td>
         </tr>
       </tbody>

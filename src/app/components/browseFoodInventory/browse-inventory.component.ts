@@ -3,6 +3,13 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { BrowseFoodService, Food } from '../../services/browse-food.service';
+import { Router } from '@angular/router';
+
+// ⭐新增：用于判断是否在浏览器端
+import { isPlatformBrowser } from '@angular/common';
+import { Inject, PLATFORM_ID } from '@angular/core';
+
+
 
 interface Item {
   _id: string;
@@ -13,6 +20,10 @@ interface Item {
   expiry: string;
   notes?: string;
   owner?: string;
+
+  // ✅ 新增：来自 DonationList 的字段
+  donationAvailability?: string;
+  donationLocation?: string;
 }
 
 type CategoryKey =
@@ -47,13 +58,18 @@ interface Location {
 export class InventoryComponent implements OnInit {
   constructor(
     private cdr: ChangeDetectorRef,
-    private browseService: BrowseFoodService
+    private browseService: BrowseFoodService,
+    private router: Router   // ✅ 新增
+    
   ) {}
 
   /** 页面状态 */
   viewTitle: string = 'Inventory';
   selectedSource: 'inventory' | 'donation' = 'inventory';
   selectedLocation: string = 'All';
+
+    // ✅ 新增：提示消息
+  successMessage: string | null = null;
 
   showFilter = false;
   showSearch = false;
@@ -195,6 +211,10 @@ export class InventoryComponent implements OnInit {
         expiry: food.expiry,
         notes: food.notes,
         owner: food.owner,
+
+        // ✅ 新增：把 rawFoods 里的扩展属性映射进 Item
+        donationAvailability: (food as any).donationAvailability,
+        donationLocation: (food as any).donationLocation,
       });
     });
 
@@ -274,18 +294,39 @@ export class InventoryComponent implements OnInit {
           categories: loc.categories
             .map((cat) => ({
               ...cat,
-              items: cat.items.filter((i) =>
-                i.name.toLowerCase().includes(q)
-              ),
+              items: cat.items.filter((i) => i.name.toLowerCase().includes(q)),
             }))
             .filter((cat) => cat.items.length > 0),
         }))
         .filter((loc) => loc.categories.length > 0);
+
+      // ✅ 如果没找到任何结果
+      if (locs.length === 0) {
+        alert(`${this.searchQuery} does not exist ❌`);
+
+        // 清空搜索并刷新所有项目
+        this.searchQuery = '';
+        this.refreshView();
+        return; // 防止继续执行
+      }
     }
 
     this.viewLocs = locs;
     this.cdr.detectChanges();
+
+    // ✅ 空状态提示逻辑
+    if (this.viewLocs.length === 0) {
+      if (this.selectedSource === 'inventory') {
+        this.successMessage = "There is no food items in inventory 🍂";
+      } else if (this.selectedSource === 'donation') {
+        this.successMessage = "There is no donation items available 🍂";
+      }
+    } else {
+      this.successMessage = null;
+    }
   }
+
+
 
   /** ✅ UI 控制方法（补齐防止报错） */
   toggleFilterPanel() {
@@ -312,9 +353,27 @@ export class InventoryComponent implements OnInit {
       (c) => (this.filter.categories[c.key] = true)
     );
 
-    if (source === 'donation') this.filter.expiredIn = 0;
+    if (source === 'donation') {
+      this.browseService.getDonations().subscribe((donations: any[]) => {
+      this.rawFoods = donations.map(d => ({
+        ...d.foodId,                    // Food 基本信息（name/category/expiry/storage…）
+        qty: d.qty,                     // ✅ DonationList 数量
+        notes: d.notes,                 // ✅ DonationList 备注
+        status: 'donation',
+        owner: d.owner,
 
-    this.refreshView();
+        // ✅ 新增：DonationList 的字段（先存到 raw 里，后面 buildLocations 映射进 Item）
+        donationAvailability: d.availability,
+        donationLocation: d.location,
+        donationId: d._id
+      }));
+      this.ensureCategoryKeysInitialized(true);
+      this.refreshView();
+      });
+    } else {
+      this.loadFoods(); // 走 inventory 的逻辑
+    }
+
     this.showSearch = false;
     this.showFilter = false;
   }
@@ -389,9 +448,14 @@ export class InventoryComponent implements OnInit {
     this.refreshView();
   }
 
-  /** 数量调整 */
+  /** 数量增加 */
   increaseSelected(item: Item) {
-    if (item.selectedQty < item.qty) item.selectedQty++;
+    if (item.selectedQty < item.qty) {
+      item.selectedQty++;
+    } else {
+      // ✅ 已经到最大数量了
+      alert(`${item.name} reach the maximum quantity 🚫`);
+    }
   }
 
   decreaseSelected(item: Item) {
@@ -401,7 +465,10 @@ export class InventoryComponent implements OnInit {
   /** 弹窗逻辑 */
   openConfirm(item: Item, action: 'used' | 'meal' | 'donate' | 'edit') {
     console.log('🟢 openConfirm', item.name, 'action:', action, 'selectedQty:', item.selectedQty);
-    if (action !== 'edit' && item.selectedQty <= 0) return;
+
+    // ✅ donate 不要直接跳转
+    if (action !== 'edit' && action !== 'donate' && item.selectedQty <= 0) return;
+
     this.confirmItem = item;
     this.confirmAction = action;
     this.showConfirm = true;
@@ -417,35 +484,47 @@ export class InventoryComponent implements OnInit {
 
   /** 执行动作 */
   confirmActionProceed() {
-    if (!this.confirmItem || !this.confirmAction) return;
+      if (!this.confirmItem || !this.confirmAction) return;
 
-    if (this.confirmAction === 'used' || this.confirmAction === 'meal') {
-      const targetItem = this.confirmItem; // ✅ 保存引用
-      const newQty = Math.max(0, targetItem.qty - targetItem.selectedQty);
+      if (this.confirmAction === 'used' || this.confirmAction === 'meal') {
+        const item = this.confirmItem;
+        const newQty = item.qty - item.selectedQty;
 
-      this.browseService.updateFoodQty(targetItem._id, newQty).subscribe({
-        next: (updatedFood) => {
-          // ✅ 更新当前 item
-          targetItem.qty = updatedFood.qty;
-          targetItem.selectedQty = 0;
+        this.browseService.updateFoodQty(item._id, newQty).subscribe({
+          next: () => {
+            // ✅ 更新前端 qty
+            item.qty = newQty;
+            item.selectedQty = 0;
 
-          // ✅ 同步 rawFoods
-          const idx = this.rawFoods.findIndex(f => f._id === targetItem._id);
-          if (idx !== -1) {
-            this.rawFoods[idx].qty = updatedFood.qty;
-          }
+            // ✅ 浏览器弹窗提示
+            alert(`\nUsed ${item.name} successfully✅`);
+          },
+          error: (err) => {
+            console.error('❌ 更新失败:', err);
+            alert(`\nFailed to update ${item.name}❌`);
+          },
+        });
 
-          console.log(`✅ ${targetItem.name} 剩余数量更新为 ${updatedFood.qty}`);
+      }
 
-          this.refreshView(); // 🔄 重新渲染 UI
-        },
-        error: err => console.error('❌ Error updating quantity:', err)
-      });
+      if (this.confirmAction === 'donate') {
+        this.router.navigate(['/manage-inventory'], {
+          queryParams: { donateId: this.confirmItem._id },
+        });
+      }
 
+      if (this.confirmAction === 'edit') {
+        const editId =
+          (this.confirmItem as any).donationId || this.confirmItem._id;
+        this.router.navigate(['/donation-list'], {
+          queryParams: { editId, returnTo: 'browse' },
+        });
+      }
+
+      this.closeConfirm();
     }
 
-    this.closeConfirm(); // ✅ 现在关闭弹窗不会影响 targetItem
-  }
+
 
 
   /** 过期计算 */

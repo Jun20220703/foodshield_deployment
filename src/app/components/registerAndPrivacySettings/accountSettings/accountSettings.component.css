@@ -377,15 +377,22 @@
 /* Action Buttons */
 .action-buttons {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 20px;
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
 }
 
+.right-buttons {
+  display: flex;
+  gap: 15px;
+}
+
 .cancel-button,
-.save-button {
+.save-button,
+.delete-account-button {
   padding: 16px 32px;
   border: none;
   border-radius: 8px;
@@ -400,13 +407,29 @@
   justify-content: center;
 }
 
+.delete-account-button {
+  background: #f44336;
+  color: white;
+  min-width: 100px;
+  height: 50px;
+  padding: 16px 20px;
+}
+
+.delete-account-button:hover:not(:disabled) {
+  background: #da190b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
+}
+
 .cancel-button {
   background: #4CAF50;
   color: white;
 }
 
-.cancel-button:hover {
+.cancel-button:hover:not(:disabled) {
   background: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 }
 
 .save-button {
@@ -416,6 +439,8 @@
 
 .save-button:hover:not(:disabled) {
   background: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
 }
 
 .save-button:disabled,
@@ -1191,6 +1216,47 @@
   }
   
   .change-button {
+    width: 100%;
+  }
+}
+
+/* Delete Account Dialog Styles */
+.delete-account-confirm-button {
+  background: #f44336;
+  color: white;
+  border: 1px solid #d32f2f;
+  padding: 12px 30px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.delete-account-confirm-button:hover:not(:disabled) {
+  background: #d32f2f;
+  border-color: #b71c1c;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
+}
+
+.delete-account-confirm-button:disabled {
+  background: #ccc;
+  color: #666;
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Responsive Design for Delete Account Dialog */
+@media (max-width: 768px) {
+  .password-change-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .delete-account-confirm-button {
     width: 100%;
   }
 }

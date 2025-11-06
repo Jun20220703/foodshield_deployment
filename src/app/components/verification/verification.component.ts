@@ -145,12 +145,29 @@ export class VerificationComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
         
         // 메시지를 alert로도 표시하여 확실히 보이게 함
-        alert('Verification is successful!');
+        alert('🎉 Two-Factor Authentication verification successful! You will be redirected to set up your new password for enhanced security.');
         
-        // 메시지가 표시되도록 충분한 시간을 기다린 후 리다이렉트
+        // 원래 애플리케이션으로 돌아가기 위해 새 탭을 닫고 원래 탭으로 포커스
         setTimeout(() => {
-          console.log('Redirecting to account settings...');
-          this.router.navigate(['/account-settings'], { queryParams: { tab: 'privacy' } });
+          console.log('Attempting to close verification tab and return to original application...');
+          
+          try {
+            // 새 탭을 닫으려고 시도
+            if (window.opener && !window.opener.closed) {
+              // 팝업으로 열린 경우 - 원래 창으로 포커스하고 닫기
+              console.log('Closing popup window and focusing on opener');
+              window.opener.focus();
+              window.close();
+            } else {
+              // 새 탭으로 열린 경우 - 닫기 시도
+              console.log('Attempting to close current tab');
+              window.close();
+            }
+          } catch (error) {
+            console.log('Cannot close tab automatically, redirecting to account settings instead');
+            // 탭을 닫을 수 없는 경우 account-settings로 리다이렉트
+            this.router.navigate(['/account-settings'], { queryParams: { tab: 'privacy' } });
+          }
         }, 2000);
       },
       error: (error) => {

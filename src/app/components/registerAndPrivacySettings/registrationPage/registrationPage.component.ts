@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { NgForm, FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -13,19 +13,61 @@ import { HttpClient, HttpClientModule } from '@angular/common/http';
 })
 export class RegistrationPageComponent {
 
+  // Form data properties
+  name: string = '';
+  email: string = '';
   password: string = '';
   confirmPassword: string = '';
+  householdSize: string = '';
+  dob: string = '';
   
   // 유효성 검사 메시지
   passwordError: string = '';
   emailError: string = '';
 
-  constructor(private router: Router, private http: HttpClient) {}
+  constructor(private router: Router, private http: HttpClient, private cdr: ChangeDetectorRef) {}
 
   clearInput(inputRef: HTMLInputElement) {
     inputRef.value = '';
     // Trigger change detection for ngModel
     inputRef.dispatchEvent(new Event('input'));
+  }
+
+  clearName() {
+    console.log('Clearing name, current value:', this.name);
+    this.name = '';
+    console.log('Name cleared, new value:', this.name);
+    this.cdr.detectChanges();
+  }
+
+  clearEmail() {
+    console.log('Clearing email, current value:', this.email);
+    this.email = '';
+    this.emailError = '';
+    console.log('Email cleared, new value:', this.email);
+    this.cdr.detectChanges();
+  }
+
+  clearPassword() {
+    console.log('Clearing password, current value:', this.password);
+    this.password = '';
+    this.passwordError = '';
+    console.log('Password cleared, new value:', this.password);
+    this.cdr.detectChanges();
+  }
+
+  clearConfirmPassword() {
+    console.log('Clearing confirmPassword, current value:', this.confirmPassword);
+    this.confirmPassword = '';
+    console.log('ConfirmPassword cleared, new value:', this.confirmPassword);
+    this.cdr.detectChanges();
+  }
+
+  clearDob() {
+    console.log('Clearing dob, current value:', this.dob);
+    this.dob = '';
+    console.log('Dob cleared, new value:', this.dob);
+    this.cdr.detectChanges();
   }
 
   openDatePicker(inputRef: HTMLInputElement) {
@@ -83,8 +125,7 @@ export class RegistrationPageComponent {
     }
 
     // 이메일 유효성 검사
-    const emailValue = form.value.email;
-    if (!this.validateEmail(emailValue)) {
+    if (!this.validateEmail(this.email)) {
       return;
     }
 
@@ -96,11 +137,11 @@ export class RegistrationPageComponent {
     if (form.valid && this.passwordError === '' && this.emailError === '') {
       // 백엔드 API 호출을 위한 데이터 준비
       const registrationData = {
-        name: form.value.name,
-        email: form.value.email,
+        name: this.name,
+        email: this.email,
         password: this.password,
-        householdSize: form.value.householdSize === 'No-Selection' ? null : form.value.householdSize,
-        dateOfBirth: form.value.dob
+        householdSize: this.householdSize === 'No-Selection' ? null : this.householdSize,
+        dateOfBirth: this.dob
       };
 
       // 백엔드 API 호출

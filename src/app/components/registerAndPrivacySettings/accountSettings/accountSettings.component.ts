@@ -95,6 +95,13 @@ export class AccountSettingsComponent implements OnInit, OnDestroy {
   isChanging2FAPassword: boolean = false;
   twoFAPasswordError: string = '';
 
+  // Delete Account Dialog state
+  showDeleteAccountDialog: boolean = false;
+  deleteAccountPassword: string = '';
+  showDeleteAccountPassword: boolean = false;
+  isDeletingAccount: boolean = false;
+  deleteAccountError: string = '';
+
   constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
 
   ngOnDestroy() {
@@ -247,6 +254,14 @@ export class AccountSettingsComponent implements OnInit, OnDestroy {
   onCancel() {
     // Reset form data or navigate away
     this.router.navigate(['/home']);
+  }
+
+  onDeleteAccount() {
+    // Show password confirmation dialog instead of simple confirm
+    this.showDeleteAccountDialog = true;
+    this.deleteAccountPassword = '';
+    this.deleteAccountError = '';
+    this.cdr.detectChanges();
   }
 
   onSave() {
@@ -677,10 +692,34 @@ export class AccountSettingsComponent implements OnInit, OnDestroy {
   onTwoFactorDisableConfirm() {
     // 2FA 끄기 확인
     console.log('2FA disable confirmed');
-    this.twoFactorEnabled = false;
-    this.showTwoFactorDisableDialog = false;
-    this.cdr.detectChanges();
-    console.log('✅ 2FA disabled');
+    
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert('User ID not found. Please log in again.');
+      return;
+    }
+    
+    // 백엔드 API 호출하여 2FA 비활성화
+    this.http.post('http://localhost:5001/api/users/disable-2fa', {
+      userId: userId
+    }).subscribe({
+      next: (response: any) => {
+        console.log('2FA disabled successfully:', response);
+        this.twoFactorEnabled = false;
+        this.showTwoFactorDisableDialog = false;
+        this.cdr.detectChanges();
+        console.log('✅ 2FA disabled');
+        
+        // 성공 메시지 표시
+        alert('Two-Factor Authentication has been disabled successfully.');
+      },
+      error: (error) => {
+        console.error('Failed to disable 2FA:', error);
+        alert('Failed to disable Two-Factor Authentication. Please try again.');
+        this.showTwoFactorDisableDialog = false;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   // Resend verification link
@@ -944,13 +983,13 @@ export class AccountSettingsComponent implements OnInit, OnDestroy {
           
           // Immediately show the activation success message (no delay)
           this.showSuccessMessage = true;
-          this.successMessage = 'Verification has been activated successfully!';
+          this.successMessage = '🔐 Two-Factor Authentication has been successfully enabled! Please set up your new password to complete the security setup.';
           
           // Show 2FA password change dialog after a short delay
           setTimeout(() => {
             this.open2FAPasswordChangeDialog();
             console.log('2FA password change dialog shown');
-          }, 2000); // 2초 후에 비밀번호 변경 다이얼로그 표시
+          }, 3000); // 3초 후에 비밀번호 변경 다이얼로그 표시
         }
         
         this.cdr.detectChanges();
@@ -1107,11 +1146,27 @@ export class AccountSettingsComponent implements OnInit, OnDestroy {
           localStorage.setItem('userPassword', this.twoFANewPassword);
         }
         
-        // Show success message
+        // Show success message and redirect to login
         this.showSuccessMessage = true;
-        this.successMessage = 'Password changed successfully! Your account is now fully secured with Two-Factor Authentication.';
+        this.successMessage = '🎉 Two-Factor Authentication setup completed successfully! For security reasons, please log in again with your new password.';
         
         this.cdr.detectChanges();
+        
+        // Clear all authentication data and redirect to login after showing success message
+        setTimeout(() => {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userPassword');
+            localStorage.removeItem('2faVerificationComplete');
+            localStorage.removeItem('2faActivationSuccess');
+            localStorage.removeItem('2faVerificationTimestamp');
+          }
+          
+          // Redirect to login page
+          this.router.navigate(['/login']);
+        }, 3000); // 3초 후에 로그인 페이지로 리다이렉트
       },
       error: (error) => {
         console.error('2FA password change failed:', error);
@@ -1131,5 +1186,103 @@ export class AccountSettingsComponent implements OnInit, OnDestroy {
     this.show2FAConfirmPassword = false;
     this.twoFAPasswordError = '';
     this.cdr.detectChanges();
+  }
+
+  // Delete Account Dialog methods
+  onDeleteAccountCancel() {
+    this.showDeleteAccountDialog = false;
+    this.deleteAccountPassword = '';
+    this.deleteAccountError = '';
+    this.cdr.detectChanges();
+  }
+
+  toggleDeleteAccountPasswordVisibility() {
+    this.showDeleteAccountPassword = !this.showDeleteAccountPassword;
+  }
+
+  clearDeleteAccountPassword() {
+    this.deleteAccountPassword = '';
+  }
+
+  onDeleteAccountConfirm() {
+    // Clear previous error
+    this.deleteAccountError = '';
+
+    // Validate password input
+    if (!this.deleteAccountPassword) {
+      this.deleteAccountError = 'Please enter your current password to confirm account deletion.';
+      return;
+    }
+
+    // Verify password matches current password
+    if (this.deleteAccountPassword !== this.actualPassword) {
+      this.deleteAccountError = 'Incorrect password. Please enter your current password.';
+      return;
+    }
+
+    // Get user ID
+    if (typeof window === 'undefined' || !window.localStorage) {
+      this.deleteAccountError = 'User not authenticated. Please log in again.';
+      return;
+    }
+    
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      this.deleteAccountError = 'User not authenticated. Please log in again.';
+      return;
+    }
+
+    this.isDeletingAccount = true;
+    this.cdr.detectChanges();
+
+    // Call delete account API
+    this.http.delete(`http://localhost:5001/api/users/profile/${userId}`)
+      .subscribe({
+        next: (response: any) => {
+          console.log('Account deleted successfully:', response);
+          this.isDeletingAccount = false;
+          
+          // Clear all user data from localStorage
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userPassword');
+            localStorage.removeItem('2faVerificationComplete');
+            localStorage.removeItem('2faActivationSuccess');
+            localStorage.removeItem('2faVerificationTimestamp');
+          }
+          
+          // Close dialog and show success message
+          this.showDeleteAccountDialog = false;
+          this.deleteAccountPassword = '';
+          this.deleteAccountError = '';
+          
+          // Show success message and redirect to login
+          alert('Your account has been successfully deleted. You will be redirected to the login page.');
+          this.router.navigate(['/login']);
+        },
+        error: (error) => {
+          console.error('Account deletion failed:', error);
+          this.isDeletingAccount = false;
+          
+          let errorMessage = 'Failed to delete account';
+          
+          if (error.status === 0) {
+            errorMessage = 'Cannot connect to server. Please check if the backend server is running.';
+          } else if (error.status === 404) {
+            errorMessage = 'User not found. Please log in again.';
+          } else if (error.status === 500) {
+            errorMessage = 'Server error. Please try again later.';
+          } else if (error.error?.message) {
+            errorMessage = error.error.message;
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+          
+          this.deleteAccountError = errorMessage;
+          this.cdr.detectChanges();
+        }
+      });
   }
 }

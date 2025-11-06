@@ -109,6 +109,12 @@
     </div>
     <!-- ✅ Filter Drawer END -->
 
+    <!-- ✅ 空状态提示：居中显示 -->
+    <div *ngIf="successMessage" class="empty-alert">
+      {{ successMessage }}
+    </div>
+
+
     <!-- 🔹 渲染 Storage → Category → Item -->
     <div *ngFor="let loc of viewLocs" class="location-block">
       <h1 *ngIf="selectedLocation === 'All'" class="location-title">{{ loc.name }}</h1>
@@ -133,42 +139,53 @@
             </div>
           </div>
 
-          <!-- ✅ Donation List 模式 -->
-          <div *ngIf="selectedSource === 'donation'; else normalItem" class="donation-row">
-            <!-- 始终显示 qty -->
-            <div class="remaining-box donation-view">{{ item.qty }}</div>
-            <div class="edit-slot">
-              <button class="edit-btn" (click)="openConfirm(item, 'edit')">Edit</button>
-            </div>
-          </div>
+                    <!-- ✅ Donation List / Inventory 统一结构（避免作用域跑飞） -->
+                    <ng-container *ngIf="selectedSource === 'donation'; else normalItem">
+                      <div class="donation-row">
+                        <!-- 始终显示 qty -->
+                        <div class="remaining-box donation-view">{{ item.qty }}</div>
 
-          <!-- ✅ Inventory 模式 -->
-          <ng-template #normalItem>
-            <!-- 剩余数量（qty 一定显示） -->
-            <div class="remaining-box" [ngClass]="getExpiryClass(item)">
-              {{ item.qty }}
-            </div>
+                        <!-- ✅ 显示 availability / location -->
+                        <div class="donation-meta">
+                          pickup in
+                          <strong>{{ item.donationAvailability || 'N/A' }}</strong>
+                          at
+                          <strong>{{ item.donationLocation || 'N/A' }}</strong>
+                        </div>
 
-            <!-- 剩余天数 -->
-            <div class="days-inline" [ngClass]="getExpiryClass(item)">
-              {{ getRemainingDays(item.expiry) <= 0 ? 'Expired' : getRemainingDays(item.expiry) + ' days left' }}
-            </div>
+                        <div class="edit-slot">
+                          <button class="edit-btn" (click)="openConfirm(item, 'edit')">Edit</button>
+                        </div>
+                      </div>
+                    </ng-container>
 
-            <!-- 数量控制器 -->
-            <div class="quantity-control">
-              <button type="button" (click)="decreaseSelected(item)">-</button>
-              <span class="qty">{{ item.selectedQty }}</span>
-              <button type="button" (click)="increaseSelected(item)">+</button>
-            </div>
+                    <!-- ✅ Inventory 模式 -->
+                    <ng-template #normalItem>
+                      <!-- 剩余数量（qty 一定显示） -->
+                      <div class="remaining-box" [ngClass]="getExpiryClass(item)">
+                        {{ item.qty }}
+                      </div>
 
+                      <!-- 剩余天数 -->
+                      <div class="days-inline" [ngClass]="getExpiryClass(item)">
+                        {{ getRemainingDays(item.expiry) <= 0 ? 'Expired' : getRemainingDays(item.expiry) + ' days left' }}
+                      </div>
 
-            <!-- 操作按钮 -->
-            <div class="hover-actions" [class.visible]="hoverItem === item">
-              <button class="used" (click)="openConfirm(item, 'used')">Used</button>
-              <button class="meal" (click)="openConfirm(item, 'meal')">Meal</button>
-              <button class="donate" (click)="openConfirm(item, 'donate')">Donate</button>
-            </div>
-          </ng-template>
+                      <!-- 数量控制器 -->
+                      <div class="quantity-control">
+                        <button type="button" (click)="decreaseSelected(item)">-</button>
+                        <span class="qty">{{ item.selectedQty }}</span>
+                        <button type="button" (click)="increaseSelected(item)">+</button>
+                      </div>
+
+                      <!-- 操作按钮 -->
+                      <div class="hover-actions" [class.visible]="hoverItem === item">
+                        <button class="used" (click)="openConfirm(item, 'used')">Used</button>
+                        <button class="meal" (click)="openConfirm(item, 'meal')">Meal</button>
+                        <button class="donate" (click)="openConfirm(item, 'donate')">Donate</button>
+                      </div>
+                    </ng-template>
+
         </div>
       </div>
     </div>
@@ -195,6 +212,9 @@
       <ng-container [ngSwitch]="confirmAction">
         <ng-container *ngSwitchCase="'edit'">
           Edit donation item of <strong>{{ confirmItem?.name }}</strong>?
+        </ng-container>
+        <ng-container *ngSwitchCase="'donate'">
+          Do you want to donate <strong>{{ confirmItem?.name }}</strong>?
         </ng-container>
         <ng-container *ngSwitchDefault>
           Do you want to mark {{ confirmItem?.selectedQty }}

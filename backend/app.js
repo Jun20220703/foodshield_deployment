@@ -9,6 +9,7 @@ const browseFood = require('./routes/browseFood');   // 只读浏览
 const userRoutes = require('./routes/users');        // 用户相关
 const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 
 const app = express();
@@ -158,6 +159,8 @@ app.put('/api/foods/:id', async (req, res) => {
     res.status(500).json({ message: 'Server error while updating food', error });
   }
 });
+
+app.use('/api/notifications', notificationRoutes);
 
 
 

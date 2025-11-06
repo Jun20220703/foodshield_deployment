@@ -12,6 +12,8 @@ import { VerificationComponent } from './components/verification/verification.co
 import { EditFoodComponent } from './components/editFood/edit-food.component';
 import { AddCustomMealComponent } from './components/planWeeklyMeal/addCustomMeal/add-custom-meal.component';
 import { BrowseRecipesComponent } from './components/browseRecipes/browse-recipes.component';
+import { EditDonationComponent } from './components/editDonation/edit-donation.component';
+import { NotificationsListComponent } from './components/notifications/notifications-list.component';
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -26,5 +28,7 @@ export const routes: Routes = [
   { path: 'donation-list', component: DonationListComponent},
   { path: 'verification', component: VerificationComponent},
   { path: 'edit-food/:id', component: EditFoodComponent},
+  { path: 'edit-donation/:id', component:EditDonationComponent},
+  { path: 'notifications-list', component:NotificationsListComponent},
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];

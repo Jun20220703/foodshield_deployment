@@ -115,14 +115,17 @@
       </div>
     </div>
 
-    <!-- Action Buttons - Only show for Account Settings tab -->
-    <div *ngIf="activeTab === 'account'" class="action-buttons">
-      <button class="cancel-button" (click)="onCancel()" [disabled]="isSaving">Cancel</button>
-      <button class="save-button" (click)="onSave()" [disabled]="isSaving">
-        <span *ngIf="!isSaving">Save</span>
-        <span *ngIf="isSaving">Saving...</span>
-      </button>
-    </div>
+     <!-- Action Buttons - Only show for Account Settings tab -->
+     <div *ngIf="activeTab === 'account'" class="action-buttons">
+       <button class="delete-account-button" (click)="onDeleteAccount()" [disabled]="isSaving">Delete Account</button>
+       <div class="right-buttons">
+         <button class="cancel-button" (click)="onCancel()" [disabled]="isSaving">Back</button>
+         <button class="save-button" (click)="onSave()" [disabled]="isSaving">
+           <span *ngIf="!isSaving">Save</span>
+           <span *ngIf="isSaving">Saving...</span>
+         </button>
+       </div>
+     </div>
 
     <!-- Password Reset Confirmation Dialog -->
     <div *ngIf="showPasswordResetDialog" class="dialog-overlay">
@@ -297,8 +300,8 @@
   <div *ngIf="show2FAPasswordChangeDialog" class="dialog-overlay">
     <div class="password-change-container">
       <div class="password-change-content">
-        <h2 class="password-change-title">🔒 Security Update Required</h2>
-        <p class="password-change-description">For security reasons, you must change your password after enabling Two-Factor Authentication.</p>
+        <h2 class="password-change-title">🔐 Set Up New Password</h2>
+        <p class="password-change-description">Congratulations! Your Two-Factor Authentication has been successfully enabled. For enhanced security, please set up a new password to complete your account security setup.</p>
         <div class="password-form">
           <div class="form-field">
             <label class="field-label" for="2fa-new-password">New Password*:</label>
@@ -357,6 +360,45 @@
         <p class="success-message">{{ successMessage }}</p>
         <div class="success-buttons">
           <button class="success-btn" (click)="onSuccessClose()">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Account Dialog -->
+  <div *ngIf="showDeleteAccountDialog" class="dialog-overlay">
+    <div class="password-change-container">
+      <div class="password-change-content">
+        <h2 class="password-change-title">⚠️ Delete Account</h2>
+        <p class="password-change-description">This action cannot be undone. All your data will be permanently removed. Please enter your current password to confirm account deletion.</p>
+        <div class="password-form">
+          <div class="form-field">
+            <label class="field-label" for="delete-account-password">Current Password*:</label>
+            <div class="input-container">
+              <input 
+                [type]="showDeleteAccountPassword ? 'text' : 'password'" 
+                id="delete-account-password" 
+                class="form-input" 
+                [(ngModel)]="deleteAccountPassword" 
+                placeholder="Enter your current password" 
+                title="Enter your current password">
+              <button class="password-toggle-button" (click)="toggleDeleteAccountPasswordVisibility()" title="Toggle password visibility">
+                <span *ngIf="!showDeleteAccountPassword">Show</span>
+                <span *ngIf="showDeleteAccountPassword">Hide</span>
+              </button>
+              <button class="clear-button" (click)="clearDeleteAccountPassword()" title="Clear password">×</button>
+            </div>
+          </div>
+          <div *ngIf="deleteAccountError" class="password-error-message">
+            {{ deleteAccountError }}
+          </div>
+        </div>
+        <div class="password-change-buttons">
+          <button class="cancel-password-button" (click)="onDeleteAccountCancel()" [disabled]="isDeletingAccount">Cancel</button>
+          <button class="delete-account-confirm-button" (click)="onDeleteAccountConfirm()" [disabled]="isDeletingAccount">
+            <span *ngIf="!isDeletingAccount">Delete Account</span>
+            <span *ngIf="isDeletingAccount">Deleting...</span>
+          </button>
         </div>
       </div>
     </div>

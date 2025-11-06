@@ -21,7 +21,7 @@
         <tr *ngFor="let donation of donations">
           <td>{{ donation.foodId?.name }}</td>
           <td>{{ donation.qty }}</td>
-          <td>{{ donation.foodId?.expiry }}</td>
+          <td>{{ donation.foodId?.expiry | date:'yyyy-MM-dd' }}</td>
           <td>{{ donation.location }}</td>
           <td>{{ donation.availability }}</td>
           <td>{{ donation.notes }}</td>

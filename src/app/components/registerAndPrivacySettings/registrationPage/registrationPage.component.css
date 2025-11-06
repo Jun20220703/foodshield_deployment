@@ -35,7 +35,9 @@ form label {
 }
 .input-group {
     position: relative;
-    margin-bottom: 22px;
+    margin-bottom: 30px;
+    min-height: 60px;
+    overflow: visible;
 }
 .input-group input,
 .input-group select {
@@ -92,7 +94,7 @@ form label {
     color: #a0a0a0;
     font-size: 1.2rem;
     cursor: pointer;
-    z-index: 1;
+    z-index: 2;
     background: transparent;
     border: none;
     padding: 4px;
@@ -107,7 +109,8 @@ form label {
 
 .input-group .icon.clear {
     right: 12px;
-    top: 70%;
+    top: 70% !important;
+    transform: translateY(-50%) !important;
 }
 
 .input-group .icon.calendar-icon {
@@ -182,6 +185,11 @@ form label {
     margin-top: 4px;
     margin-left: 4px;
     font-weight: 500;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 0;
+    pointer-events: none;
 }
 
 @media (max-width: 600px) {

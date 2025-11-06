@@ -4,6 +4,8 @@ import { SidebarComponent } from "../sidebar/sidebar.component";
 import { Router } from '@angular/router';
 import { FoodService } from '../../services/food.service';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+
 @Component({
   selector: 'app-food-inventory',
   templateUrl: './manage-inventory.component.html',
@@ -17,11 +19,27 @@ export class ManageFoodInventory {
   constructor (
     private foodService: FoodService, 
     private router: Router,
-    private cdr: ChangeDetectorRef){}
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute   // ✅ 新增
+  ){}
+
 
   ngOnInit(){
-    this.loadFoods();
-  }
+  this.loadFoods();
+
+  this.route.queryParams.subscribe((params: any) => {
+    const donateId = params['donateId'];
+    if (donateId) {
+      // 等 foods 加载完之后再找 item
+      setTimeout(() => {
+        const target = this.foodItems.find(f => f._id === donateId);
+        if (target) {
+          this.openDonateModal(target); // ✅ 自动打开 donate 弹窗
+        }
+      }, 500);
+    }
+  });
+}
 
 loadFoods() {
   // localStorage からログインユーザー情報を取得
@@ -38,10 +56,26 @@ loadFoods() {
 
   this.foodService.getFoods(userId).subscribe({
     next: (data) => {
-      this.foodItems = data.filter((f: any) =>   f.owner === userId && f.status ==='inventory');
+      const today = new Date();
+      this.foodItems = data.filter((f: any) =>   
+        f.owner === userId && 
+        f.status ==='inventory' &&
+        (!f.expiry || new Date(f.expiry) >= today)
+      );
       console.log('Filtered food items:', this.foodItems);
 
         this.cdr.detectChanges();
+      
+      this.foodItems.forEach(food => {
+        const expiry = new Date(food.expiry);
+        const diffInDays = (expiry.getTime() - today.getTime()) / (1000 * 3600 * 24);
+        if(diffInDays <= 3 && diffInDays >= 0){
+          this.foodService.sendExpiryNotification(food).subscribe({
+            next: ()=> console.log(`📢 Notification sent for ${food.name}`),
+            error: (err) => console.error('❌ Failed to send expiry notification', err)
+          });
+        }
+      })
     },
     error: (err) => {
       console.error('Error loading foods:', err);
@@ -117,6 +151,13 @@ confirmDonate() {
     this.donateError = 'Pickup location and availability are required.';
     return;
   }
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userId = user?.id;
+
+  if(!userId){
+    this.donateError = 'User not logged in.';
+    return;
+  }
 
 
   const donationData = {
@@ -124,7 +165,8 @@ confirmDonate() {
     qty: this.selectedDonateItem.qty,
     location: this.donationDetails.location,
     availability: this.donationDetails.availability,
-    notes: this.donationDetails.notes
+    notes: this.donationDetails.notes,
+    owner: userId
   };
 
   console.log('🧾 donationData before sending:', donationData); // ✅ 追加
@@ -135,6 +177,7 @@ confirmDonate() {
       this.foodService.updateFoodStatus(this.selectedDonateItem._id, 'donation').subscribe({
         next: (updateRes) => {
           console.log('Food status updated to donation:', updateRes);
+          alert('Donation successfully added!');
           // モーダル閉じて再読み込み
           this.showDonateModal = false;
           this.selectedDonateItem = null;

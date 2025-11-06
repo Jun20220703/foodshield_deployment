@@ -1,0 +1,30 @@
+<div class="container">
+  <app-sidebar></app-sidebar>
+
+  <main class="content">
+    <h1>Edit Donation</h1>
+
+    <form [formGroup]="donationForm" (ngSubmit)="onSubmit()" class="donation-form">
+
+      <div class="form-group">
+        <label for="location">Pickup Location</label>
+        <input id="location" type="text" formControlName="location" />
+      </div>
+
+      <div class="form-group">
+        <label for="availability">Availability Date</label>
+        <input id="availability" type="date" formControlName="availability" />
+      </div>
+
+      <div class="form-group">
+        <label for="notes">Notes</label>
+        <textarea id="notes" formControlName="notes" rows="3"></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" [disabled]="donationForm.invalid">Save</button>
+        <button type="button" (click)="cancel()">Cancel</button>
+      </div>
+    </form>
+  </main>
+</div>
