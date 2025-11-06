@@ -485,9 +485,17 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
     
     if (this.selectedDay && this.selectedMealType) {
-      // TODO: 레시피 브라우저 표시
-      console.log('Browse recipes for', this.selectedDay.date, this.selectedMealType);
-      this.closeMealOptions();
+      const dateKey = this.getDateKey(this.selectedDay.fullDate);
+      // Browse Recipes 페이지로 이동하며 날짜와 meal type 전달
+      this.router.navigate(['/browse-recipes'], {
+        queryParams: {
+          date: dateKey,
+          mealType: this.selectedMealType
+        }
+      });
+    } else {
+      console.warn('Cannot navigate: selectedDay or selectedMealType is missing');
+      alert('Please select a meal slot first');
     }
   }
 

@@ -11,6 +11,7 @@ import { DonationListComponent } from './components/donationList/donation-list.c
 import { VerificationComponent } from './components/verification/verification.component';
 import { EditFoodComponent } from './components/editFood/edit-food.component';
 import { AddCustomMealComponent } from './components/planWeeklyMeal/addCustomMeal/add-custom-meal.component';
+import { BrowseRecipesComponent } from './components/browseRecipes/browse-recipes.component';
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -21,6 +22,7 @@ export const routes: Routes = [
   { path: 'manage-inventory', component: ManageFoodInventory},
   { path: 'add-food', component: AddFoodItemComponent},
   { path: 'add-custom-meal', component: AddCustomMealComponent},
+  { path: 'browse-recipes', component: BrowseRecipesComponent},
   { path: 'donation-list', component: DonationListComponent},
   { path: 'verification', component: VerificationComponent},
   { path: 'edit-food/:id', component: EditFoodComponent},

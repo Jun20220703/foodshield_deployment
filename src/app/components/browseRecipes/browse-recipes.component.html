@@ -1,0 +1,124 @@
+<div class="page-layout">
+  <!-- Sidebar -->
+  <app-sidebar></app-sidebar>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <h1 class="page-title">Browse Recipes</h1>
+    
+    <!-- Suggested Recipes Section -->
+    <div class="recipes-section">
+      <h2 class="section-title">Suggested Recipes</h2>
+      <div class="recipes-carousel">
+        <button class="carousel-arrow left" (click)="previousSuggested()">‹</button>
+        <div class="recipes-list">
+          <div 
+            class="recipe-card" 
+            *ngFor="let recipe of suggestedRecipes; let i = index"
+            [class.active]="i === currentSuggestedIndex"
+            (click)="selectRecipe(recipe)">
+            <div class="recipe-image">
+              <img [src]="recipe.image" [alt]="recipe.name" onerror="this.src='assets/placeholder-recipe.jpg'">
+            </div>
+            <div class="recipe-name">{{ recipe.name }}</div>
+          </div>
+        </div>
+        <button class="carousel-arrow right" (click)="nextSuggested()">›</button>
+      </div>
+      <div class="info-text">
+        <p>***Click a food name to see more details***</p>
+        <p>***The provided images may differ from the actual dishes***</p>
+      </div>
+    </div>
+
+    <!-- More Recipes Section -->
+    <div class="recipes-section">
+      <h2 class="section-title">More Recipes</h2>
+      <div class="recipes-carousel">
+        <button class="carousel-arrow left" (click)="previousMore()">‹</button>
+        <div class="recipes-list">
+          <div 
+            class="recipe-card" 
+            *ngFor="let recipe of moreRecipes; let i = index"
+            [class.active]="i === currentMoreIndex"
+            (click)="selectRecipe(recipe)">
+            <div class="recipe-image">
+              <img [src]="recipe.image" [alt]="recipe.name" onerror="this.src='assets/placeholder-recipe.jpg'">
+            </div>
+            <div class="recipe-name">{{ recipe.name }}</div>
+          </div>
+        </div>
+        <button class="carousel-arrow right" (click)="nextMore()">›</button>
+      </div>
+      <div class="info-text">
+        <p>***Click a food name to see more details***</p>
+        <p>***The provided images may differ from the actual dishes***</p>
+      </div>
+    </div>
+
+    <!-- Current Inventory Section -->
+    <div class="inventory-section">
+      <div class="inventory-header">
+        <h2 class="section-title">Current inventory</h2>
+        <div class="search-filter-bar">
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Food item Name"
+            [(ngModel)]="searchTerm"
+            (input)="filterInventory()">
+          <button class="search-btn" (click)="filterInventory()">
+            <span class="search-icon">🔍</span>
+          </button>
+          <button class="filter-btn" (click)="toggleFilter()">
+            <span class="filter-icon">☰</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="inventory-container">
+        <div class="table-headers">
+          <div class="header-cell">Name</div>
+          <div class="header-cell">Quantity</div>
+          <div class="header-cell">Category</div>
+          <div class="header-cell">Mark</div>
+          <div class="header-cell">Expiry</div>
+        </div>
+
+        <div class="inventory-list">
+          <div 
+            class="inventory-item" 
+            *ngFor="let item of filteredInventory; let i = index"
+            [class.selected]="selectedItemIndex === i"
+            (click)="selectItem(i)">
+            <div class="item-name">{{ item.name }}</div>
+            <div class="item-quantity">
+              <span class="quantity-circle">{{ item.quantity }}</span>
+            </div>
+            <div class="item-category">
+              <span class="category-badge" [class]="'category-' + item.category.toLowerCase()">
+                <span class="category-icon">{{ getCategoryIcon(item.category) }}</span>
+                {{ item.category }}
+              </span>
+            </div>
+            <div class="item-mark">
+              <span *ngIf="item.marked" class="marked-badge">
+                <span class="checkmark">✓</span>
+                Marked
+              </span>
+            </div>
+            <div class="item-expiry">
+              <span class="expiry-date">{{ item.expiry }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="back-button-container">
+      <button class="btn-back" (click)="back()">Back</button>
+    </div>
+  </div>
+</div>
+
