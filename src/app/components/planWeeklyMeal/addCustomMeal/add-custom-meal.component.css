@@ -19,7 +19,7 @@
 .content-wrapper {
   display: flex;
   gap: 25px;
-  align-items: flex-start;
+  align-items: stretch;
   width: 100%;
 }
 
