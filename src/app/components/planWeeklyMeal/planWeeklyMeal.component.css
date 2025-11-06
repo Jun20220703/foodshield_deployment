@@ -200,6 +200,7 @@
   pointer-events: auto !important;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  -webkit-user-select: none;
   user-select: none;
 }
 
