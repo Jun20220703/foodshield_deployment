@@ -10,28 +10,58 @@
     <h2 class="section-title">Calendar View</h2>
     <div class="calendar-container">
       <div class="month-header">
-        <button class="nav-arrow" (click)="previousWeek()">‹</button>
+        <button class="nav-arrow" (click)="previousMonth($event)">‹</button>
         <span class="month-name">{{ currentMonth }}</span>
-        <button class="nav-arrow" (click)="nextWeek()">›</button>
+        <button class="nav-arrow" (click)="nextMonth($event)">›</button>
       </div>
       
       <div class="week-days">
-        <button class="week-nav-arrow left" (click)="previousDay()" title="Previous day">‹</button>
+        <button class="week-nav-arrow left" (click)="previousDay($event)" title="Previous day">‹</button>
         <div class="day-column" *ngFor="let day of weekDays">
-          <div class="day-card">
+          <div class="day-card" [class.past-day]="day.isPast">
             <div class="day-header">
               <div class="day-name">{{ day.name }}</div>
-              <div class="day-number">{{ day.date }}</div>
+              <div class="day-number" [class.today]="day.isToday">{{ day.date }}</div>
             </div>
             <div class="meal-slots">
-              <div class="meal-slot" *ngFor="let meal of mealTypes">
+              <div class="meal-slot" *ngFor="let meal of mealTypes" 
+                   (click)="selectMealSlot(day, meal)"
+                   [class.has-meal]="hasMeal(day, meal)"
+                   [class.selected]="selectedDay && selectedDay.fullDate.getTime() === day.fullDate.getTime() && selectedMealType === meal">
                 <div class="meal-indicator"></div>
                 <div class="meal-name">{{ meal }}</div>
+                <div class="meal-content" *ngIf="hasMeal(day, meal)">
+                  {{ getMealName(day, meal) }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <button class="week-nav-arrow right" (click)="nextDay()" title="Next day">›</button>
+        <button class="week-nav-arrow right" (click)="nextDay($event)" title="Next day">›</button>
+      </div>
+      
+      <!-- Meal Options inside calendar container -->
+      <div class="meal-options-section" *ngIf="showMealOptions">
+        <div class="meal-options-header">
+          <h3>No meals added...</h3>
+        </div>
+        <div class="meal-options-content">
+          <div class="meal-option-card add-own" (click)="addOwnMeal($event)">
+            <div class="option-question">Do you want to add your own meal?</div>
+            <button class="option-button" type="button" (click)="addOwnMeal($event); $event.stopPropagation()">Add</button>
+          </div>
+          <div class="meal-option-card browse" (click)="browseRecipes($event)">
+            <div class="option-question">Do you want to browse more recipes?</div>
+            <button class="option-button" type="button" (click)="browseRecipes($event); $event.stopPropagation()">Browse</button>
+          </div>
+        </div>
+        <div class="close-options-wrapper">
+          <button class="close-options-button" (click)="closeMealOptions()" title="Close options">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 15L12 9L6 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -95,5 +125,6 @@
       </div>
     </div>
   </div>
+
 </div>
 

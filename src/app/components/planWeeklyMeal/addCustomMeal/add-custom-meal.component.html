@@ -1,0 +1,156 @@
+<div class="page-layout">
+  <!-- Sidebar -->
+  <app-sidebar></app-sidebar>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="content-wrapper">
+      <!-- Left: Meal Form -->
+      <div class="meal-form-container">
+        <h1 class="page-title">Add Custom meals</h1>
+        
+        <form class="meal-form" (ngSubmit)="createMeal()">
+        <!-- Food Photo (Optional) -->
+        <div class="form-group">
+          <label class="form-label">Food Photo (Optional)</label>
+          <div class="photo-upload-area">
+            <input 
+              type="file" 
+              id="photo-upload" 
+              accept="image/*" 
+              (change)="onPhotoChange($event)"
+              style="display: none;">
+            
+            <div *ngIf="!foodPhoto" class="photo-placeholder" (click)="triggerPhotoUpload()">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Fork -->
+                <path d="M5 12V2M5 12C5 13.1046 5.89543 14 7 14C8.10457 14 9 13.1046 9 12V2M5 12V20M9 12V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Knife -->
+                <path d="M15 2V20M15 12C15 13.1046 15.8954 14 17 14C18.1046 14 19 13.1046 19 12C19 10.8954 18.1046 10 17 10C15.8954 10 15 10.8954 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            
+            <div *ngIf="foodPhoto" class="photo-preview">
+              <img [src]="foodPhoto" alt="Food photo">
+              <button type="button" class="remove-photo-btn" (click)="removePhoto()">×</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Food Name -->
+        <div class="form-group">
+          <label class="form-label">Food Name</label>
+          <input 
+            type="text" 
+            class="form-input" 
+            [(ngModel)]="foodName" 
+            name="foodName"
+            placeholder="Enter food name"
+            required>
+        </div>
+
+        <!-- Ingredients -->
+        <div class="form-group">
+          <label class="form-label">Ingredients</label>
+          <textarea 
+            class="form-textarea" 
+            [(ngModel)]="ingredients" 
+            name="ingredients"
+            placeholder="Enter ingredients"
+            rows="6"></textarea>
+        </div>
+
+        <!-- How to Cook -->
+        <div class="form-group">
+          <label class="form-label">How to Cook</label>
+          <textarea 
+            class="form-textarea" 
+            [(ngModel)]="howToCook" 
+            name="howToCook"
+            placeholder="Enter cooking instructions"
+            rows="6"></textarea>
+        </div>
+
+        <!-- Kcal -->
+        <div class="form-group">
+          <label class="form-label">Kcal</label>
+          <input 
+            type="text" 
+            class="form-input" 
+            [(ngModel)]="kcal" 
+            name="kcal"
+            placeholder="Enter calories">
+        </div>
+
+        <!-- Buttons -->
+        <div class="form-actions">
+          <button type="button" class="btn-back" (click)="back()">Back</button>
+          <button type="submit" class="btn-create">Create</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Right: Current Inventory Section -->
+    <div class="inventory-wrapper">
+      <div class="inventory-section">
+        <div class="inventory-header">
+          <h2 class="section-title">Current inventory</h2>
+          <div class="search-filter-bar">
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Food item Name"
+            [(ngModel)]="searchTerm"
+            (input)="filterInventory()">
+          <button class="search-btn" (click)="filterInventory()">
+            <span class="search-icon">🔍</span>
+          </button>
+          <button class="filter-btn" (click)="toggleFilter()">
+            <span class="filter-icon">☰</span>
+          </button>
+        </div>
+        </div>
+
+        <div class="inventory-container">
+        <div class="table-headers">
+          <div class="header-cell">Name</div>
+          <div class="header-cell">Quantity</div>
+          <div class="header-cell">Category</div>
+          <div class="header-cell">Mark</div>
+          <div class="header-cell">Expiry</div>
+        </div>
+
+        <div class="inventory-list">
+          <div 
+            class="inventory-item" 
+            *ngFor="let item of filteredInventory; let i = index"
+            [class.selected]="selectedItemIndex === i"
+            (click)="selectItem(i)">
+            <div class="item-name">{{ item.name }}</div>
+            <div class="item-quantity">
+              <span class="quantity-circle">{{ item.quantity }}</span>
+            </div>
+            <div class="item-category">
+              <span class="category-badge" [class]="'category-' + item.category.toLowerCase()">
+                <span class="category-icon">{{ getCategoryIcon(item.category) }}</span>
+                {{ item.category }}
+              </span>
+            </div>
+            <div class="item-mark">
+              <span *ngIf="item.marked" class="marked-badge">
+                <span class="checkmark">✓</span>
+                Marked
+              </span>
+            </div>
+            <div class="item-expiry">
+              <span class="expiry-date">{{ item.expiry }}</span>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
