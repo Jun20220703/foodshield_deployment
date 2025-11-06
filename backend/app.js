@@ -49,6 +49,8 @@ app.use('/api/users', userRoutes);       // 用户路由
 app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
+app.use("/api/analytics", require("./routes/analyticsRoute"));
+
 
 // 基础测试路由
 app.get('/', (req, res) => {
