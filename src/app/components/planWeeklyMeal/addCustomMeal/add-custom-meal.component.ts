@@ -4,6 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../../sidebar/sidebar.component';
 
+interface InventoryItem {
+  name: string;
+  quantity: number;
+  category: string;
+  marked: boolean;
+  expiry: string;
+}
+
 @Component({
   selector: 'app-add-custom-meal',
   standalone: true,
@@ -21,6 +29,49 @@ export class AddCustomMealComponent implements OnInit {
   selectedDate: string = '';
   selectedMealType: string = '';
 
+  searchTerm: string = '';
+  selectedItemIndex: number = -1;
+
+  inventory: InventoryItem[] = [
+    {
+      name: 'Apple',
+      quantity: 4,
+      category: 'Fruit',
+      marked: false,
+      expiry: '12/11/2025'
+    },
+    {
+      name: 'Avocado',
+      quantity: 6,
+      category: 'Fruit',
+      marked: false,
+      expiry: '25/11/2025'
+    },
+    {
+      name: 'Banana',
+      quantity: 2,
+      category: 'Fruit',
+      marked: false,
+      expiry: '30/9/2025'
+    },
+    {
+      name: 'Broccoli',
+      quantity: 3,
+      category: 'Vegetable',
+      marked: false,
+      expiry: '17/10/2025'
+    },
+    {
+      name: 'Chicken',
+      quantity: 3,
+      category: 'Meat',
+      marked: true,
+      expiry: '19/9/2025'
+    }
+  ];
+
+  filteredInventory: InventoryItem[] = [];
+
   constructor(
     private router: Router,
     private route: ActivatedRoute
@@ -32,6 +83,9 @@ export class AddCustomMealComponent implements OnInit {
       this.selectedDate = params['date'] || '';
       this.selectedMealType = params['mealType'] || '';
     });
+    
+    // Initialize filtered inventory
+    this.filteredInventory = [...this.inventory];
   }
 
   onPhotoChange(event: Event) {
@@ -82,6 +136,38 @@ export class AddCustomMealComponent implements OnInit {
 
   back() {
     this.router.navigate(['/planWeeklyMeal']);
+  }
+
+  filterInventory() {
+    if (!this.searchTerm.trim()) {
+      this.filteredInventory = [...this.inventory];
+    } else {
+      this.filteredInventory = this.inventory.filter(item =>
+        item.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+        item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
+      );
+    }
+  }
+
+  toggleFilter() {
+    // Toggle filter functionality can be implemented here
+    console.log('Filter toggled');
+  }
+
+  selectItem(index: number) {
+    this.selectedItemIndex = index;
+  }
+
+  getCategoryIcon(category: string): string {
+    const icons: { [key: string]: string } = {
+      'Fruit': '🍎',
+      'Vegetable': '🥬',
+      'Meat': '🥩',
+      'Dairy': '🥛',
+      'Grains': '🌾',
+      'Other': '📦'
+    };
+    return icons[category] || '📦';
   }
 }
 
