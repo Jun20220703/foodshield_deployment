@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
-const Food = reauire('../models/Food');
+const Food = require('../models/Food');
 const { sendNotification } = require('../services/notificationService');
 // 全通知を取得
 router.get('/', async (req, res) => {
