@@ -23,6 +23,9 @@ export class AnalyticsComponent implements OnInit {
   loading = signal<boolean>(true);
   data = signal<AnalyticsData | null>(null);
 
+  // ✅ new line for clickable tags (Expired / Donated / Consumed)
+  selectedStatus = signal<'expired' | 'donated' | 'consumed'>('expired');
+
   // header numbers
   consumed = computed(() => this.data()?.header.consumed ?? 0);
   donation = computed(() => this.data()?.header.donation ?? 0);

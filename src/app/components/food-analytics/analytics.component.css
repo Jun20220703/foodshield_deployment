@@ -116,13 +116,31 @@
   padding: 12px 12px 0 12px;
 }
 
+/* Base tag style */
 .tag {
   padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0.6;
+  transition: 0.2s ease;
 }
+
+.tag.active {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+/* Tag color presets */
+.tag:nth-child(1) { background: #ffd5d5; color: #e63939; }  /* expired */
+.tag:nth-child(2) { background: #ffecb5; color: #b8860b; }  /* donated */
+.tag:nth-child(3) { background: #d8ffe4; color: #2b8c4a; }  /* consumed */
+
+/* Panel modes */
+.bar-panel.expired-mode { background: #ffdede; }
+.bar-panel.donated-mode { background: #fff5cc; }
+.bar-panel.consumed-mode { background: #e3ffe9; }
 
 .tag-expired {
   background: #ffebee;

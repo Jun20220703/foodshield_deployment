@@ -63,11 +63,34 @@
       </div>
 
       <!-- Bar card (top expired) -->
-      <div class="panel bar-panel">
+      <div  
+        class="panel bar-panel"
+        [ngClass]="{
+          'expired-mode': selectedStatus() === 'expired',
+          'donated-mode': selectedStatus() === 'donated',
+          'consumed-mode': selectedStatus() === 'consumed'
+        }">
         <div class="status-tags">
-          <span class="tag tag-expired">Expired</span>
-          <span class="tag tag-donated">Donated</span>
-          <span class="tag tag-consumed">Consumed</span>
+          <span 
+            class="tag"
+            [class.active]="selectedStatus() === 'expired'"
+            (click)="selectedStatus.set('expired')">
+            Expired
+          </span>
+
+          <span 
+            class="tag"
+            [class.active]="selectedStatus() === 'donated'"
+            (click)="selectedStatus.set('donated')">
+            Donated
+          </span>
+
+          <span 
+            class="tag"
+            [class.active]="selectedStatus() === 'consumed'"
+            (click)="selectedStatus.set('consumed')">
+            Consumed
+          </span>
         </div>
 
         <div class="bar-headings">
