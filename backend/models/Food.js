@@ -10,7 +10,7 @@ const foodSchema = new mongoose.Schema({
   
 
   // ✅ 新增字段：状态 (inventory / donation)
-  status: { type: String, enum: ['inventory', 'used', 'donation', 'expired'],
+  status: { type: String, enum: ['inventory', 'consumed', 'donation', 'expired'],
     default: 'inventory' },
 
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }

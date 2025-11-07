@@ -9,6 +9,7 @@ const browseFood = require('./routes/browseFood');   // 只读浏览
 const userRoutes = require('./routes/users');        // 用户相关
 const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
+const analyticsRoutes = require('./routes/analyticsRoute');
 
 
 const app = express();
@@ -49,7 +50,7 @@ app.use('/api/users', userRoutes);       // 用户路由
 app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
-app.use("/api/analytics", require("./routes/analyticsRoute"));
+app.use('/api/analytics', analyticsRoutes);
 
 
 // 基础测试路由

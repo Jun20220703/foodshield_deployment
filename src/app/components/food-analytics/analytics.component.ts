@@ -2,7 +2,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { BaseChartDirective } from 'ng2-charts';
-import { ChartConfiguration, ChartData } from 'chart.js';
+import { ChartConfiguration, ChartData, Chart, registerables } from 'chart.js';
+Chart.register(...registerables); // ✅ important!!
 import { AnalyticsService, AnalyticsData, Range } from '../../services/analytics.service';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { NgIf } from '@angular/common';
@@ -65,6 +66,7 @@ export class AnalyticsComponent implements OnInit {
   private load() {
     this.loading.set(true);
     this.api.getAnalytics(this.range()).subscribe((res: AnalyticsData) => {
+      console.log("📌 API returned:", res);   // ✅ 加这一行
       this.data.set(res);
 
       // pie: Consumed / Donated / Expired
@@ -79,9 +81,9 @@ export class AnalyticsComponent implements OnInit {
 
       // bar: top expired foods
       this.barData.set({
-        labels: res.topExpired.map(i => i.name),
+        labels: res.topExpired.map((i: any) => i.name),
         datasets: [{
-          data: res.topExpired.map(i => i.count),
+          data: res.topExpired.map((i: any) => i.count),
           backgroundColor: ['#f56b6b','#fbc1a7','#f8a8a8'] // soft reds like prototype
         }]
       });

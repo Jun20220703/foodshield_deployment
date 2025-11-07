@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
@@ -7,8 +7,8 @@ export type Range = 'month' | 'year';
 export interface AnalyticsData {
   header: {
     consumed: number;
-    expired: number;
     donation: number;
+    expired: number;
   };
   pie: {
     labels: string[];
@@ -19,11 +19,21 @@ export interface AnalyticsData {
 
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
-  private baseUrl = '/api/analytics';
-
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
+  private baseUrl = 'http://localhost:5001/api/analytics';
 
   getAnalytics(range: Range): Observable<AnalyticsData> {
-    return this.http.get<AnalyticsData>(`${this.baseUrl}/${range}`);
-  }
+    const token = localStorage.getItem('token');
+
+    const endpoint = range === 'month'
+        ? 'monthly'
+        : 'yearly';
+
+    return this.http.get<AnalyticsData>(
+        `http://localhost:5001/api/analytics/${endpoint}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
+    }
+
+
 }
