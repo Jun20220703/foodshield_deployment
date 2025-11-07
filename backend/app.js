@@ -10,6 +10,8 @@ const userRoutes = require('./routes/users');        // 用户相关
 const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
 const analyticsRoutes = require('./routes/analyticsRoute');
+console.log("✅ Analytics route file loaded");
+
 
 
 const app = express();
@@ -51,6 +53,8 @@ app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
 app.use('/api/analytics', analyticsRoutes);
+console.log("✅ Analytics routes mounted at /api/analytics");
+
 
 
 // 基础测试路由

@@ -9,21 +9,21 @@
     <section class="kpis">
         <div class="kpi kpi-consumed">
             <div class="kpi-title">
-            {{ range() === 'month' ? 'Monthly Consumed' : 'Yearly Consumed' }}
+            {{ range() === 'day' ? 'Daily Consumed' : 'Monthly Consumed' }}
             </div>
             <div class="kpi-value">{{ consumed() }}</div>
         </div>
 
         <div class="kpi kpi-donation">
             <div class="kpi-title">
-            {{ range() === 'month' ? 'Monthly Donation' : 'Yearly Donation' }}
+            {{ range() === 'day' ? 'Daily Donation' : 'Monthly Donation' }}
             </div>
             <div class="kpi-value">{{ donation() }}</div>
         </div>
 
         <div class="kpi kpi-expired">
             <div class="kpi-title">
-            {{ range() === 'month' ? 'Monthly Expired' : 'Yearly Expired' }}
+            {{ range() === 'day' ? 'Daily Expired' : 'Monthly Expired' }}
             </div>
             <div class="kpi-value">{{ expired() }}</div>
         </div>
@@ -38,16 +38,16 @@
         <div class="toggle-stack">
           <button
             class="pill"
-            [class.active]="range()==='month'"
-            (click)="setRange('month')">
-            Month
+            [class.active]="range()==='day'"
+            (click)="setRange('day')">
+            Day
           </button>
           <button
             class="pill"
-            [class.disabled]="range()==='month'"
-            [class.active]="range()==='year'"
-            (click)="setRange('year')">
-            Year
+            [class.disabled]="range()==='day'"
+            [class.active]="range()==='month'"
+            (click)="setRange('month')">
+            Month
           </button>
         </div>
 

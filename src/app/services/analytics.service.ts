@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-export type Range = 'month' | 'year';
+export type Range = 'day' | 'month';
 
 export interface AnalyticsData {
   header: {
@@ -25,15 +25,19 @@ export class AnalyticsService {
   getAnalytics(range: Range): Observable<AnalyticsData> {
     const token = localStorage.getItem('token');
 
-    const endpoint = range === 'month'
-        ? 'monthly'
-        : 'yearly';
+    const endpoint = range === 'day'
+      ? 'daily'
+      : 'monthly';
 
     return this.http.get<AnalyticsData>(
-        `http://localhost:5001/api/analytics/${endpoint}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      `http://localhost:5001/api/analytics/${endpoint}`,
+      {
+        headers: { Authorization: `Bearer ${token}` }  // ✅ 加上 Bearer 前缀
+      }
     );
-    }
+  }
+
+
 
 
 }
