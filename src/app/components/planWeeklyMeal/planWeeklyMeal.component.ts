@@ -779,10 +779,11 @@ export class PlanWeeklyMealComponent implements OnInit {
                 Promise.all(deletePromises).then(() => {
                   console.log('✅ All marked foods removed');
                   this.isRemoving = false;
-                  // Update local state immediately (no need to reload from DB)
-                  this.updateLocalInventoryAfterRemove(item, removeQty, []);
-                  // Close modal and show success message
+                  // Close modal first for better UX
                   this.closeRemoveModal();
+                  // Update local state and reload from DB to ensure accuracy
+                  this.updateLocalInventoryAfterRemove(item, removeQty, []);
+                  // Show success message
                   this.showSuccessToast(`Removed ${removeQty} ${item.name}(s) successfully✅`);
                 }).catch(err => {
                   console.error('❌ Error deleting marked foods:', err);
@@ -860,10 +861,11 @@ export class PlanWeeklyMealComponent implements OnInit {
                       }
                       
                       console.log('✅ All marked foods processed successfully');
-                      // Update local state immediately (no need to reload from DB)
-                      this.updateLocalInventoryAfterRemove(item, removeQty, relevantMarkedFoods);
-                      // Close modal and show success message
+                      // Close modal first for better UX
                       this.closeRemoveModal();
+                      // Update local state and reload from DB to ensure accuracy
+                      this.updateLocalInventoryAfterRemove(item, removeQty, relevantMarkedFoods);
+                      // Show success message
                       this.showSuccessToast(`Removed ${removeQty} ${item.name}(s) successfully✅`);
                     };
 
@@ -986,42 +988,32 @@ export class PlanWeeklyMealComponent implements OnInit {
 
   // Optimize: Update local inventory state immediately for better UX
   updateLocalInventoryAfterRemove(item: InventoryItem, removeQty: number, processedMarkedFoods: MarkedFood[]) {
-    // Update local inventory item
-    const inventoryItem = this.inventory.find(inv => inv.foodId === item.foodId);
-    if (inventoryItem) {
-      // Only update markedQuantity, NOT quantity (quantity is the original food quantity from DB)
-      inventoryItem.markedQuantity -= removeQty;
-      
-      // If marked quantity becomes 0, remove from inventory
-      if (inventoryItem.markedQuantity <= 0) {
-        const index = this.inventory.indexOf(inventoryItem);
-        if (index > -1) {
-          this.inventory.splice(index, 1);
+    console.log('🔄 Updating local inventory after remove:', {
+      itemName: item.name,
+      removeQty: removeQty,
+      processedMarkedFoods: processedMarkedFoods.length
+    });
+    
+    // Update rawMarkedFoods cache first - remove or update processed marked foods
+    if (processedMarkedFoods && processedMarkedFoods.length > 0) {
+      processedMarkedFoods.forEach(mf => {
+        const cachedIndex = this.rawMarkedFoods.findIndex(r => r._id === mf._id);
+        if (cachedIndex > -1) {
+          const cached = this.rawMarkedFoods[cachedIndex];
+          // Calculate actual new quantity based on what was removed
+          // We need to track what was actually removed from each marked food
+          // For now, reload from DB to ensure accuracy
+          this.rawMarkedFoods.splice(cachedIndex, 1);
         }
-      }
-      
-      // Also update rawMarkedFoods cache to keep it in sync
-      if (processedMarkedFoods && processedMarkedFoods.length > 0) {
-        processedMarkedFoods.forEach(mf => {
-          const cached = this.rawMarkedFoods.find(r => r._id === mf._id);
-          if (cached) {
-            const newQty = mf.qty - removeQty;
-            if (newQty <= 0) {
-              const cachedIndex = this.rawMarkedFoods.indexOf(cached);
-              if (cachedIndex > -1) {
-                this.rawMarkedFoods.splice(cachedIndex, 1);
-              }
-            } else {
-              cached.qty = newQty;
-            }
-          }
-        });
-      }
+      });
     }
     
-    // Update filtered inventory and pagination
-    this.applyFilters();
-    this.cdr.detectChanges();
+    // Reload inventory from database to ensure accuracy
+    // This is necessary because the actual quantities updated in DB may differ
+    // from what we calculated locally
+    setTimeout(() => {
+      this.loadInventory();
+    }, 200); // Small delay to ensure DB updates are complete
   }
 
   getCategoryIcon(category: string): string {
