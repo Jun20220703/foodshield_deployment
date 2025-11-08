@@ -52,7 +52,7 @@ app.use('/api/users', userRoutes);       // 用户路由
 app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
-app.use('/api/analytics', analyticsRoute);   // ✅ Add this line
+app.use("/api/analytics", require("./routes/analyticsRoute"));  // ✅ Add this line
 
 
 

@@ -1,6 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Food = require('../models/Food');
+
+/**
+ * Auto-update food items that expire today to "expired" status
+ */
+async function autoUpdateExpiredFoods(ownerId, startUTC, endUTC) {
+  try {
+    const updateResult = await Food.updateMany(
+      {
+        ...(ownerId && { owner: ownerId }),
+        expiry: { $gte: startUTC, $lte: endUTC },
+        status: { $in: ["inventory", "donation"] }
+      },
+      { 
+        $set: { status: "expired" }
+      }
+    );
+    if (updateResult.modifiedCount > 0) {
+      console.log(`🔄 Auto-updated ${updateResult.modifiedCount} food items to expired status`);
+    }
+    return updateResult.modifiedCount;
+  } catch (err) {
+    console.error("🔥 Error auto-updating expired foods:", err);
+    return 0;
+  }
+}
 
 // ✅ update food item status (Donate / Inventory)
 router.put('/status/:name', async (req, res) => {
@@ -24,6 +50,23 @@ router.get('/', async (req, res) => {
   try {
     const { userId } = req.query;
     const filter = userId ? { owner: userId } : {};
+    
+    // ✅ Auto-update foods that expire today to "expired" status
+    if (userId) {
+      const now = new Date();
+      const MYT_OFFSET_MS = 8 * 60 * 60 * 1000; // +8 hours in milliseconds
+      const nowMYT = new Date(now.getTime() + MYT_OFFSET_MS);
+      const startMYT = new Date(nowMYT);
+      startMYT.setUTCHours(0, 0, 0, 0);
+      const endMYT = new Date(nowMYT);
+      endMYT.setUTCHours(23, 59, 59, 999);
+      const startUTC = new Date(startMYT.getTime() - MYT_OFFSET_MS);
+      const endUTC = new Date(endMYT.getTime() - MYT_OFFSET_MS);
+      
+      const ownerId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+      await autoUpdateExpiredFoods(ownerId, startUTC, endUTC);
+    }
+    
     const foods = await Food.find(filter);
     res.json(foods);
   } catch (err) {
