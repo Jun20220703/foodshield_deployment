@@ -1,4 +1,4 @@
-/*import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Notification, NotificationService } from '../../services/notification.service';
 import { SidebarComponent } from '../sidebar/sidebar.component';
@@ -14,23 +14,35 @@ export class NotificationDetailComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private ns: NotificationService,
-    private router: Router
+    private notificationService: NotificationService,
+    private router: Router,
+    private cdr: ChangeDetectorRef // ✅ 追加
   ) {}
 
-  ngOnInit() {
+  ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      const n = this.ns.getById(id);
-      if (n) {
-        this.notification = n;
-        // 👇 Detailを開いた瞬間に自動で既読化
-        if (!n.read) this.ns.markAsRead(id);
-      }
+      console.log('🟢 id:', id); // ← これを追加
+      // ✅ バックエンドから1件取得
+      this.notificationService.getById(id).subscribe({
+        next: (data) => {
+          this.notification = data;
+          this.cdr.detectChanges(); // ✅ UI更新を強制
+
+
+          // 👇 Detailページを開いたら既読化
+          if (!data.read && data._id) {
+            this.notificationService.markAsRead(data._id).subscribe(() => {
+              this.notification!.read = true;
+            });
+          }
+        },
+        error: (err) => console.error('Error fetching notification:', err)
+      });
     }
   }
 
-  back() {
-    this.router.navigate(['/notifications']);
+  back(): void {
+    this.router.navigate(['/notifications-list']);
   }
-}*/
+}

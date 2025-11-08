@@ -161,6 +161,7 @@ app.put('/api/foods/:id', async (req, res) => {
 });
 
 app.use('/api/notifications', notificationRoutes);
+console.log('✅ Notification routes registered');
 
 
 
