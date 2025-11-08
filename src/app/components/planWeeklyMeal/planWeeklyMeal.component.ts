@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService, Food } from '../../services/food.service';
+import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
 
 interface DayInfo {
   name: string;
@@ -20,10 +21,12 @@ interface MonthYear {
 }
 
 interface InventoryItem {
+  foodId: string; // Food ID to identify same food items
   name: string;
   quantity: number;
   category: string;
   marked: boolean;
+  markedQuantity: number; // Amount that is marked
   expiry: string;
 }
 
@@ -60,11 +63,24 @@ export class PlanWeeklyMealComponent implements OnInit {
   
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
+  
+  // Pagination
+  itemsPerPage: number = 5;
+  currentPage: number = 1;
+  paginatedInventory: InventoryItem[] = [];
+  totalPages: number = 1;
+
+  // Filter
+  showFilter: boolean = false;
+  selectedCategories: Set<string> = new Set();
+  expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
+  availableCategories: string[] = []; // Will be populated from actual inventory data
 
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
-    private foodService: FoodService
+    private foodService: FoodService,
+    private browseService: BrowseFoodService
   ) {}
 
   ngOnInit() {
@@ -102,38 +118,65 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
-    this.foodService.getFoods(userId).subscribe({
-      next: (data: Food[]) => {
-        // status가 'inventory'인 항목만 필터링하고 InventoryItem 형식으로 변환
-        this.inventory = data
-          .filter((f: any) => f.owner === userId && f.status === 'inventory')
-          .map((food: any) => {
-            // expiry 날짜 포맷팅 (Date 객체를 DD/MM/YYYY 형식으로)
-            let expiryStr = '';
-            if (food.expiry) {
-              const expiryDate = new Date(food.expiry);
-              const day = String(expiryDate.getDate()).padStart(2, '0');
-              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-              const year = expiryDate.getFullYear();
-              expiryStr = `${day}/${month}/${year}`;
-            }
-
-            return {
-              name: food.name,
-              quantity: food.qty || 0,
-              category: food.category || 'Other',
-              marked: food.marked || false,
-              expiry: expiryStr
-            };
-          });
+    // Load only marked foods
+    this.browseService.getMarkedFoods().subscribe({
+      next: (markedFoods: MarkedFood[]) => {
+        console.log('📌 Loaded marked foods:', markedFoods);
         
-        this.filteredInventory = [...this.inventory];
+        // Convert marked foods to InventoryItem format
+        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+          let expiryStr = '';
+          if (markedFood.expiry) {
+            const expiryDate = new Date(markedFood.expiry);
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const year = expiryDate.getFullYear();
+            expiryStr = `${day}/${month}/${year}`;
+          }
+
+          return {
+            foodId: markedFood.foodId || '',
+            name: markedFood.name,
+            quantity: markedFood.qty,
+            category: markedFood.category || 'Other',
+            marked: true,
+            markedQuantity: markedFood.qty,
+            expiry: expiryStr
+          };
+        });
+
+        // Merge marked items with same foodId (same food item marked multiple times)
+        const markedItemsByFoodId = new Map<string, InventoryItem>();
+        markedItems.forEach(item => {
+          const foodId = item.foodId;
+          if (!foodId) {
+            // If no foodId, skip or handle separately
+            return;
+          }
+          
+          const existing = markedItemsByFoodId.get(foodId);
+          if (existing) {
+            // If same foodId exists, add quantities (same food item marked multiple times)
+            existing.quantity += item.quantity;
+            existing.markedQuantity += item.markedQuantity;
+          } else {
+            // Add new item
+            markedItemsByFoodId.set(foodId, { ...item });
+          }
+        });
+
+        this.inventory = Array.from(markedItemsByFoodId.values());
+        this.updateAvailableCategories(); // Update available categories from actual data
+        this.applyFilters(); // Apply filters on initial load
         this.cdr.detectChanges();
       },
       error: (err) => {
-        console.error('Error loading inventory:', err);
+        console.error('Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
+        this.availableCategories = [];
+        this.applyFilters(); // Apply filters even on error
+        this.cdr.detectChanges();
       }
     });
   }
@@ -383,19 +426,171 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   filterInventory() {
-    if (!this.searchTerm.trim()) {
-      this.filteredInventory = [...this.inventory];
-    } else {
-      this.filteredInventory = this.inventory.filter(item =>
-        item.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
-      );
+    this.applyFilters();
+  }
+
+  // Helper method to escape special regex characters
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  updatePagination() {
+    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    if (this.currentPage > this.totalPages && this.totalPages > 0) {
+      this.currentPage = this.totalPages;
+    }
+    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+    const endIndex = startIndex + this.itemsPerPage;
+    this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+  }
+
+  goToPage(page: number) {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.updatePagination();
     }
   }
 
+  getPagesArray(): number[] {
+    return Array.from({ length: this.totalPages }, (_, i) => i + 1);
+  }
+
   toggleFilter() {
-    // Toggle filter functionality can be implemented here
-    console.log('Filter toggled');
+    this.showFilter = !this.showFilter;
+  }
+
+  onCategoryToggle(category: string, checked: boolean) {
+    if (checked) {
+      this.selectedCategories.add(category);
+    } else {
+      this.selectedCategories.delete(category);
+    }
+    console.log('🔍 Selected categories:', Array.from(this.selectedCategories));
+    this.applyFilters();
+  }
+
+  onCategoryAllToggle(checked: boolean) {
+    if (checked) {
+      this.availableCategories.forEach(cat => this.selectedCategories.add(cat));
+    } else {
+      this.selectedCategories.clear();
+    }
+    this.applyFilters();
+  }
+
+  applyExpiryFilter() {
+    this.applyFilters();
+  }
+
+  resetExpiryFilter() {
+    this.expiryFilterDays = null;
+    this.applyFilters();
+  }
+
+  applyFilters() {
+    let filtered = [...this.inventory];
+
+    // Apply category filter (case-insensitive comparison)
+    // If no categories are selected, show all items (shouldn't happen after initialization, but safety check)
+    if (this.selectedCategories.size > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.category) return false;
+        // Normalize category name for comparison (trim and lowercase)
+        const normalizedItemCategory = item.category.trim().toLowerCase();
+        // Check if any selected category matches (case-insensitive)
+        return Array.from(this.selectedCategories).some(selectedCat => 
+          selectedCat.trim().toLowerCase() === normalizedItemCategory
+        );
+      });
+    }
+    // If selectedCategories is empty, show all items (all items pass through)
+
+    // Apply expiry filter
+    if (this.expiryFilterDays !== null && this.expiryFilterDays > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const filterDays = this.expiryFilterDays; // Store in local variable for type safety
+      
+      filtered = filtered.filter(item => {
+        if (!item.expiry) return false;
+        
+        // Parse expiry date (DD/MM/YYYY format)
+        const expiryParts = item.expiry.split('/');
+        if (expiryParts.length !== 3) return false;
+        
+        const expiryDate = new Date(
+          parseInt(expiryParts[2]), 
+          parseInt(expiryParts[1]) - 1, 
+          parseInt(expiryParts[0])
+        );
+        expiryDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = expiryDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Show items that expire within the specified days (including today)
+        return diffDays >= 0 && diffDays <= filterDays;
+      });
+    }
+
+    // Apply search term filter
+    if (this.searchTerm.trim()) {
+      const searchTermLower = this.searchTerm.toLowerCase().trim();
+      const searchWords = searchTermLower.split(/\s+/).filter(word => word.length > 0);
+      
+      filtered = filtered.filter(item => {
+        const itemNameLower = item.name.toLowerCase();
+        const itemCategoryLower = item.category.toLowerCase();
+        
+        return searchWords.every(word => {
+          const wordPattern = new RegExp(`(^|\\s)${this.escapeRegex(word)}`, 'i');
+          const nameMatch = wordPattern.test(itemNameLower) || itemNameLower === word;
+          const categoryMatch = wordPattern.test(itemCategoryLower) || itemCategoryLower === word;
+          return nameMatch || categoryMatch;
+        });
+      });
+    }
+
+    this.filteredInventory = filtered;
+    this.currentPage = 1;
+    this.updatePagination();
+  }
+
+  resetFilters() {
+    this.selectedCategories.clear();
+    this.expiryFilterDays = null;
+    this.searchTerm = '';
+    this.applyFilters();
+  }
+
+  // Update available categories from actual inventory data
+  updateAvailableCategories() {
+    const categorySet = new Set<string>();
+    this.inventory.forEach(item => {
+      if (item.category && item.category.trim()) {
+        // Preserve original case for display, but normalize for comparison
+        categorySet.add(item.category.trim());
+      }
+    });
+    // Sort categories alphabetically (case-insensitive) for consistent display
+    this.availableCategories = Array.from(categorySet).sort((a, b) => 
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
+    
+    console.log('📋 Available categories from inventory:', this.availableCategories);
+    console.log('📋 Inventory items:', this.inventory.map(item => ({ name: item.name, category: item.category })));
+    
+    // If no categories found, use default list
+    if (this.availableCategories.length === 0) {
+      this.availableCategories = ['Fruit', 'Vegetable', 'Meat', 'Dairy', 'Grains', 'Other'];
+    }
+    
+    // Initialize: Select all categories by default if none are selected
+    // This ensures all items are visible when filter is first opened
+    if (this.selectedCategories.size === 0 && this.availableCategories.length > 0) {
+      this.availableCategories.forEach(cat => this.selectedCategories.add(cat));
+      console.log('✅ Initialized: All categories selected by default');
+    }
   }
 
   selectItem(index: number) {
@@ -403,15 +598,22 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   getCategoryIcon(category: string): string {
-    const icons: { [key: string]: string } = {
-      'Fruit': '🍎',
-      'Vegetable': '🥬',
-      'Meat': '🥩',
-      'Dairy': '🥛',
-      'Grains': '🌾',
-      'Other': '📦'
-    };
-    return icons[category] || '📦';
+    if (!category) return '📦';
+    
+    // Normalize category name (lowercase, handle singular/plural)
+    const normalized = category.trim().toLowerCase();
+    const singular = normalized.endsWith('s') ? normalized.slice(0, -1) : normalized;
+    
+    // Map to icons (case-insensitive, handles singular/plural)
+    if (singular.includes('fruit')) return '🍎';
+    if (singular.includes('vegetable')) return '🥬';
+    if (singular.includes('meat')) return '🥩';
+    if (singular.includes('dairy')) return '🥛';
+    if (singular.includes('grain') || singular.includes('carb')) return '🌾';
+    if (singular.includes('other')) return '📦';
+    
+    // Fallback to default
+    return '📦';
   }
 
   // 날짜 키 생성 (YYYY-MM-DD)
@@ -459,6 +661,11 @@ export class PlanWeeklyMealComponent implements OnInit {
       event.stopPropagation();
     }
     
+    // 과거 날짜인 경우 동작하지 않음
+    if (this.isPastDateSelected()) {
+      return;
+    }
+    
     console.log('addOwnMeal called', { selectedDay: this.selectedDay, selectedMealType: this.selectedMealType });
     
     if (this.selectedDay && this.selectedMealType) {
@@ -482,6 +689,11 @@ export class PlanWeeklyMealComponent implements OnInit {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
+    }
+    
+    // 과거 날짜인 경우 동작하지 않음
+    if (this.isPastDateSelected()) {
+      return;
     }
     
     if (this.selectedDay && this.selectedMealType) {
@@ -512,6 +724,18 @@ export class PlanWeeklyMealComponent implements OnInit {
     const mealKey = `${dateKey}-${mealType}`;
     const meal = this.mealPlans.get(mealKey);
     return meal ? meal.mealName : '';
+  }
+
+  // 선택된 날짜가 과거 날짜인지 확인
+  isPastDateSelected(): boolean {
+    if (!this.selectedDay) {
+      return false;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(this.selectedDay.fullDate);
+    selectedDate.setHours(0, 0, 0, 0);
+    return selectedDate.getTime() < today.getTime();
   }
 }
 

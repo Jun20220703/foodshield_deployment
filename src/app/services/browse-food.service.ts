@@ -15,12 +15,26 @@ export interface Food {
   owner?: string;
 }
 
+export interface MarkedFood {
+  _id?: string;
+  foodId: string;
+  qty: number;
+  name: string;
+  category: string;
+  storage: string;
+  expiry: string;
+  notes?: string;
+  owner?: string;
+  createdAt?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class BrowseFoodService {
   private apiUrl = 'http://localhost:5001/api/foods';
   private donationsUrl = 'http://localhost:5001/api/donations';
+  private markedFoodsUrl = 'http://localhost:5001/api/marked-foods';
 
   // ⭐新增：注入 PLATFORM_ID
   constructor(
@@ -60,5 +74,33 @@ export class BrowseFoodService {
   updateFoodQty(id: string, newQty: number): Observable<any> {
     console.log("🟢 updateFoodQty id:", id, "newQty:", newQty);
     return this.http.put(`${this.apiUrl}/${id}`, { qty: newQty });
+  }
+
+  /** Mark food - Save marked food to database */
+  markFood(markedFoodData: MarkedFood): Observable<MarkedFood> {
+    let userId = '';
+    if (isPlatformBrowser(this.platformId)) {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      userId = user.id || '';
+    }
+    return this.http.post<MarkedFood>(this.markedFoodsUrl, {
+      ...markedFoodData,
+      owner: userId
+    });
+  }
+
+  /** Get marked foods for current user */
+  getMarkedFoods(): Observable<MarkedFood[]> {
+    let userId = '';
+    if (isPlatformBrowser(this.platformId)) {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      userId = user.id || '';
+    }
+    return this.http.get<MarkedFood[]>(`${this.markedFoodsUrl}?userId=${userId}`);
+  }
+
+  /** Delete marked food */
+  deleteMarkedFood(id: string): Observable<any> {
+    return this.http.delete(`${this.markedFoodsUrl}/${id}`);
   }
 }

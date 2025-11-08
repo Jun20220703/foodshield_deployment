@@ -9,6 +9,7 @@ const browseFood = require('./routes/browseFood');   // 只读浏览
 const userRoutes = require('./routes/users');        // 用户相关
 const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
+const markedFoodRoutes = require('./routes/markedFoodRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
 
@@ -50,6 +51,7 @@ app.use('/api/users', userRoutes);       // 用户路由
 app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
+app.use('/api/marked-foods', markedFoodRoutes);
 
 // 基础测试路由
 app.get('/', (req, res) => {
