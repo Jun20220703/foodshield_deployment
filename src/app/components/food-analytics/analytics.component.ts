@@ -36,6 +36,76 @@ export class AnalyticsComponent implements OnInit {
   pieData = signal<ChartData<'pie'>>({ labels: [], datasets: [] });
   barData = signal<ChartData<'bar'>>({ labels: [], datasets: [] });
 
+  // ✅ Computed bar data based on selected status
+  currentBarData = computed(() => {
+    const status = this.selectedStatus();
+    const data = this.data();
+    if (!data) return { labels: [], datasets: [] };
+
+    let topFoods: { name: string; count: number }[] = [];
+    let colors: string[] = [];
+
+    switch (status) {
+      case 'expired':
+        topFoods = data.topExpired || [];
+        colors = ['#f56b6b', '#fbc1a7', '#f8a8a8']; // reds
+        break;
+      case 'donated':
+        topFoods = data.topDonated || [];
+        colors = ['#fad46b', '#fce8a3', '#fdf4d3']; // yellows
+        break;
+      case 'consumed':
+        topFoods = data.topConsumed || [];
+        colors = ['#8afc9e', '#b8fcc8', '#d4fde0']; // greens
+        break;
+    }
+
+    return {
+      labels: topFoods.map((i: any) => i.name),
+      datasets: [{
+        data: topFoods.map((i: any) => i.count),
+        backgroundColor: colors
+      }]
+    };
+  });
+
+  // ✅ Get title based on selected status
+  getBarTitle(): string {
+    const status = this.selectedStatus();
+    switch (status) {
+      case 'expired':
+        return 'Top Expired Food';
+      case 'donated':
+        return 'Top Donated Food';
+      case 'consumed':
+        return 'Top Consumed Food';
+      default:
+        return 'Top Expired Food';
+    }
+  }
+
+  // ✅ Get top food name based on selected status
+  getTopFoodName(): string | null {
+    const status = this.selectedStatus();
+    const data = this.data();
+    if (!data) return null;
+
+    let topFoods: { name: string; count: number }[] = [];
+    switch (status) {
+      case 'expired':
+        topFoods = data.topExpired || [];
+        break;
+      case 'donated':
+        topFoods = data.topDonated || [];
+        break;
+      case 'consumed':
+        topFoods = data.topConsumed || [];
+        break;
+    }
+
+    return topFoods[0]?.name || null;
+  }
+
   pieOptions: ChartConfiguration<'pie'>['options'] = {
     responsive: true,
     plugins: { legend: { display: false } }
@@ -79,16 +149,21 @@ export class AnalyticsComponent implements OnInit {
         }]
       });
 
-      // bar: top expired foods
-      this.barData.set({
-        labels: res.topExpired.map((i: any) => i.name),
-        datasets: [{
-          data: res.topExpired.map((i: any) => i.count),
-          backgroundColor: ['#f56b6b','#fbc1a7','#f8a8a8'] // soft reds like prototype
-        }]
-      });
+      // bar: will be updated by currentBarData computed property
+      this.updateBarData();
 
       this.loading.set(false);
     });
+  }
+
+  // ✅ Update bar data when status changes
+  updateBarData() {
+    this.barData.set(this.currentBarData());
+  }
+
+  // ✅ Handle status change
+  onStatusChange(status: 'expired' | 'donated' | 'consumed') {
+    this.selectedStatus.set(status);
+    this.updateBarData();
   }
 }

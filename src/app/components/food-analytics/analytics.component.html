@@ -74,36 +74,36 @@
           <span 
             class="tag"
             [class.active]="selectedStatus() === 'expired'"
-            (click)="selectedStatus.set('expired')">
+            (click)="onStatusChange('expired')">
             Expired
           </span>
 
           <span 
             class="tag"
             [class.active]="selectedStatus() === 'donated'"
-            (click)="selectedStatus.set('donated')">
+            (click)="onStatusChange('donated')">
             Donated
           </span>
 
           <span 
             class="tag"
             [class.active]="selectedStatus() === 'consumed'"
-            (click)="selectedStatus.set('consumed')">
+            (click)="onStatusChange('consumed')">
             Consumed
           </span>
         </div>
 
         <div class="bar-headings">
-          <div class="bar-subtitle">Top Expired Food</div>
-          <div class="bar-topname" *ngIf="data()?.topExpired?.[0]">
-            {{ data()!.topExpired[0].name }}
+          <div class="bar-subtitle">{{ getBarTitle() }}</div>
+          <div class="bar-topname" *ngIf="getTopFoodName()">
+            {{ getTopFoodName() }}
           </div>
         </div>
 
         <div class="panel-body">
           <div class="chart-wrap" *ngIf="!loading(); else loadingTpl">
             <canvas baseChart
-              [data]="barData()"
+              [data]="currentBarData()"
               [options]="barOptions"
               chartType="bar">
             </canvas>

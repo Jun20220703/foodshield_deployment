@@ -18,6 +18,14 @@ export interface AnalyticsData {
     name: string;
     count: number;
   }[];
+  topDonated?: {
+    name: string;
+    count: number;
+  }[];
+  topConsumed?: {
+    name: string;
+    count: number;
+  }[];
 }
 
 @Injectable({ providedIn: 'root' })
