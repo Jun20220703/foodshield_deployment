@@ -25,6 +25,7 @@ interface InventoryItem {
   quantity: number;
   category: string;
   marked: boolean;
+  markedQuantity: number; // Amount that is marked
   expiry: string;
 }
 
@@ -126,6 +127,7 @@ export class PlanWeeklyMealComponent implements OnInit {
               quantity: food.qty || 0,
               category: food.category || 'Other',
               marked: false,
+              markedQuantity: 0,
               expiry: expiryStr
             };
           });
@@ -151,12 +153,50 @@ export class PlanWeeklyMealComponent implements OnInit {
                 quantity: markedFood.qty,
                 category: markedFood.category || 'Other',
                 marked: true,
+                markedQuantity: markedFood.qty,
                 expiry: expiryStr
               };
             });
 
+            // Merge marked items with same name (combine quantities)
+            const markedItemsMap = new Map<string, InventoryItem>();
+            markedItems.forEach(item => {
+              const existing = markedItemsMap.get(item.name);
+              if (existing) {
+                // If same name exists, add quantities
+                existing.quantity += item.quantity;
+                existing.markedQuantity += item.markedQuantity;
+              } else {
+                // Add new item
+                markedItemsMap.set(item.name, { ...item });
+              }
+            });
+
+            const mergedMarkedItems = Array.from(markedItemsMap.values());
+
             // Combine regular inventory and marked foods
-            this.inventory = [...regularInventory, ...markedItems];
+            // Check if regular inventory has same name items and merge
+            const inventoryMap = new Map<string, InventoryItem>();
+            
+            // Add regular inventory items
+            regularInventory.forEach(item => {
+              inventoryMap.set(item.name, { ...item });
+            });
+
+            // Merge marked items (if same name exists in regular inventory, add marked quantity)
+            mergedMarkedItems.forEach(markedItem => {
+              const existing = inventoryMap.get(markedItem.name);
+              if (existing) {
+                // If same name exists in regular inventory, add marked quantity
+                existing.markedQuantity = markedItem.markedQuantity;
+                existing.marked = true; // Mark as marked
+              } else {
+                // Add new marked item
+                inventoryMap.set(markedItem.name, markedItem);
+              }
+            });
+
+            this.inventory = Array.from(inventoryMap.values());
             this.filteredInventory = [...this.inventory];
             this.cdr.detectChanges();
           },

@@ -102,6 +102,7 @@
         <div class="header-cell">Quantity</div>
         <div class="header-cell">Category</div>
         <div class="header-cell">Mark</div>
+        <div class="header-cell">Marked Quantity</div>
         <div class="header-cell">Expiry</div>
       </div>
 
@@ -126,6 +127,12 @@
               <span class="checkmark">✓</span>
               Marked
             </span>
+          </div>
+          <div class="item-marked-quantity">
+            <span *ngIf="item.markedQuantity > 0" class="marked-quantity-badge">
+              {{ item.markedQuantity }}
+            </span>
+            <span *ngIf="item.markedQuantity === 0" class="no-marked-quantity">-</span>
           </div>
           <div class="item-expiry">
             <span class="expiry-date">{{ item.expiry }}</span>
