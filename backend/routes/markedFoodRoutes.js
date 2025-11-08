@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const MarkedFood = require('../models/MarkedFood');
 
-// ➕ Add to marked food
+// ➕ Add to marked food (or update if exists)
 router.post('/', async (req, res) => {
   try {
     const { foodId, owner, qty, name, category, storage, expiry, notes } = req.body;
@@ -12,23 +12,33 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Create new MarkedFood document
-    const markedFood = new MarkedFood({
-      foodId,
-      owner,
-      qty,
-      name,
-      category,
-      storage,
-      expiry: new Date(expiry),
-      notes: notes || ''
-    });
+    // Check if marked food with same foodId already exists
+    const existingMarkedFood = await MarkedFood.findOne({ foodId, owner });
 
-    // Save
-    await markedFood.save();
+    if (existingMarkedFood) {
+      // Update quantity by adding new quantity
+      existingMarkedFood.qty = existingMarkedFood.qty + qty;
+      await existingMarkedFood.save();
+      console.log(`✅ Updated existing marked food: ${name}, new qty: ${existingMarkedFood.qty}`);
+      return res.status(200).json(existingMarkedFood);
+    } else {
+      // Create new MarkedFood document
+      const markedFood = new MarkedFood({
+        foodId,
+        owner,
+        qty,
+        name,
+        category,
+        storage,
+        expiry: new Date(expiry),
+        notes: notes || ''
+      });
 
-    // Return success response
-    res.status(201).json(markedFood);
+      // Save
+      await markedFood.save();
+      console.log(`✅ Created new marked food: ${name}, qty: ${qty}`);
+      return res.status(201).json(markedFood);
+    }
   } catch (err) {
     console.error('❌ Error saving marked food:', err);
     res.status(400).json({ message: err.message });
