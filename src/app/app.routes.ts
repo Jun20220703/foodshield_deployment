@@ -14,6 +14,7 @@ import { AddCustomMealComponent } from './components/planWeeklyMeal/addCustomMea
 import { BrowseRecipesComponent } from './components/browseRecipes/browse-recipes.component';
 import { EditDonationComponent } from './components/editDonation/edit-donation.component';
 import { NotificationsListComponent } from './components/notifications/notifications-list.component';
+import { NotificationDetailComponent } from './components/notifications/notifications-detail.component';
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -30,5 +31,6 @@ export const routes: Routes = [
   { path: 'edit-food/:id', component: EditFoodComponent},
   { path: 'edit-donation/:id', component:EditDonationComponent},
   { path: 'notifications-list', component:NotificationsListComponent},
+  { path: 'notifications/:id', component: NotificationDetailComponent},
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];
