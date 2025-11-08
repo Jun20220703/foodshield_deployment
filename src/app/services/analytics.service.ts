@@ -1,5 +1,5 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export type Range = 'day' | 'month';
@@ -14,30 +14,22 @@ export interface AnalyticsData {
     labels: string[];
     values: number[];
   };
-  topExpired: { name: string; count: number }[];
+  topExpired: {
+    name: string;
+    count: number;
+  }[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
-  private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:5001/api/analytics';
+  private apiUrl = 'http://localhost:5001/api/analytics';
+
+  constructor(private http: HttpClient) {}
 
   getAnalytics(range: Range): Observable<AnalyticsData> {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') ?? '';
+    const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
 
-    const endpoint = range === 'day'
-      ? 'daily'
-      : 'monthly';
-
-    return this.http.get<AnalyticsData>(
-      `http://localhost:5001/api/analytics/${endpoint}`,
-      {
-        headers: { Authorization: `Bearer ${token}` }  // ✅ 加上 Bearer 前缀
-      }
-    );
+    return this.http.get<AnalyticsData>(`${this.apiUrl}/daily`, { headers });
   }
-
-
-
-
 }

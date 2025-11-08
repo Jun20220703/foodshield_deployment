@@ -9,8 +9,8 @@ const browseFood = require('./routes/browseFood');   // 只读浏览
 const userRoutes = require('./routes/users');        // 用户相关
 const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
-const analyticsRoutes = require('./routes/analyticsRoute');
-console.log("✅ Analytics route file loaded");
+const analyticsRoute = require('./routes/analyticsRoute');  // ✅ Add this
+
 
 
 
@@ -52,8 +52,8 @@ app.use('/api/users', userRoutes);       // 用户路由
 app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
-app.use('/api/analytics', analyticsRoutes);
-console.log("✅ Analytics routes mounted at /api/analytics");
+app.use('/api/analytics', analyticsRoute);   // ✅ Add this line
+
 
 
 
