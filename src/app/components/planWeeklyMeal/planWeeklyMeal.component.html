@@ -156,5 +156,60 @@
     </div>
   </div>
 
+  <!-- Filter Drawer -->
+  <div class="filter-drawer" [class.open]="showFilter">
+    <div class="filter-header">
+      <h2>Filters</h2>
+      <button class="close-btn" (click)="toggleFilter()">×</button>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="filter-section">
+      <h3>Category</h3>
+      
+      <!-- All -->
+      <label>
+        <input
+          type="checkbox"
+          name="cat_all"
+          [checked]="selectedCategories.size === availableCategories.length"
+          (change)="onCategoryAllToggle($any($event.target).checked)" />
+        All
+      </label>
+
+      <!-- Individual Categories -->
+      <label *ngFor="let cat of availableCategories">
+        <input
+          type="checkbox"
+          name="cat_{{cat}}"
+          [checked]="selectedCategories.has(cat)"
+          (change)="onCategoryToggle(cat, $any($event.target).checked)" />
+        {{ cat }}
+      </label>
+    </div>
+
+    <!-- Expiry Filter -->
+    <div class="filter-section">
+      <h3>Expired in</h3>
+
+      <div class="expired-input-group">
+        <input
+          type="number"
+          [(ngModel)]="expiryFilterDays"
+          placeholder="Enter days"
+          min="0" />
+        <span>day(s)</span>
+      </div>
+
+      <button class="apply-btn" (click)="applyExpiryFilter()">Apply</button>
+      <button class="reset-btn" (click)="resetExpiryFilter()">Reset</button>
+    </div>
+
+    <!-- Reset All Filters -->
+    <div class="filter-section">
+      <button class="reset-all-btn" (click)="resetFilters()">Reset All Filters</button>
+    </div>
+  </div>
+
 </div>
 

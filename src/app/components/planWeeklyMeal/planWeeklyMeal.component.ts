@@ -70,6 +70,12 @@ export class PlanWeeklyMealComponent implements OnInit {
   paginatedInventory: InventoryItem[] = [];
   totalPages: number = 1;
 
+  // Filter
+  showFilter: boolean = false;
+  selectedCategories: Set<string> = new Set();
+  expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
+  availableCategories: string[] = []; // Will be populated from actual inventory data
+
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
@@ -160,15 +166,16 @@ export class PlanWeeklyMealComponent implements OnInit {
         });
 
         this.inventory = Array.from(markedItemsByFoodId.values());
-        this.filteredInventory = [...this.inventory];
-        this.updatePagination();
+        this.updateAvailableCategories(); // Update available categories from actual data
+        this.applyFilters(); // Apply filters on initial load
         this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
-        this.updatePagination();
+        this.availableCategories = [];
+        this.applyFilters(); // Apply filters even on error
         this.cdr.detectChanges();
       }
     });
@@ -419,16 +426,12 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   filterInventory() {
-    if (!this.searchTerm.trim()) {
-      this.filteredInventory = [...this.inventory];
-    } else {
-      this.filteredInventory = this.inventory.filter(item =>
-        item.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
-      );
-    }
-    this.currentPage = 1; // Reset to first page when filtering
-    this.updatePagination();
+    this.applyFilters();
+  }
+
+  // Helper method to escape special regex characters
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   updatePagination() {
@@ -453,8 +456,141 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   toggleFilter() {
-    // Toggle filter functionality can be implemented here
-    console.log('Filter toggled');
+    this.showFilter = !this.showFilter;
+  }
+
+  onCategoryToggle(category: string, checked: boolean) {
+    if (checked) {
+      this.selectedCategories.add(category);
+    } else {
+      this.selectedCategories.delete(category);
+    }
+    console.log('🔍 Selected categories:', Array.from(this.selectedCategories));
+    this.applyFilters();
+  }
+
+  onCategoryAllToggle(checked: boolean) {
+    if (checked) {
+      this.availableCategories.forEach(cat => this.selectedCategories.add(cat));
+    } else {
+      this.selectedCategories.clear();
+    }
+    this.applyFilters();
+  }
+
+  applyExpiryFilter() {
+    this.applyFilters();
+  }
+
+  resetExpiryFilter() {
+    this.expiryFilterDays = null;
+    this.applyFilters();
+  }
+
+  applyFilters() {
+    let filtered = [...this.inventory];
+
+    // Apply category filter (case-insensitive comparison)
+    // If no categories are selected, show all items (shouldn't happen after initialization, but safety check)
+    if (this.selectedCategories.size > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.category) return false;
+        // Normalize category name for comparison (trim and lowercase)
+        const normalizedItemCategory = item.category.trim().toLowerCase();
+        // Check if any selected category matches (case-insensitive)
+        return Array.from(this.selectedCategories).some(selectedCat => 
+          selectedCat.trim().toLowerCase() === normalizedItemCategory
+        );
+      });
+    }
+    // If selectedCategories is empty, show all items (all items pass through)
+
+    // Apply expiry filter
+    if (this.expiryFilterDays !== null && this.expiryFilterDays > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const filterDays = this.expiryFilterDays; // Store in local variable for type safety
+      
+      filtered = filtered.filter(item => {
+        if (!item.expiry) return false;
+        
+        // Parse expiry date (DD/MM/YYYY format)
+        const expiryParts = item.expiry.split('/');
+        if (expiryParts.length !== 3) return false;
+        
+        const expiryDate = new Date(
+          parseInt(expiryParts[2]), 
+          parseInt(expiryParts[1]) - 1, 
+          parseInt(expiryParts[0])
+        );
+        expiryDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = expiryDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Show items that expire within the specified days (including today)
+        return diffDays >= 0 && diffDays <= filterDays;
+      });
+    }
+
+    // Apply search term filter
+    if (this.searchTerm.trim()) {
+      const searchTermLower = this.searchTerm.toLowerCase().trim();
+      const searchWords = searchTermLower.split(/\s+/).filter(word => word.length > 0);
+      
+      filtered = filtered.filter(item => {
+        const itemNameLower = item.name.toLowerCase();
+        const itemCategoryLower = item.category.toLowerCase();
+        
+        return searchWords.every(word => {
+          const wordPattern = new RegExp(`(^|\\s)${this.escapeRegex(word)}`, 'i');
+          const nameMatch = wordPattern.test(itemNameLower) || itemNameLower === word;
+          const categoryMatch = wordPattern.test(itemCategoryLower) || itemCategoryLower === word;
+          return nameMatch || categoryMatch;
+        });
+      });
+    }
+
+    this.filteredInventory = filtered;
+    this.currentPage = 1;
+    this.updatePagination();
+  }
+
+  resetFilters() {
+    this.selectedCategories.clear();
+    this.expiryFilterDays = null;
+    this.searchTerm = '';
+    this.applyFilters();
+  }
+
+  // Update available categories from actual inventory data
+  updateAvailableCategories() {
+    const categorySet = new Set<string>();
+    this.inventory.forEach(item => {
+      if (item.category && item.category.trim()) {
+        // Preserve original case for display, but normalize for comparison
+        categorySet.add(item.category.trim());
+      }
+    });
+    // Sort categories alphabetically (case-insensitive) for consistent display
+    this.availableCategories = Array.from(categorySet).sort((a, b) => 
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
+    
+    console.log('📋 Available categories from inventory:', this.availableCategories);
+    console.log('📋 Inventory items:', this.inventory.map(item => ({ name: item.name, category: item.category })));
+    
+    // If no categories found, use default list
+    if (this.availableCategories.length === 0) {
+      this.availableCategories = ['Fruit', 'Vegetable', 'Meat', 'Dairy', 'Grains', 'Other'];
+    }
+    
+    // Initialize: Select all categories by default if none are selected
+    // This ensures all items are visible when filter is first opened
+    if (this.selectedCategories.size === 0 && this.availableCategories.length > 0) {
+      this.availableCategories.forEach(cat => this.selectedCategories.add(cat));
+      console.log('✅ Initialized: All categories selected by default');
+    }
   }
 
   selectItem(index: number) {
