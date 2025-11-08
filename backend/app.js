@@ -148,17 +148,32 @@ app.get('/api/donations', async (req, res) => {
 });
 app.options('/api/foods/:id/status', cors());
 
-// app.js または foodRoutes.js
+// ✅ Update food item (qty, etc.) - auto-update status to "consumed" if qty decreased
 app.put('/api/foods/:id', async (req, res) => {
   try {
-    const updatedFood = await Food.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }  // 更新後のデータを返す
-    );
-    if (!updatedFood) {
+    const { qty } = req.body;
+    
+    // Get current food item to compare qty
+    const currentFood = await Food.findById(req.params.id);
+    if (!currentFood) {
       return res.status(404).json({ message: 'Food not found' });
     }
+    
+    // Prepare update object
+    const updateData = { ...req.body };
+    
+    // ✅ If qty is being decreased (used/consumed), update status to "consumed"
+    if (qty !== undefined && qty < currentFood.qty && currentFood.status !== 'consumed') {
+      updateData.status = 'consumed';
+      console.log(`🔄 Auto-updating food ${currentFood.name} status to "consumed" (qty: ${currentFood.qty} → ${qty})`);
+    }
+    
+    const updatedFood = await Food.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }  // Return updated document
+    );
+    
     res.json(updatedFood);
   } catch (error) {
     console.error('Error updating food:', error);

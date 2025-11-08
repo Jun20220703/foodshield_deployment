@@ -11,7 +11,7 @@ export interface Food {
   category: string;
   storage: string;
   notes?: string;
-  status?: 'inventory' | 'donation' | 'expired'; // ✅ 加入 expired
+  status?: 'inventory' | 'donation' | 'expired' | 'consumed'; // ✅ 包含所有状态
   owner?: string;
 }
 
