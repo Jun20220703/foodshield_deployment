@@ -248,5 +248,13 @@
     </div>
   </div>
 
+  <!-- Success Toast Message -->
+  <div class="success-toast" *ngIf="showSuccessMessage">
+    <div class="toast-content">
+      <span class="toast-icon">✅</span>
+      <span class="toast-message">{{ successMessage }}</span>
+    </div>
+  </div>
+
 </div>
 

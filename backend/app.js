@@ -147,17 +147,23 @@ app.options('/api/foods/:id/status', cors());
 // app.js または foodRoutes.js
 app.put('/api/foods/:id', async (req, res) => {
   try {
+    const { qty } = req.body;
+    console.log(`🟢 [DB Update] Updating food ${req.params.id} with qty: ${qty}`);
+    
     const updatedFood = await Food.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { qty },
       { new: true }  // 更新後のデータを返す
     );
+    
     if (!updatedFood) {
       return res.status(404).json({ message: 'Food not found' });
     }
+    
+    console.log(`✅ [DB Update] Food updated in database: ${updatedFood.name}, new qty: ${updatedFood.qty}`);
     res.json(updatedFood);
   } catch (error) {
-    console.error('Error updating food:', error);
+    console.error('❌ [DB Update] Error updating food:', error);
     res.status(500).json({ message: 'Server error while updating food', error });
   }
 });
