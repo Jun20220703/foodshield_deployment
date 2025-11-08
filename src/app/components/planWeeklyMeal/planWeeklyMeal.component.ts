@@ -106,133 +106,62 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
-    // Load both regular inventory and marked foods
-    this.foodService.getFoods(userId).subscribe({
-      next: (data: Food[]) => {
-        // status가 'inventory'인 항목만 필터링하고 InventoryItem 형식으로 변환
-        const regularInventory = data
-          .filter((f: any) => f.owner === userId && f.status === 'inventory')
-          .map((food: any) => {
-            // expiry 날짜 포맷팅 (Date 객체를 DD/MM/YYYY 형식으로)
-            let expiryStr = '';
-            if (food.expiry) {
-              const expiryDate = new Date(food.expiry);
-              const day = String(expiryDate.getDate()).padStart(2, '0');
-              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-              const year = expiryDate.getFullYear();
-              expiryStr = `${day}/${month}/${year}`;
-            }
+    // Load only marked foods
+    this.browseService.getMarkedFoods().subscribe({
+      next: (markedFoods: MarkedFood[]) => {
+        console.log('📌 Loaded marked foods:', markedFoods);
+        
+        // Convert marked foods to InventoryItem format
+        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+          let expiryStr = '';
+          if (markedFood.expiry) {
+            const expiryDate = new Date(markedFood.expiry);
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const year = expiryDate.getFullYear();
+            expiryStr = `${day}/${month}/${year}`;
+          }
 
-            return {
-              foodId: food._id || '',
-              name: food.name,
-              quantity: food.qty || 0,
-              category: food.category || 'Other',
-              marked: false,
-              markedQuantity: 0,
-              expiry: expiryStr
-            };
-          });
+          return {
+            foodId: markedFood.foodId || '',
+            name: markedFood.name,
+            quantity: markedFood.qty,
+            category: markedFood.category || 'Other',
+            marked: true,
+            markedQuantity: markedFood.qty,
+            expiry: expiryStr
+          };
+        });
 
-        // Load marked foods and add them to inventory
-        this.browseService.getMarkedFoods().subscribe({
-          next: (markedFoods: MarkedFood[]) => {
-            console.log('📌 Loaded marked foods:', markedFoods);
-            
-            // Convert marked foods to InventoryItem format
-            const markedItems = markedFoods.map((markedFood: MarkedFood) => {
-              let expiryStr = '';
-              if (markedFood.expiry) {
-                const expiryDate = new Date(markedFood.expiry);
-                const day = String(expiryDate.getDate()).padStart(2, '0');
-                const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-                const year = expiryDate.getFullYear();
-                expiryStr = `${day}/${month}/${year}`;
-              }
-
-              return {
-                foodId: markedFood.foodId || '',
-                name: markedFood.name,
-                quantity: markedFood.qty,
-                category: markedFood.category || 'Other',
-                marked: true,
-                markedQuantity: markedFood.qty,
-                expiry: expiryStr
-              };
-            });
-
-            // Merge marked items with same foodId (combine quantities)
-            // Same foodId means same food item, so combine them
-            const markedItemsMap = new Map<string, InventoryItem>();
-            markedItems.forEach(item => {
-              const foodId = item.foodId;
-              if (!foodId) {
-                // If no foodId, treat as separate item
-                markedItemsMap.set(`${item.name}-${Date.now()}-${Math.random()}`, { ...item });
-                return;
-              }
-              
-              const existing = markedItemsMap.get(foodId);
-              if (existing) {
-                // If same foodId exists, add quantities (same food item marked multiple times)
-                existing.quantity += item.quantity;
-                existing.markedQuantity += item.markedQuantity;
-              } else {
-                // Add new item
-                markedItemsMap.set(foodId, { ...item });
-              }
-            });
-
-            const mergedMarkedItems = Array.from(markedItemsMap.values());
-
-            // Combine regular inventory and marked foods
-            // Use foodId as key to match same food items
-            const inventoryMap = new Map<string, InventoryItem>();
-            
-            // Add regular inventory items (use foodId as key)
-            regularInventory.forEach(item => {
-              const key = item.foodId || `${item.name}-${Date.now()}-${Math.random()}`;
-              inventoryMap.set(key, { ...item });
-            });
-
-            // Merge marked items (match by foodId, not by name)
-            mergedMarkedItems.forEach(markedItem => {
-              const foodId = markedItem.foodId;
-              if (!foodId) {
-                // If no foodId, add as separate item
-                inventoryMap.set(`${markedItem.name}-marked-${Date.now()}-${Math.random()}`, markedItem);
-                return;
-              }
-              
-              const existing = inventoryMap.get(foodId);
-              if (existing) {
-                // If same foodId exists in regular inventory, add marked quantity to total quantity
-                existing.markedQuantity = markedItem.markedQuantity;
-                existing.quantity = existing.quantity + markedItem.markedQuantity; // Add marked quantity to total
-                existing.marked = true; // Mark as marked
-              } else {
-                // Different foodId (even if same name), add as separate item
-                inventoryMap.set(foodId, markedItem);
-              }
-            });
-
-            this.inventory = Array.from(inventoryMap.values());
-            this.filteredInventory = [...this.inventory];
-            this.cdr.detectChanges();
-          },
-          error: (err) => {
-            console.error('Error loading marked foods:', err);
-            // If marked foods fail to load, just use regular inventory
-            this.inventory = regularInventory;
-            this.filteredInventory = [...this.inventory];
-            this.cdr.detectChanges();
+        // Merge marked items with same foodId (same food item marked multiple times)
+        const markedItemsByFoodId = new Map<string, InventoryItem>();
+        markedItems.forEach(item => {
+          const foodId = item.foodId;
+          if (!foodId) {
+            // If no foodId, skip or handle separately
+            return;
+          }
+          
+          const existing = markedItemsByFoodId.get(foodId);
+          if (existing) {
+            // If same foodId exists, add quantities (same food item marked multiple times)
+            existing.quantity += item.quantity;
+            existing.markedQuantity += item.markedQuantity;
+          } else {
+            // Add new item
+            markedItemsByFoodId.set(foodId, { ...item });
           }
         });
+
+        this.inventory = Array.from(markedItemsByFoodId.values());
+        this.filteredInventory = [...this.inventory];
+        this.cdr.detectChanges();
       },
       error: (err) => {
-        console.error('Error loading inventory:', err);
+        console.error('Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
+        this.cdr.detectChanges();
       }
     });
   }

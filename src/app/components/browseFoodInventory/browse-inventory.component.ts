@@ -2,7 +2,7 @@ import { Component, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { BrowseFoodService, Food } from '../../services/browse-food.service';
+import { BrowseFoodService, Food, MarkedFood } from '../../services/browse-food.service';
 import { Router } from '@angular/router';
 
 // ⭐新增：用于判断是否在浏览器端
@@ -486,7 +486,7 @@ export class InventoryComponent implements OnInit {
   confirmActionProceed() {
       if (!this.confirmItem || !this.confirmAction) return;
 
-      if (this.confirmAction === 'used' || this.confirmAction === 'meal') {
+      if (this.confirmAction === 'used') {
         const item = this.confirmItem;
         const newQty = item.qty - item.selectedQty;
 
@@ -504,7 +504,65 @@ export class InventoryComponent implements OnInit {
             alert(`\nFailed to update ${item.name}❌`);
           },
         });
+      }
 
+      if (this.confirmAction === 'meal') {
+        const item = this.confirmItem;
+        if (item.selectedQty <= 0) {
+          alert('Please select a quantity to mark');
+          return;
+        }
+
+        // Find the original food to get category and storage
+        const originalFood = this.rawFoods.find(f => f._id === item._id);
+        if (!originalFood) {
+          alert('Food item not found');
+          return;
+        }
+
+        const markedQty = item.selectedQty;
+        const newInventoryQty = item.qty - markedQty;
+
+        // First, reduce inventory quantity
+        this.browseService.updateFoodQty(item._id, newInventoryQty).subscribe({
+          next: () => {
+            console.log(`✅ Reduced inventory quantity by ${markedQty}`);
+            
+            // Update local data
+            item.qty = newInventoryQty;
+            item.selectedQty = 0;
+
+            // Then save marked food
+            const markedFoodData: MarkedFood = {
+              foodId: item._id,
+              qty: markedQty,
+              name: item.name,
+              category: originalFood.category,
+              storage: originalFood.storage,
+              expiry: item.expiry,
+              notes: item.notes || ''
+            };
+
+            this.browseService.markFood(markedFoodData).subscribe({
+              next: (markedFood) => {
+                console.log('✅ Marked food saved:', markedFood);
+                // Reload inventory to reflect updated quantities
+                this.loadFoods();
+                alert(`Marked ${markedQty} ${item.name}(s) successfully✅`);
+              },
+              error: (err) => {
+                console.error('❌ Failed to mark food:', err);
+                // Rollback: restore inventory quantity if marking fails
+                this.browseService.updateFoodQty(item._id, item.qty + markedQty).subscribe();
+                alert(`Failed to mark ${item.name}❌`);
+              },
+            });
+          },
+          error: (err) => {
+            console.error('❌ Failed to update inventory quantity:', err);
+            alert(`Failed to update inventory quantity❌`);
+          },
+        });
       }
 
       if (this.confirmAction === 'donate') {
