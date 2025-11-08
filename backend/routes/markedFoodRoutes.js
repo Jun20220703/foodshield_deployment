@@ -63,6 +63,31 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 🔄 Update marked food quantity (for partial removal)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { qty } = req.body;
+    const markedFood = await MarkedFood.findById(req.params.id);
+    
+    if (!markedFood) {
+      return res.status(404).json({ message: 'Marked food not found' });
+    }
+
+    if (qty <= 0) {
+      // If quantity becomes 0 or negative, delete the marked food
+      await MarkedFood.findByIdAndDelete(req.params.id);
+      return res.json({ message: 'Marked food removed', deleted: true });
+    }
+
+    markedFood.qty = qty;
+    await markedFood.save();
+    res.json(markedFood);
+  } catch (err) {
+    console.error('❌ Error updating marked food quantity:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ❌ Remove from marked food list
 router.delete('/:id', async (req, res) => {
   try {

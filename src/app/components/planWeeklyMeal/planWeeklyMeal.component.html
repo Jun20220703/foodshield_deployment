@@ -104,6 +104,7 @@
         <div class="header-cell">Mark</div>
         <div class="header-cell">Marked Quantity</div>
         <div class="header-cell">Expiry</div>
+        <div class="header-cell">Action</div>
       </div>
 
       <div class="inventory-list">
@@ -136,6 +137,11 @@
           </div>
           <div class="item-expiry">
             <span class="expiry-date">{{ item.expiry }}</span>
+          </div>
+          <div class="item-action">
+            <button class="remove-btn" (click)="openRemoveModal(item, $event)">
+              Remove
+            </button>
           </div>
         </div>
       </div>
@@ -208,6 +214,37 @@
     <!-- Reset All Filters -->
     <div class="filter-section">
       <button class="reset-all-btn" (click)="resetFilters()">Reset All Filters</button>
+    </div>
+  </div>
+
+  <!-- Remove Modal -->
+  <div class="modal-overlay" *ngIf="showRemoveModal" (click)="closeRemoveModal()">
+    <div class="modal-content remove-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Remove Marked Food</h2>
+        <button class="close-btn" (click)="closeRemoveModal()">×</button>
+      </div>
+      <div class="modal-body" *ngIf="removeItem">
+        <p>How many <strong>{{ removeItem.name }}</strong> would you like to remove?</p>
+        <p class="info-text">Currently marked: <strong>{{ removeItem.markedQuantity }}</strong></p>
+        <div class="quantity-input-group">
+          <label>Quantity to remove:</label>
+          <input 
+            type="number" 
+            [(ngModel)]="removeQuantity" 
+            [min]="1" 
+            [max]="removeItem.markedQuantity"
+            class="quantity-input" />
+        </div>
+        <p class="info-text">After removal: <strong>{{ removeItem.markedQuantity - removeQuantity }}</strong> will remain marked</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeRemoveModal()" [disabled]="isRemoving">Cancel</button>
+        <button class="btn-confirm-remove" (click)="confirmRemove()" [disabled]="isRemoving">
+          <span *ngIf="!isRemoving">Remove</span>
+          <span *ngIf="isRemoving">Removing...</span>
+        </button>
+      </div>
     </div>
   </div>
 

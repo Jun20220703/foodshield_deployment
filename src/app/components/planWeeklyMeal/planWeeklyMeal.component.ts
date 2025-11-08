@@ -28,6 +28,7 @@ interface InventoryItem {
   marked: boolean;
   markedQuantity: number; // Amount that is marked
   expiry: string;
+  markedFoodIds?: string[]; // Array of MarkedFood _id values for this foodId
 }
 
 interface MealPlan {
@@ -76,6 +77,13 @@ export class PlanWeeklyMealComponent implements OnInit {
   expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
   availableCategories: string[] = []; // Will be populated from actual inventory data
 
+  // Remove modal
+  showRemoveModal: boolean = false;
+  removeItem: InventoryItem | null = null;
+  removeQuantity: number = 1;
+  isRemoving: boolean = false; // Loading state
+  rawMarkedFoods: MarkedFood[] = []; // Cache for faster access
+
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
@@ -121,6 +129,8 @@ export class PlanWeeklyMealComponent implements OnInit {
     // Load only marked foods
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
+        // Store raw marked foods for faster access (avoid re-fetching)
+        this.rawMarkedFoods = markedFoods;
         console.log('📌 Loaded marked foods:', markedFoods);
         
         // Convert marked foods to InventoryItem format
@@ -134,14 +144,36 @@ export class PlanWeeklyMealComponent implements OnInit {
             expiryStr = `${day}/${month}/${year}`;
           }
 
+          // Handle foodId - it might be an object if populated, or a string
+          let foodIdStr = '';
+          const foodIdValue = (markedFood as any).foodId; // Use any to handle populated object
+          
+          if (typeof foodIdValue === 'string') {
+            foodIdStr = foodIdValue;
+          } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+            // If populated, extract the _id
+            foodIdStr = foodIdValue._id;
+          } else if (foodIdValue) {
+            // Fallback: try to convert to string
+            foodIdStr = String(foodIdValue);
+          }
+
+          console.log('🔍 Processing markedFood:', {
+            _id: markedFood._id,
+            foodId: foodIdValue,
+            foodIdType: typeof foodIdValue,
+            extractedFoodId: foodIdStr
+          });
+
           return {
-            foodId: markedFood.foodId || '',
+            foodId: foodIdStr,
             name: markedFood.name,
             quantity: markedFood.qty,
             category: markedFood.category || 'Other',
             marked: true,
             markedQuantity: markedFood.qty,
-            expiry: expiryStr
+            expiry: expiryStr,
+            markedFoodIds: markedFood._id ? [markedFood._id] : []
           };
         });
 
@@ -159,6 +191,10 @@ export class PlanWeeklyMealComponent implements OnInit {
             // If same foodId exists, add quantities (same food item marked multiple times)
             existing.quantity += item.quantity;
             existing.markedQuantity += item.markedQuantity;
+            // Merge markedFoodIds arrays
+            if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+              existing.markedFoodIds = (existing.markedFoodIds || []).concat(item.markedFoodIds);
+            }
           } else {
             // Add new item
             markedItemsByFoodId.set(foodId, { ...item });
@@ -595,6 +631,303 @@ export class PlanWeeklyMealComponent implements OnInit {
 
   selectItem(index: number) {
     this.selectedItemIndex = index;
+  }
+
+  openRemoveModal(item: InventoryItem, event: Event) {
+    event.stopPropagation(); // Prevent row click
+    console.log('🔍 Opening remove modal for item:', item);
+    console.log('🔍 Item foodId:', item.foodId);
+    
+    if (!item || !item.foodId) {
+      console.error('❌ Invalid item or missing foodId:', item);
+      alert('Invalid item selected');
+      return;
+    }
+    
+    this.removeItem = item;
+    this.removeQuantity = 1;
+    this.showRemoveModal = true;
+  }
+
+  closeRemoveModal() {
+    this.showRemoveModal = false;
+    this.removeItem = null;
+    this.removeQuantity = 1;
+  }
+
+  confirmRemove() {
+    if (!this.removeItem || !this.removeItem.foodId) {
+      alert('Invalid item selected');
+      return;
+    }
+
+    if (this.removeQuantity <= 0 || this.removeQuantity > this.removeItem.markedQuantity) {
+      alert(`Please enter a valid quantity (1-${this.removeItem.markedQuantity})`);
+      return;
+    }
+
+    this.isRemoving = true; // Show loading state
+    const item = this.removeItem;
+    const removeQty = this.removeQuantity;
+    const remainingMarkedQty = item.markedQuantity - removeQty;
+
+    // First, get the original food item to restore quantity
+    // Use getFoods and filter by foodId instead of getFoodById for better compatibility
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      alert('User ID not found');
+      return;
+    }
+
+    this.foodService.getFoods(userId).subscribe({
+      next: (foods: any[]) => {
+        console.log('🔍 Searching for food with foodId:', item.foodId);
+        console.log('🔍 Available foods:', foods.map(f => ({ _id: f._id, name: f.name })));
+        
+        // Try to find by _id (string comparison)
+        let originalFood = foods.find(f => f._id === item.foodId);
+        
+        // If not found, try converting both to strings
+        if (!originalFood) {
+          originalFood = foods.find(f => String(f._id) === String(item.foodId));
+        }
+        
+        // If still not found, try finding by name as fallback (less reliable)
+        if (!originalFood) {
+          console.warn('⚠️ Food not found by ID, trying to find by name:', item.name);
+          originalFood = foods.find(f => f.name === item.name && f.status === 'inventory');
+        }
+        
+        if (!originalFood) {
+          console.error('❌ Original food item not found. foodId:', item.foodId, 'name:', item.name);
+          alert(`Original food item "${item.name}" not found in inventory. It may have been deleted.`);
+          this.closeRemoveModal();
+          return;
+        }
+        
+        console.log('✅ Found original food:', originalFood);
+
+        const newInventoryQty = originalFood.qty + removeQty;
+        const actualFoodId = originalFood._id || item.foodId; // Use the actual _id from found food
+
+        // Update original food quantity
+        this.browseService.updateFoodQty(actualFoodId, newInventoryQty).subscribe({
+          next: () => {
+            console.log(`✅ Restored ${removeQty} ${item.name}(s) to inventory`);
+
+            // Now update or delete marked food(s)
+            if (remainingMarkedQty <= 0) {
+              // Remove all marked foods for this foodId
+              if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+                // Delete all marked foods
+                const deletePromises = item.markedFoodIds.map(id => 
+                  this.browseService.deleteMarkedFood(id).toPromise()
+                );
+                Promise.all(deletePromises).then(() => {
+                  console.log('✅ All marked foods removed');
+                  this.isRemoving = false;
+                  // Optimize: Update local state immediately
+                  this.updateLocalInventoryAfterRemove(item, removeQty, []);
+                  this.loadInventory();
+                  this.closeRemoveModal();
+                  alert(`Removed ${removeQty} ${item.name}(s) successfully✅`);
+                }).catch(err => {
+                  console.error('❌ Error deleting marked foods:', err);
+                  this.isRemoving = false;
+                  alert('Failed to remove marked foods❌');
+                });
+              } else {
+                // If no markedFoodIds, reload to get them
+                this.isRemoving = false;
+                this.loadInventory();
+                this.closeRemoveModal();
+              }
+            } else {
+              // Update marked food quantity
+              // Use cached rawMarkedFoods instead of fetching again
+              if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+                // Extract foodId from markedFood (handle populated objects)
+                const extractFoodId = (mf: MarkedFood): string => {
+                  const foodIdValue = (mf as any).foodId;
+                  if (typeof foodIdValue === 'string') {
+                    return foodIdValue;
+                  } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+                    return foodIdValue._id;
+                  }
+                  return String(foodIdValue || '');
+                };
+
+                // Filter marked foods by foodId using cached data
+                const relevantMarkedFoods = this.rawMarkedFoods.filter(mf => {
+                  const mfFoodId = extractFoodId(mf);
+                  return String(mfFoodId) === String(item.foodId) && 
+                         item.markedFoodIds?.includes(mf._id || '');
+                });
+
+                    console.log('🔍 Relevant marked foods:', relevantMarkedFoods);
+                    console.log('🔍 Total to remove:', removeQty);
+
+                    if (relevantMarkedFoods.length === 0) {
+                      console.warn('⚠️ No relevant marked foods found, reloading...');
+                      this.isRemoving = false;
+                      this.loadInventory();
+                      this.closeRemoveModal();
+                      return;
+                    }
+
+                    // Remove quantity sequentially from marked foods (FIFO - first in first out)
+                    let remainingToRemove = removeQty;
+                    let processedCount = 0;
+                    let hasError = false;
+                    const totalToProcess = relevantMarkedFoods.length;
+
+                    const finishProcessing = () => {
+                      this.isRemoving = false;
+                      if (hasError) {
+                        // Rollback already done in error handlers
+                        this.loadInventory();
+                        this.closeRemoveModal();
+                        return;
+                      }
+                      
+                      console.log('✅ All marked foods processed successfully');
+                      // Optimize: Update local state immediately before reload
+                      this.updateLocalInventoryAfterRemove(item, removeQty, relevantMarkedFoods);
+                      this.loadInventory();
+                      this.closeRemoveModal();
+                      alert(`Removed ${removeQty} ${item.name}(s) successfully✅`);
+                    };
+
+                    const processNextMarkedFood = (index: number) => {
+                      // Check if we're done (no more to remove or no more marked foods)
+                      if (remainingToRemove <= 0 || index >= relevantMarkedFoods.length) {
+                        processedCount++;
+                        if (processedCount === totalToProcess) {
+                          finishProcessing();
+                        }
+                        return;
+                      }
+
+                      const markedFood = relevantMarkedFoods[index];
+                      if (!markedFood._id) {
+                        processedCount++;
+                        processNextMarkedFood(index + 1);
+                        return;
+                      }
+
+                      const thisMarkedQty = markedFood.qty;
+                      const qtyToRemoveFromThis = Math.min(remainingToRemove, thisMarkedQty);
+                      const newQty = thisMarkedQty - qtyToRemoveFromThis;
+                      remainingToRemove -= qtyToRemoveFromThis;
+
+                      console.log(`🔍 Processing marked food ${index + 1}/${totalToProcess}:`, {
+                        _id: markedFood._id,
+                        currentQty: thisMarkedQty,
+                        removeQty: qtyToRemoveFromThis,
+                        newQty: newQty,
+                        remainingToRemove: remainingToRemove
+                      });
+
+                      if (newQty <= 0) {
+                        // Delete this marked food
+                        this.browseService.deleteMarkedFood(markedFood._id).subscribe({
+                          next: () => {
+                            console.log(`✅ Deleted marked food ${markedFood._id}`);
+                            processedCount++;
+                            // Continue with next marked food
+                            processNextMarkedFood(index + 1);
+                          },
+                          error: (err) => {
+                            console.error('❌ Error deleting marked food:', err);
+                            hasError = true;
+                            // Rollback: restore original food quantity
+                            this.browseService.updateFoodQty(actualFoodId, originalFood.qty).subscribe();
+                            processedCount++;
+                            if (processedCount === totalToProcess) {
+                              finishProcessing();
+                            } else {
+                              processNextMarkedFood(index + 1);
+                            }
+                          }
+                        });
+                      } else {
+                        // Update this marked food
+                        this.browseService.updateMarkedFoodQty(markedFood._id, newQty).subscribe({
+                          next: () => {
+                            console.log(`✅ Updated marked food ${markedFood._id} to qty ${newQty}`);
+                            processedCount++;
+                            // Continue with next marked food
+                            processNextMarkedFood(index + 1);
+                          },
+                          error: (err) => {
+                            console.error('❌ Error updating marked food:', err);
+                            hasError = true;
+                            // Rollback: restore original food quantity
+                            this.browseService.updateFoodQty(actualFoodId, originalFood.qty).subscribe();
+                            processedCount++;
+                            if (processedCount === totalToProcess) {
+                              finishProcessing();
+                            } else {
+                              processNextMarkedFood(index + 1);
+                            }
+                          }
+                        });
+                      }
+                    };
+
+                    // Start processing from the first marked food
+                    processNextMarkedFood(0);
+                  },
+                  error: (err) => {
+                    console.error('❌ Error fetching marked foods:', err);
+                    // Rollback: restore original food quantity
+                    this.browseService.updateFoodQty(actualFoodId, originalFood.qty).subscribe();
+                    alert('Failed to fetch marked foods❌');
+                  }
+                });
+              } else {
+                this.loadInventory();
+                this.closeRemoveModal();
+              }
+            }
+          },
+          error: (err) => {
+            console.error('❌ Error updating inventory quantity:', err);
+            this.isRemoving = false;
+            alert('Failed to restore inventory quantity❌');
+          }
+        });
+      },
+      error: (err) => {
+        console.error('❌ Error fetching original food:', err);
+        this.isRemoving = false;
+        alert('Failed to fetch original food item❌');
+      }
+    });
+  }
+
+  // Optimize: Update local inventory state immediately for better UX
+  updateLocalInventoryAfterRemove(item: InventoryItem, removeQty: number, processedMarkedFoods: MarkedFood[]) {
+    // Update local inventory item
+    const inventoryItem = this.inventory.find(inv => inv.foodId === item.foodId);
+    if (inventoryItem) {
+      inventoryItem.markedQuantity -= removeQty;
+      inventoryItem.quantity -= removeQty;
+      
+      // If marked quantity becomes 0, remove from inventory
+      if (inventoryItem.markedQuantity <= 0) {
+        const index = this.inventory.indexOf(inventoryItem);
+        if (index > -1) {
+          this.inventory.splice(index, 1);
+        }
+      }
+    }
+    
+    // Update filtered inventory
+    this.applyFilters();
+    this.cdr.detectChanges();
   }
 
   getCategoryIcon(category: string): string {
