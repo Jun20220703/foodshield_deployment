@@ -63,6 +63,12 @@ export class PlanWeeklyMealComponent implements OnInit {
   
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
+  
+  // Pagination
+  itemsPerPage: number = 5;
+  currentPage: number = 1;
+  paginatedInventory: InventoryItem[] = [];
+  totalPages: number = 1;
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -155,12 +161,14 @@ export class PlanWeeklyMealComponent implements OnInit {
 
         this.inventory = Array.from(markedItemsByFoodId.values());
         this.filteredInventory = [...this.inventory];
+        this.updatePagination();
         this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
+        this.updatePagination();
         this.cdr.detectChanges();
       }
     });
@@ -419,6 +427,29 @@ export class PlanWeeklyMealComponent implements OnInit {
         item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }
+    this.currentPage = 1; // Reset to first page when filtering
+    this.updatePagination();
+  }
+
+  updatePagination() {
+    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    if (this.currentPage > this.totalPages && this.totalPages > 0) {
+      this.currentPage = this.totalPages;
+    }
+    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+    const endIndex = startIndex + this.itemsPerPage;
+    this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+  }
+
+  goToPage(page: number) {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.updatePagination();
+    }
+  }
+
+  getPagesArray(): number[] {
+    return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
   toggleFilter() {

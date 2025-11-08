@@ -109,7 +109,7 @@
       <div class="inventory-list">
         <div 
           class="inventory-item" 
-          *ngFor="let item of filteredInventory; let i = index"
+          *ngFor="let item of paginatedInventory; let i = index"
           [class.selected]="selectedItemIndex === i"
           (click)="selectItem(i)">
           <div class="item-name">{{ item.name }}</div>
@@ -137,6 +137,19 @@
           <div class="item-expiry">
             <span class="expiry-date">{{ item.expiry }}</span>
           </div>
+        </div>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div class="pagination-container" *ngIf="totalPages > 1">
+        <div class="pagination-buttons">
+          <button 
+            *ngFor="let page of getPagesArray()" 
+            class="page-button"
+            [class.active]="currentPage === page"
+            (click)="goToPage(page)">
+            {{ page }}
+          </button>
         </div>
       </div>
       </div>
