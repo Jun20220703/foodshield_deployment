@@ -584,6 +584,10 @@
   font-weight: 600;
   color: #1a1a1a;
   font-size: 0.95rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
 }
 
 .item-quantity {
@@ -699,12 +703,17 @@
   font-size: 0.9rem;
   font-weight: 600;
   min-width: 40px;
+  margin: 0 auto;
 }
 
 .no-marked-quantity {
   color: #999;
   font-size: 0.9rem;
   width: 100%;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .checkmark {
@@ -720,8 +729,12 @@
   font-size: 0.8rem;
   font-weight: 500;
   text-align: center;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  max-width: fit-content;
+  margin: 0 auto;
 }
 
 /* Responsive Design */
