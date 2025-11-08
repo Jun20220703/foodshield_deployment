@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService, Food } from '../../services/food.service';
+import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
 
 interface DayInfo {
   name: string;
@@ -64,7 +65,8 @@ export class PlanWeeklyMealComponent implements OnInit {
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
-    private foodService: FoodService
+    private foodService: FoodService,
+    private browseService: BrowseFoodService
   ) {}
 
   ngOnInit() {
@@ -102,10 +104,11 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
+    // Load both regular inventory and marked foods
     this.foodService.getFoods(userId).subscribe({
       next: (data: Food[]) => {
         // status가 'inventory'인 항목만 필터링하고 InventoryItem 형식으로 변환
-        this.inventory = data
+        const regularInventory = data
           .filter((f: any) => f.owner === userId && f.status === 'inventory')
           .map((food: any) => {
             // expiry 날짜 포맷팅 (Date 객체를 DD/MM/YYYY 형식으로)
@@ -122,13 +125,49 @@ export class PlanWeeklyMealComponent implements OnInit {
               name: food.name,
               quantity: food.qty || 0,
               category: food.category || 'Other',
-              marked: food.marked || false,
+              marked: false,
               expiry: expiryStr
             };
           });
-        
-        this.filteredInventory = [...this.inventory];
-        this.cdr.detectChanges();
+
+        // Load marked foods and add them to inventory
+        this.browseService.getMarkedFoods().subscribe({
+          next: (markedFoods: MarkedFood[]) => {
+            console.log('📌 Loaded marked foods:', markedFoods);
+            
+            // Convert marked foods to InventoryItem format
+            const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+              let expiryStr = '';
+              if (markedFood.expiry) {
+                const expiryDate = new Date(markedFood.expiry);
+                const day = String(expiryDate.getDate()).padStart(2, '0');
+                const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+                const year = expiryDate.getFullYear();
+                expiryStr = `${day}/${month}/${year}`;
+              }
+
+              return {
+                name: markedFood.name,
+                quantity: markedFood.qty,
+                category: markedFood.category || 'Other',
+                marked: true,
+                expiry: expiryStr
+              };
+            });
+
+            // Combine regular inventory and marked foods
+            this.inventory = [...regularInventory, ...markedItems];
+            this.filteredInventory = [...this.inventory];
+            this.cdr.detectChanges();
+          },
+          error: (err) => {
+            console.error('Error loading marked foods:', err);
+            // If marked foods fail to load, just use regular inventory
+            this.inventory = regularInventory;
+            this.filteredInventory = [...this.inventory];
+            this.cdr.detectChanges();
+          }
+        });
       },
       error: (err) => {
         console.error('Error loading inventory:', err);
