@@ -641,11 +641,13 @@
   font-size: 0.9rem;
 }
 
-.category-fruit {
+.category-fruit,
+.category-fruits {
   background: #e8f5e8;
 }
 
-.category-vegetable {
+.category-vegetable,
+.category-vegetables {
   background: #d4edda;
 }
 
@@ -657,8 +659,14 @@
   background: #d1ecf1;
 }
 
+.category-grain,
 .category-grains {
   background: #fff3cd;
+}
+
+.category-other,
+.category-others {
+  background: #e9ecef;
 }
 
 .marked-badge {

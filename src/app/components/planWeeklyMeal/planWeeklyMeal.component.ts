@@ -598,15 +598,22 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   getCategoryIcon(category: string): string {
-    const icons: { [key: string]: string } = {
-      'Fruit': '🍎',
-      'Vegetable': '🥬',
-      'Meat': '🥩',
-      'Dairy': '🥛',
-      'Grains': '🌾',
-      'Other': '📦'
-    };
-    return icons[category] || '📦';
+    if (!category) return '📦';
+    
+    // Normalize category name (lowercase, handle singular/plural)
+    const normalized = category.trim().toLowerCase();
+    const singular = normalized.endsWith('s') ? normalized.slice(0, -1) : normalized;
+    
+    // Map to icons (case-insensitive, handles singular/plural)
+    if (singular.includes('fruit')) return '🍎';
+    if (singular.includes('vegetable')) return '🥬';
+    if (singular.includes('meat')) return '🥩';
+    if (singular.includes('dairy')) return '🥛';
+    if (singular.includes('grain') || singular.includes('carb')) return '🌾';
+    if (singular.includes('other')) return '📦';
+    
+    // Fallback to default
+    return '📦';
   }
 
   // 날짜 키 생성 (YYYY-MM-DD)
