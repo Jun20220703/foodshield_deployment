@@ -535,7 +535,7 @@
 
 .table-headers {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1fr;
   gap: 15px;
   margin-bottom: 15px;
 }
@@ -558,7 +558,7 @@
 
 .inventory-item {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1fr;
   gap: 15px;
   align-items: center;
   padding: 15px;
@@ -672,6 +672,30 @@
   border-radius: 12px;
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+.item-marked-quantity {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.marked-quantity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #9c27b0;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.no-marked-quantity {
+  color: #999;
+  font-size: 0.9rem;
   width: 100%;
 }
 
@@ -793,7 +817,13 @@
     font-weight: 600;
     color: #6c757d;
   }
-  
+
+  .inventory-item .item-marked-quantity::before {
+    content: "Marked Quantity: ";
+    font-weight: 600;
+    color: #6c757d;
+  }
+
   .inventory-item .item-expiry::before {
     content: "Expiry: ";
     font-weight: 600;
