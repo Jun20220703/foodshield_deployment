@@ -18,7 +18,8 @@
                 [src]="recipe.image" 
                 [alt]="recipe.name" 
                 class="recipe-image"
-                onerror="this.src='assets/placeholder-recipe.jpg'">
+                (error)="onImageError($event)"
+                (load)="onImageLoad($event)">
             </div>
 
             <!-- Kcal -->

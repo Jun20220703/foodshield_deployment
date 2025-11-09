@@ -22,6 +22,7 @@ interface Recipe {
 export class MealDetailComponent implements OnInit {
   recipeId: string = '';
   recipe: Recipe | null = null;
+  imageError: boolean = false;
 
   // Sample recipe data - in a real app, this would come from a service
   recipes: Recipe[] = [
@@ -50,6 +51,9 @@ export class MealDetailComponent implements OnInit {
     // Find recipe by ID
     this.recipe = this.recipes.find(r => r.id === this.recipeId) || null;
     
+    // Reset image error state when loading new recipe
+    this.imageError = false;
+    
     if (!this.recipe) {
       console.error('Recipe not found:', this.recipeId);
       // Optionally redirect to browse-recipes if recipe not found
@@ -64,6 +68,24 @@ export class MealDetailComponent implements OnInit {
   planMeal() {
     // Navigate to planWeeklyMeal page
     this.router.navigate(['/planWeeklyMeal']);
+  }
+
+  onImageError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    // Prevent infinite loop by checking if already set to placeholder
+    if (img.src && !img.src.includes('placeholder')) {
+      img.src = 'assets/placeholder-recipe.jpg';
+      this.imageError = true;
+    } else {
+      // If placeholder also fails, hide the image or show a default
+      img.style.display = 'none';
+    }
+  }
+
+  onImageLoad(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.style.display = 'block';
+    this.imageError = false;
   }
 }
 

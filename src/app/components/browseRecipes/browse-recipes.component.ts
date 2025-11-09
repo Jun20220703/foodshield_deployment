@@ -49,6 +49,9 @@ export class BrowseRecipesComponent implements OnInit {
 
   currentSuggestedIndex: number = 0;
   currentMoreIndex: number = 0;
+  
+  // Image error tracking
+  imageErrors: Set<string> = new Set();
 
   searchTerm: string = '';
   selectedItemIndex: number = -1;
@@ -663,6 +666,27 @@ export class BrowseRecipesComponent implements OnInit {
     }
     
     return '📦';
+  }
+
+  onImageError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    const imageSrc = img.src;
+    
+    // Prevent infinite loop by checking if already set to placeholder or already handled
+    if (imageSrc && !imageSrc.includes('placeholder') && !this.imageErrors.has(imageSrc)) {
+      this.imageErrors.add(imageSrc);
+      img.src = 'assets/placeholder-recipe.jpg';
+    } else if (imageSrc && imageSrc.includes('placeholder')) {
+      // If placeholder also fails, hide the image
+      img.style.display = 'none';
+    }
+  }
+
+  onImageLoad(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.style.display = 'block';
+    // Remove from error set if it was there
+    this.imageErrors.delete(img.src);
   }
 }
 

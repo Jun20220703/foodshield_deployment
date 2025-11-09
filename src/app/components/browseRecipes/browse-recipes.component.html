@@ -18,7 +18,7 @@
             [class.active]="i === currentSuggestedIndex"
             (click)="selectRecipe(recipe)">
             <div class="recipe-image">
-              <img [src]="recipe.image" [alt]="recipe.name" onerror="this.src='assets/placeholder-recipe.jpg'">
+              <img [src]="recipe.image" [alt]="recipe.name" (error)="onImageError($event)" (load)="onImageLoad($event)">
             </div>
             <div class="recipe-name" (click)="selectRecipe(recipe); $event.stopPropagation()">{{ recipe.name }}</div>
           </div>
@@ -43,7 +43,7 @@
             [class.active]="i === currentMoreIndex"
             (click)="selectRecipe(recipe)">
             <div class="recipe-image">
-              <img [src]="recipe.image" [alt]="recipe.name" onerror="this.src='assets/placeholder-recipe.jpg'">
+              <img [src]="recipe.image" [alt]="recipe.name" (error)="onImageError($event)" (load)="onImageLoad($event)">
             </div>
             <div class="recipe-name" (click)="selectRecipe(recipe); $event.stopPropagation()">{{ recipe.name }}</div>
           </div>
