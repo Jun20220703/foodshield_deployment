@@ -20,7 +20,7 @@
             <div class="recipe-image">
               <img [src]="recipe.image" [alt]="recipe.name" onerror="this.src='assets/placeholder-recipe.jpg'">
             </div>
-            <div class="recipe-name">{{ recipe.name }}</div>
+            <div class="recipe-name" (click)="selectRecipe(recipe); $event.stopPropagation()">{{ recipe.name }}</div>
           </div>
         </div>
         <button class="carousel-arrow right" (click)="nextSuggested()">›</button>
@@ -45,7 +45,7 @@
             <div class="recipe-image">
               <img [src]="recipe.image" [alt]="recipe.name" onerror="this.src='assets/placeholder-recipe.jpg'">
             </div>
-            <div class="recipe-name">{{ recipe.name }}</div>
+            <div class="recipe-name" (click)="selectRecipe(recipe); $event.stopPropagation()">{{ recipe.name }}</div>
           </div>
         </div>
         <button class="carousel-arrow right" (click)="nextMore()">›</button>

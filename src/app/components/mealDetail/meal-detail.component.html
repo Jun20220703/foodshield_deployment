@@ -1,0 +1,67 @@
+<div class="page-layout">
+  <!-- Sidebar -->
+  <app-sidebar></app-sidebar>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="meal-detail-container">
+      <!-- Recipe Detail -->
+      <div class="recipe-detail-card" *ngIf="recipe">
+        <div class="recipe-header">
+          <h1 class="recipe-title">{{ recipe.name }}</h1>
+        </div>
+
+        <div class="recipe-content">
+          <div class="recipe-left-column">
+            <div class="recipe-image-container">
+              <img 
+                [src]="recipe.image" 
+                [alt]="recipe.name" 
+                class="recipe-image"
+                onerror="this.src='assets/placeholder-recipe.jpg'">
+            </div>
+
+            <!-- Kcal -->
+            <div class="recipe-kcal" *ngIf="recipe.kcal">
+              <h2>Kcal</h2>
+              <p>{{ recipe.kcal }}</p>
+            </div>
+          </div>
+
+          <div class="recipe-info">
+            <div class="recipe-description" *ngIf="recipe.description">
+              <h2>Description</h2>
+              <p>{{ recipe.description }}</p>
+            </div>
+
+            <!-- Ingredients -->
+            <div class="recipe-ingredients" *ngIf="recipe.ingredients">
+              <h2>Ingredients</h2>
+              <p>{{ recipe.ingredients }}</p>
+            </div>
+
+            <!-- Additional recipe details can be added here -->
+            <div class="recipe-details">
+              <h2>Recipe Details</h2>
+              <p>More detailed information about this recipe will be displayed here.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button class="btn-back" (click)="back()">← Back</button>
+          <button class="btn-plan-meal" (click)="planMeal()">Plan Meal</button>
+        </div>
+      </div>
+
+      <!-- Recipe Not Found -->
+      <div class="recipe-not-found" *ngIf="!recipe">
+        <h2>Recipe Not Found</h2>
+        <p>The recipe you're looking for doesn't exist.</p>
+        <button class="btn-back" (click)="back()">← Back to Recipes</button>
+      </div>
+    </div>
+  </div>
+</div>
+

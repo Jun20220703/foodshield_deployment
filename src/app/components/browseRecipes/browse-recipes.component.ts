@@ -114,8 +114,8 @@ export class BrowseRecipesComponent implements OnInit {
   }
 
   selectRecipe(recipe: Recipe) {
-    // TODO: 레시피 상세 정보 표시 또는 meal plan에 추가
-    console.log('Selected recipe:', recipe);
+    // Navigate to meal-detail page with recipe ID
+    this.router.navigate(['/meal-detail', recipe.id]);
   }
 
   back() {
