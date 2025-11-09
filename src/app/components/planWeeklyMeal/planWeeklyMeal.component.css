@@ -1364,6 +1364,14 @@
   border-top: 2px solid #d4e8d4;
 }
 
+.planned-meal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 20px;
+  font-family: 'Inter', sans-serif;
+}
+
 .custom-meal-card {
   background: white;
   border-radius: 20px;
