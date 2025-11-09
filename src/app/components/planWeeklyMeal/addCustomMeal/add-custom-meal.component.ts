@@ -33,6 +33,8 @@ export class AddCustomMealComponent implements OnInit {
   
   selectedDate: string = '';
   selectedMealType: string = '';
+  isEditMode: boolean = false;
+  editMealId: string | null = null;
 
   searchTerm: string = '';
   selectedItemIndex: number = -1;
@@ -66,6 +68,13 @@ export class AddCustomMealComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
       this.selectedDate = params['date'] || '';
       this.selectedMealType = params['mealType'] || '';
+      this.isEditMode = params['edit'] === 'true';
+      this.editMealId = params['id'] || null;
+      
+      // Edit 모드이고 id가 있으면 기존 데이터 로드
+      if (this.isEditMode && this.editMealId) {
+        this.loadExistingMeal(this.editMealId);
+      }
     });
     
     // CRITICAL: Ensure filter drawer is closed by default
@@ -78,6 +87,29 @@ export class AddCustomMealComponent implements OnInit {
     
     // Load inventory from database
     this.loadInventory();
+  }
+
+  // 기존 meal 데이터 로드
+  loadExistingMeal(mealId: string) {
+    this.customMealService.getCustomMealById(mealId).subscribe({
+      next: (meal: CustomMeal) => {
+        console.log('✅ Existing meal loaded:', meal);
+        // 폼 필드에 기존 데이터 채우기
+        this.foodName = meal.foodName || '';
+        this.ingredients = meal.ingredients || '';
+        this.howToCook = meal.howToCook || '';
+        this.kcal = meal.kcal || '';
+        this.foodPhoto = meal.photo || null;
+        this.selectedDate = meal.date || this.selectedDate;
+        this.selectedMealType = meal.mealType || this.selectedMealType;
+        
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading existing meal:', err);
+        alert('Failed to load meal data. Please try again.');
+      }
+    });
   }
 
   loadInventory() {
@@ -268,22 +300,40 @@ export class AddCustomMealComponent implements OnInit {
       owner: userId
     };
 
-    console.log('🟢 Creating custom meal:', mealData);
-
-    // Save to database
-    this.customMealService.createCustomMeal(mealData).subscribe({
-      next: (savedMeal) => {
-        console.log('✅ Custom meal created successfully:', savedMeal);
-        alert('Custom meal created successfully!');
-        
-        // Navigate back to planWeeklyMeal page
-    this.router.navigate(['/planWeeklyMeal']);
-      },
-      error: (err) => {
-        console.error('❌ Error creating custom meal:', err);
-        alert('Failed to create custom meal. Please try again.');
-      }
-    });
+    // Edit 모드인지 확인
+    if (this.isEditMode && this.editMealId) {
+      // Update existing meal
+      console.log('🟢 Updating custom meal:', mealData);
+      this.customMealService.updateCustomMeal(this.editMealId, mealData).subscribe({
+        next: (updatedMeal) => {
+          console.log('✅ Custom meal updated successfully:', updatedMeal);
+          alert('Custom meal updated successfully!');
+          
+          // Navigate back to planWeeklyMeal page
+          this.router.navigate(['/planWeeklyMeal']);
+        },
+        error: (err) => {
+          console.error('❌ Error updating custom meal:', err);
+          alert('Failed to update custom meal. Please try again.');
+        }
+      });
+    } else {
+      // Create new meal
+      console.log('🟢 Creating custom meal:', mealData);
+      this.customMealService.createCustomMeal(mealData).subscribe({
+        next: (savedMeal) => {
+          console.log('✅ Custom meal created successfully:', savedMeal);
+          alert('Custom meal created successfully!');
+          
+          // Navigate back to planWeeklyMeal page
+          this.router.navigate(['/planWeeklyMeal']);
+        },
+        error: (err) => {
+          console.error('❌ Error creating custom meal:', err);
+          alert('Failed to create custom meal. Please try again.');
+        }
+      });
+    }
   }
 
   back() {

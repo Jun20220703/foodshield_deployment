@@ -7,7 +7,7 @@
     <div class="content-wrapper">
       <!-- Left: Meal Form -->
       <div class="meal-form-container">
-        <h1 class="page-title">Add Custom meals</h1>
+        <h1 class="page-title">{{ isEditMode ? 'Edit Custom Meal' : 'Add Custom meals' }}</h1>
         
         <form class="meal-form" (ngSubmit)="createMeal()">
         <!-- Food Photo (Optional) -->
@@ -85,7 +85,7 @@
         <!-- Buttons -->
         <div class="form-actions">
           <button type="button" class="btn-back" (click)="back()">Back</button>
-          <button type="submit" class="btn-create">Create</button>
+          <button type="submit" class="btn-create">{{ isEditMode ? 'Update' : 'Create' }}</button>
         </div>
       </form>
     </div>
