@@ -44,8 +44,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Base64 이미지를 위한 크기 제한 증가
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 /* Routes */
 app.use('/api/users', userRoutes);       // 用户路由

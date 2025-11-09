@@ -248,12 +248,102 @@ export class AddCustomMealComponent implements OnInit {
   onPhotoChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
+      const file = input.files[0];
+      
+      // 파일 크기 제한 (5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSize) {
+        alert('Image size is too large. Please select an image smaller than 5MB.');
+        input.value = ''; // Reset input
+        return;
+      }
+      
+      // 이미지 파일인지 확인
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
+        input.value = ''; // Reset input
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (e: any) => {
-        this.foodPhoto = e.target.result;
+        const base64String = e.target.result as string;
+        
+        // Base64 문자열이 너무 길면 압축 시도
+        if (base64String.length > 1000000) { // 약 1MB
+          console.warn('⚠️ Image is large, compressing...');
+          this.compressImage(base64String).then(compressed => {
+            this.foodPhoto = compressed;
+            this.cdr.detectChanges();
+          }).catch(err => {
+            console.error('❌ Error compressing image:', err);
+            // 압축 실패해도 원본 사용
+            this.foodPhoto = base64String;
+            this.cdr.detectChanges();
+          });
+        } else {
+          this.foodPhoto = base64String;
+          this.cdr.detectChanges();
+        }
       };
-      reader.readAsDataURL(input.files[0]);
+      
+      reader.onerror = (error) => {
+        console.error('❌ Error reading file:', error);
+        alert('Failed to read image file. Please try again.');
+        input.value = ''; // Reset input
+      };
+      
+      reader.readAsDataURL(file);
     }
+  }
+
+  // 이미지 압축 (간단한 방법: canvas 사용)
+  compressImage(base64String: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+        
+        // 최대 크기 설정 (800px)
+        const maxWidth = 800;
+        const maxHeight = 800;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // JPEG로 압축 (품질 0.8)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(compressedBase64);
+      };
+      
+      img.onerror = (error) => {
+        reject(error);
+      };
+      
+      img.src = base64String;
+    });
   }
 
   triggerPhotoUpload() {
@@ -294,16 +384,25 @@ export class AddCustomMealComponent implements OnInit {
       ingredients: this.ingredients.trim(),
       howToCook: this.howToCook.trim(),
       kcal: this.kcal.trim(),
-      photo: this.foodPhoto,
+      photo: this.foodPhoto || null,
       date: this.selectedDate, // YYYY-MM-DD format
       mealType: this.selectedMealType, // Breakfast, Lunch, Dinner, Snack
       owner: userId
     };
 
+    // Photo 크기 확인 및 로깅
+    if (mealData.photo) {
+      const photoSize = mealData.photo.length;
+      console.log('📸 Photo size:', photoSize, 'characters');
+      if (photoSize > 2000000) { // 약 2MB
+        console.warn('⚠️ Photo is very large, this may cause issues');
+      }
+    }
+
     // Edit 모드인지 확인
     if (this.isEditMode && this.editMealId) {
       // Update existing meal
-      console.log('🟢 Updating custom meal:', mealData);
+      console.log('🟢 Updating custom meal:', { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null });
       this.customMealService.updateCustomMeal(this.editMealId, mealData).subscribe({
         next: (updatedMeal) => {
           console.log('✅ Custom meal updated successfully:', updatedMeal);
@@ -314,12 +413,14 @@ export class AddCustomMealComponent implements OnInit {
         },
         error: (err) => {
           console.error('❌ Error updating custom meal:', err);
-          alert('Failed to update custom meal. Please try again.');
+          console.error('❌ Error details:', JSON.stringify(err, null, 2));
+          const errorMessage = err.error?.message || err.message || 'Unknown error';
+          alert(`Failed to update custom meal: ${errorMessage}`);
         }
       });
     } else {
       // Create new meal
-      console.log('🟢 Creating custom meal:', mealData);
+      console.log('🟢 Creating custom meal:', { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null });
       this.customMealService.createCustomMeal(mealData).subscribe({
         next: (savedMeal) => {
           console.log('✅ Custom meal created successfully:', savedMeal);
@@ -330,7 +431,9 @@ export class AddCustomMealComponent implements OnInit {
         },
         error: (err) => {
           console.error('❌ Error creating custom meal:', err);
-          alert('Failed to create custom meal. Please try again.');
+          console.error('❌ Error details:', JSON.stringify(err, null, 2));
+          const errorMessage = err.error?.message || err.message || 'Unknown error';
+          alert(`Failed to create custom meal: ${errorMessage}`);
         }
       });
     }
