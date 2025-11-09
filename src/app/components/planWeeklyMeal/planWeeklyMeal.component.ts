@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService, Food } from '../../services/food.service';
 import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
+import { CustomMealService, CustomMeal } from '../../services/custom-meal.service';
 
 interface DayInfo {
   name: string;
@@ -28,6 +29,7 @@ interface InventoryItem {
   marked: boolean;
   markedQuantity: number; // Amount that is marked
   expiry: string;
+  markedFoodIds?: string[]; // Array of MarkedFood _id values for this foodId
 }
 
 interface MealPlan {
@@ -57,9 +59,12 @@ export class PlanWeeklyMealComponent implements OnInit {
   
   // Meal planning data
   mealPlans: Map<string, MealPlan> = new Map(); // key: "YYYY-MM-DD-mealType"
+  customMealsCache: CustomMeal[] = []; // Custom meals 캐시
   selectedDay: DayInfo | null = null;
   selectedMealType: string | null = null;
   showMealOptions: boolean = false;
+  selectedCustomMeal: CustomMeal | null = null; // 현재 선택된 custom meal
+  showCustomMealDetails: boolean = false; // Custom meal 상세 정보 표시 여부
   
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
@@ -76,11 +81,23 @@ export class PlanWeeklyMealComponent implements OnInit {
   expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
   availableCategories: string[] = []; // Will be populated from actual inventory data
 
+  // Remove modal
+  showRemoveModal: boolean = false;
+  removeItem: InventoryItem | null = null;
+  removeQuantity: number = 1;
+  isRemoving: boolean = false; // Loading state
+  rawMarkedFoods: MarkedFood[] = []; // Cache for faster access
+  
+  // Success message
+  showSuccessMessage: boolean = false;
+  successMessage: string = '';
+
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
     private foodService: FoodService,
-    private browseService: BrowseFoodService
+    private browseService: BrowseFoodService,
+    private customMealService: CustomMealService
   ) {}
 
   ngOnInit() {
@@ -97,6 +114,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     
     this.initializeWeekDays();
     this.loadInventory();
+    this.loadCustomMeals();
   }
 
   loadInventory() {
@@ -121,9 +139,13 @@ export class PlanWeeklyMealComponent implements OnInit {
     // Load only marked foods
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
-        console.log('📌 Loaded marked foods:', markedFoods);
+        // Store raw marked foods for faster access (avoid re-fetching)
+        this.rawMarkedFoods = markedFoods;
+        // Reduced logging for performance - uncomment for debugging
+        // console.log('📌 Loaded marked foods:', markedFoods);
         
         // Convert marked foods to InventoryItem format
+        // Use exact quantities from database
         const markedItems = markedFoods.map((markedFood: MarkedFood) => {
           let expiryStr = '';
           if (markedFood.expiry) {
@@ -134,18 +156,45 @@ export class PlanWeeklyMealComponent implements OnInit {
             expiryStr = `${day}/${month}/${year}`;
           }
 
+          // Handle foodId - it might be an object if populated, or a string
+          let foodIdStr = '';
+          const foodIdValue = (markedFood as any).foodId; // Use any to handle populated object
+          
+          if (typeof foodIdValue === 'string') {
+            foodIdStr = foodIdValue;
+          } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+            // If populated, extract the _id
+            foodIdStr = foodIdValue._id;
+          } else if (foodIdValue) {
+            // Fallback: try to convert to string
+            foodIdStr = String(foodIdValue);
+          }
+
+          // Use exact qty from database
+          const dbQty = markedFood.qty || 0;
+          
+          // Reduced logging for performance
+          // console.log('🔍 Processing markedFood from DB:', {
+          //   _id: markedFood._id,
+          //   name: markedFood.name,
+          //   qty: dbQty,
+          //   foodId: foodIdStr
+          // });
+
           return {
-            foodId: markedFood.foodId || '',
+            foodId: foodIdStr,
             name: markedFood.name,
-            quantity: markedFood.qty,
+            quantity: dbQty, // Exact quantity from database
             category: markedFood.category || 'Other',
             marked: true,
-            markedQuantity: markedFood.qty,
-            expiry: expiryStr
+            markedQuantity: dbQty, // Exact marked quantity from database
+            expiry: expiryStr,
+            markedFoodIds: markedFood._id ? [markedFood._id] : []
           };
         });
 
         // Merge marked items with same foodId (same food item marked multiple times)
+        // Sum up quantities from database accurately
         const markedItemsByFoodId = new Map<string, InventoryItem>();
         markedItems.forEach(item => {
           const foodId = item.foodId;
@@ -156,16 +205,41 @@ export class PlanWeeklyMealComponent implements OnInit {
           
           const existing = markedItemsByFoodId.get(foodId);
           if (existing) {
-            // If same foodId exists, add quantities (same food item marked multiple times)
-            existing.quantity += item.quantity;
-            existing.markedQuantity += item.markedQuantity;
+            // If same foodId exists, sum quantities from database (same food item marked multiple times)
+            // Both quantity and markedQuantity should be the sum of all marked quantities from DB
+            const newQuantity = existing.quantity + item.quantity;
+            const newMarkedQuantity = existing.markedQuantity + item.markedQuantity;
+            
+            // Reduced logging for performance
+            // console.log(`🔍 Merging ${item.name}:`, {
+            //   existingQty: existing.quantity,
+            //   newItemQty: item.quantity,
+            //   totalQty: newQuantity,
+            //   existingMarkedQty: existing.markedQuantity,
+            //   newItemMarkedQty: item.markedQuantity,
+            //   totalMarkedQty: newMarkedQuantity
+            // });
+            
+            existing.quantity = newQuantity;
+            existing.markedQuantity = newMarkedQuantity;
+            // Merge markedFoodIds arrays
+            if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+              existing.markedFoodIds = (existing.markedFoodIds || []).concat(item.markedFoodIds);
+            }
           } else {
-            // Add new item
+            // Add new item with exact database quantities
             markedItemsByFoodId.set(foodId, { ...item });
           }
         });
 
         this.inventory = Array.from(markedItemsByFoodId.values());
+        // Reduced logging for performance - uncomment for debugging
+        // console.log('📌 Final inventory from database:', this.inventory.map(item => ({
+        //   name: item.name,
+        //   quantity: item.quantity,
+        //   markedQuantity: item.markedQuantity,
+        //   foodId: item.foodId
+        // })));
         this.updateAvailableCategories(); // Update available categories from actual data
         this.applyFilters(); // Apply filters on initial load
         this.cdr.detectChanges();
@@ -357,6 +431,9 @@ export class PlanWeeklyMealComponent implements OnInit {
       day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
     });
     
+    // Custom meals 다시 로드 (주가 변경되었으므로)
+    this.loadCustomMeals();
+    
     this.cdr.detectChanges();
   }
 
@@ -386,6 +463,9 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.weekDays.forEach(day => {
       day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
     });
+    
+    // Custom meals 다시 로드 (주가 변경되었으므로)
+    this.loadCustomMeals();
     
     this.cdr.detectChanges();
   }
@@ -597,6 +677,357 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.selectedItemIndex = index;
   }
 
+  openRemoveModal(item: InventoryItem, event: Event) {
+    event.stopPropagation(); // Prevent row click
+    console.log('🔍 Opening remove modal for item:', item);
+    console.log('🔍 Item foodId:', item.foodId);
+    
+    if (!item || !item.foodId) {
+      console.error('❌ Invalid item or missing foodId:', item);
+      alert('Invalid item selected');
+      return;
+    }
+    
+    this.removeItem = item;
+    this.removeQuantity = 1;
+    this.showRemoveModal = true;
+  }
+
+  closeRemoveModal() {
+    this.showRemoveModal = false;
+    this.removeItem = null;
+    this.removeQuantity = 1;
+  }
+
+  showSuccessToast(message: string) {
+    this.successMessage = message;
+    this.showSuccessMessage = true;
+    // Auto-close after 3 seconds
+    setTimeout(() => {
+      this.showSuccessMessage = false;
+      this.successMessage = '';
+    }, 3000);
+  }
+
+  confirmRemove() {
+    if (!this.removeItem || !this.removeItem.foodId) {
+      alert('Invalid item selected');
+      return;
+    }
+
+    if (this.removeQuantity <= 0 || this.removeQuantity > this.removeItem.markedQuantity) {
+      alert(`Please enter a valid quantity (1-${this.removeItem.markedQuantity})`);
+      return;
+    }
+
+    this.isRemoving = true; // Show loading state
+    const item = this.removeItem;
+    const removeQty = this.removeQuantity;
+    const remainingMarkedQty = item.markedQuantity - removeQty;
+
+    // First, get the original food item to restore quantity
+    // Use getFoods and filter by foodId instead of getFoodById for better compatibility
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      alert('User ID not found');
+      return;
+    }
+
+    this.foodService.getFoods(userId).subscribe({
+      next: (foods: any[]) => {
+        console.log('🔍 Searching for food with foodId:', item.foodId);
+        console.log('🔍 Available foods:', foods.map(f => ({ _id: f._id, name: f.name })));
+        
+        // Try to find by _id (string comparison)
+        let originalFood = foods.find(f => f._id === item.foodId);
+        
+        // If not found, try converting both to strings
+        if (!originalFood) {
+          originalFood = foods.find(f => String(f._id) === String(item.foodId));
+        }
+        
+        // If still not found, try finding by name as fallback (less reliable)
+        if (!originalFood) {
+          console.warn('⚠️ Food not found by ID, trying to find by name:', item.name);
+          originalFood = foods.find(f => f.name === item.name && f.status === 'inventory');
+        }
+        
+        if (!originalFood) {
+          console.error('❌ Original food item not found. foodId:', item.foodId, 'name:', item.name);
+          alert(`Original food item "${item.name}" not found in inventory. It may have been deleted.`);
+          this.closeRemoveModal();
+          return;
+        }
+        
+        console.log('✅ Found original food:', originalFood);
+        console.log(`🔍 Remove calculation:`, {
+          originalQty: originalFood.qty,
+          removeQty: removeQty,
+          newQty: originalFood.qty + removeQty
+        });
+
+        const actualFoodId = originalFood._id || item.foodId; // Use the actual _id from found food
+        const originalQtyBeforeUpdate = originalFood.qty; // Store original qty for rollback
+        const newInventoryQty = originalQtyBeforeUpdate + removeQty;
+
+        // CRITICAL: Update original food quantity ONCE before processing marked foods
+        // This ensures we only add the total removeQty once, not per marked food
+        console.log(`🟢 [Frontend] Updating food ${actualFoodId} qty from ${originalQtyBeforeUpdate} to ${newInventoryQty}`);
+        this.browseService.updateFoodQty(actualFoodId, newInventoryQty).subscribe({
+          next: (updatedFood) => {
+            console.log(`✅ [DB] Food updated in database: ${item.name}, qty: ${originalQtyBeforeUpdate} → ${newInventoryQty}`);
+            console.log(`✅ Restored ${removeQty} ${item.name}(s) to inventory`);
+
+            // Now update or delete marked food(s)
+            if (remainingMarkedQty <= 0) {
+              // Remove all marked foods for this foodId
+              if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+                // Delete all marked foods
+                const deletePromises = item.markedFoodIds.map(id => 
+                  this.browseService.deleteMarkedFood(id).toPromise()
+                );
+                Promise.all(deletePromises).then(() => {
+                  console.log('✅ All marked foods removed');
+                  this.isRemoving = false;
+                  // Close modal first for better UX
+                  this.closeRemoveModal();
+                  // Update local state and reload from DB to ensure accuracy
+                  this.updateLocalInventoryAfterRemove(item, removeQty, []);
+                  // Show success message
+                  this.showSuccessToast(`Removed ${removeQty} ${item.name}(s) successfully✅`);
+                }).catch(err => {
+                  console.error('❌ Error deleting marked foods:', err);
+                  this.isRemoving = false;
+                  // Reload on error to show actual state
+                  this.loadInventory();
+                  alert('Failed to remove marked foods❌');
+                });
+              } else {
+                // If no markedFoodIds, reload to get them
+                this.isRemoving = false;
+                this.loadInventory();
+                this.closeRemoveModal();
+              }
+            } else {
+              // Update marked food quantity
+              // Use cached rawMarkedFoods instead of fetching again
+              if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+                // Extract foodId from markedFood (handle populated objects)
+                const extractFoodId = (mf: MarkedFood): string => {
+                  const foodIdValue = (mf as any).foodId;
+                  if (typeof foodIdValue === 'string') {
+                    return foodIdValue;
+                  } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+                    return foodIdValue._id;
+                  }
+                  return String(foodIdValue || '');
+                };
+
+                // Filter marked foods by foodId using cached data
+                const relevantMarkedFoods = this.rawMarkedFoods.filter(mf => {
+                  const mfFoodId = extractFoodId(mf);
+                  return String(mfFoodId) === String(item.foodId) && 
+                         item.markedFoodIds?.includes(mf._id || '');
+                });
+
+                    console.log('🔍 Relevant marked foods:', relevantMarkedFoods);
+                    console.log('🔍 Total to remove:', removeQty);
+
+                    if (relevantMarkedFoods.length === 0) {
+                      console.warn('⚠️ No relevant marked foods found, reloading...');
+                      this.isRemoving = false;
+                      this.loadInventory();
+                      this.closeRemoveModal();
+                      return;
+                    }
+
+                    // Remove quantity sequentially from marked foods (FIFO - first in first out)
+                    let remainingToRemove = removeQty;
+                    let completedOperations = 0;
+                    let hasError = false;
+                    const totalMarkedFoods = relevantMarkedFoods.length;
+                    let operationsStarted = 0;
+
+                    const finishProcessing = () => {
+                      this.isRemoving = false;
+                      if (hasError) {
+                        // Rollback: restore original food quantity
+                        console.log('🔄 Rolling back due to errors...');
+                        this.browseService.updateFoodQty(actualFoodId, originalQtyBeforeUpdate).subscribe({
+                          next: () => {
+                            console.log('✅ Rollback successful');
+                            this.loadInventory();
+                            this.closeRemoveModal();
+                            alert('Failed to remove marked foods. Changes have been rolled back.❌');
+                          },
+                          error: (rollbackErr) => {
+                            console.error('❌ Rollback failed:', rollbackErr);
+                            this.loadInventory();
+                            this.closeRemoveModal();
+                            alert('Failed to remove marked foods. Please check the inventory.❌');
+                          }
+                        });
+                        return;
+                      }
+                      
+                      console.log('✅ All marked foods processed successfully');
+                      // Close modal first for better UX
+                      this.closeRemoveModal();
+                      // Update local state and reload from DB to ensure accuracy
+                      this.updateLocalInventoryAfterRemove(item, removeQty, relevantMarkedFoods);
+                      // Show success message
+                      this.showSuccessToast(`Removed ${removeQty} ${item.name}(s) successfully✅`);
+                    };
+
+                    const checkCompletion = () => {
+                      // Check if all operations are complete
+                      console.log(`🔍 Completion check: completed=${completedOperations}, started=${operationsStarted}, remaining=${remainingToRemove}`);
+                      if (completedOperations === operationsStarted && operationsStarted > 0) {
+                        console.log('✅ All operations completed, finishing...');
+                        finishProcessing();
+                      } else if (remainingToRemove <= 0 && operationsStarted === 0) {
+                        // No operations needed (nothing to remove)
+                        console.log('✅ No operations needed, finishing...');
+                        finishProcessing();
+                      }
+                    };
+
+                    const processNextMarkedFood = (index: number) => {
+                      // If no more to remove, finish
+                      if (remainingToRemove <= 0) {
+                        console.log('✅ All quantity removed');
+                        checkCompletion();
+                        return;
+                      }
+                      
+                      // If we've processed all marked foods, finish
+                      if (index >= totalMarkedFoods) {
+                        console.log('✅ All marked foods processed');
+                        checkCompletion();
+                        return;
+                      }
+
+                      const markedFood = relevantMarkedFoods[index];
+                      if (!markedFood._id) {
+                        // Skip invalid marked food and continue
+                        processNextMarkedFood(index + 1);
+                        return;
+                      }
+
+                      const thisMarkedQty = markedFood.qty;
+                      const qtyToRemoveFromThis = Math.min(remainingToRemove, thisMarkedQty);
+                      const newQty = thisMarkedQty - qtyToRemoveFromThis;
+                      
+                      operationsStarted++;
+
+                      console.log(`🔍 Processing marked food ${index + 1}/${totalMarkedFoods}:`, {
+                        _id: markedFood._id,
+                        currentQty: thisMarkedQty,
+                        removeQty: qtyToRemoveFromThis,
+                        newQty: newQty,
+                        remainingToRemove: remainingToRemove
+                      });
+
+                      // Update remainingToRemove AFTER starting the operation
+                      remainingToRemove -= qtyToRemoveFromThis;
+
+                      if (newQty <= 0) {
+                        // Delete this marked food from database
+                        this.browseService.deleteMarkedFood(markedFood._id).subscribe({
+                          next: () => {
+                            console.log(`✅ [DB] Marked food deleted: ${markedFood._id}`);
+                            completedOperations++;
+                            // Continue with next marked food
+                            processNextMarkedFood(index + 1);
+                            checkCompletion();
+                          },
+                          error: (err) => {
+                            console.error('❌ Error deleting marked food:', err);
+                            hasError = true;
+                            completedOperations++;
+                            // Continue processing even on error
+                            processNextMarkedFood(index + 1);
+                            checkCompletion();
+                          }
+                        });
+                      } else {
+                        // Update this marked food in database
+                        this.browseService.updateMarkedFoodQty(markedFood._id, newQty).subscribe({
+                          next: (updatedMarkedFood) => {
+                            console.log(`✅ [DB] Marked food updated: ${markedFood._id}, qty: ${newQty}`);
+                            completedOperations++;
+                            // Continue with next marked food
+                            processNextMarkedFood(index + 1);
+                            checkCompletion();
+                          },
+                          error: (err) => {
+                            console.error('❌ Error updating marked food:', err);
+                            hasError = true;
+                            completedOperations++;
+                            // Continue processing even on error
+                            processNextMarkedFood(index + 1);
+                            checkCompletion();
+                          }
+                        });
+                      }
+                    };
+
+                    // Start processing from the first marked food
+                    processNextMarkedFood(0);
+              } else {
+                this.isRemoving = false;
+                this.loadInventory();
+                this.closeRemoveModal();
+              }
+            }
+          },
+          error: (err) => {
+            console.error('❌ Error updating inventory quantity:', err);
+            this.isRemoving = false;
+            alert('Failed to restore inventory quantity❌');
+          }
+        });
+      },
+      error: (err) => {
+        console.error('❌ Error fetching original food:', err);
+        this.isRemoving = false;
+        alert('Failed to fetch original food item❌');
+      }
+    });
+  }
+
+  // Optimize: Update local inventory state immediately for better UX
+  updateLocalInventoryAfterRemove(item: InventoryItem, removeQty: number, processedMarkedFoods: MarkedFood[]) {
+    console.log('🔄 Updating local inventory after remove:', {
+      itemName: item.name,
+      removeQty: removeQty,
+      processedMarkedFoods: processedMarkedFoods.length
+    });
+    
+    // Update rawMarkedFoods cache first - remove or update processed marked foods
+    if (processedMarkedFoods && processedMarkedFoods.length > 0) {
+      processedMarkedFoods.forEach(mf => {
+        const cachedIndex = this.rawMarkedFoods.findIndex(r => r._id === mf._id);
+        if (cachedIndex > -1) {
+          const cached = this.rawMarkedFoods[cachedIndex];
+          // Calculate actual new quantity based on what was removed
+          // We need to track what was actually removed from each marked food
+          // For now, reload from DB to ensure accuracy
+          this.rawMarkedFoods.splice(cachedIndex, 1);
+        }
+      });
+    }
+    
+    // Reload inventory from database to ensure accuracy
+    // This is necessary because the actual quantities updated in DB may differ
+    // from what we calculated locally
+    setTimeout(() => {
+      this.loadInventory();
+    }, 200); // Small delay to ensure DB updates are complete
+  }
+
   getCategoryIcon(category: string): string {
     if (!category) return '📦';
     
@@ -624,6 +1055,51 @@ export class PlanWeeklyMealComponent implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
+  // Custom meals 로드
+  loadCustomMeals() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping custom meals load.');
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      return;
+    }
+
+    this.customMealService.getCustomMeals(userId).subscribe({
+      next: (customMeals: CustomMeal[]) => {
+        console.log('📅 Custom meals loaded:', customMeals.length);
+        
+        // Custom meals 캐시 업데이트
+        this.customMealsCache = customMeals;
+        
+        // Custom meals를 mealPlans Map에 추가
+        customMeals.forEach((meal: CustomMeal) => {
+          if (meal.date && meal.mealType) {
+            const mealKey = `${meal.date}-${meal.mealType}`;
+            const mealPlan: MealPlan = {
+              dateKey: meal.date,
+              mealType: meal.mealType,
+              mealName: meal.foodName
+            };
+            this.mealPlans.set(mealKey, mealPlan);
+            console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
+          }
+        });
+        
+        // UI 업데이트
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading custom meals:', err);
+      }
+    });
+  }
+
   // Meal slot 클릭 핸들러
   selectMealSlot(day: DayInfo, mealType: string) {
     this.selectedDay = day;
@@ -638,20 +1114,174 @@ export class PlanWeeklyMealComponent implements OnInit {
     if (!hasMeal) {
       // meal이 없으면 옵션 표시
       this.showMealOptions = true;
+      this.showCustomMealDetails = false;
+      this.selectedCustomMeal = null;
     } else {
-      // meal이 있으면 편집 가능하도록 (추후 구현)
+      // meal이 있으면 custom meal 정보 표시 (캐시에서 즉시 로드)
       this.showMealOptions = false;
+      this.loadCustomMealDetailsFromCache(dateKey, mealType);
     }
     
     this.cdr.detectChanges();
   }
 
+  // Custom meal 상세 정보를 캐시에서 즉시 로드
+  loadCustomMealDetailsFromCache(dateKey: string, mealType: string) {
+    // 캐시에서 해당 날짜와 시간대에 맞는 custom meal 찾기
+    const customMeal = this.customMealsCache.find(
+      (meal: CustomMeal) => meal.date === dateKey && meal.mealType === mealType
+    );
+
+    if (customMeal) {
+      this.selectedCustomMeal = customMeal;
+      this.showCustomMealDetails = true;
+      console.log('✅ Custom meal loaded from cache:', customMeal);
+      this.cdr.detectChanges();
+    } else {
+      // 캐시에 없으면 API 호출 (fallback)
+      console.warn('⚠️ Custom meal not found in cache, loading from API...');
+      this.loadCustomMealDetailsFromAPI(dateKey, mealType);
+    }
+  }
+
+  // Custom meal 상세 정보를 API에서 로드 (fallback)
+  loadCustomMealDetailsFromAPI(dateKey: string, mealType: string) {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      return;
+    }
+
+    this.customMealService.getCustomMeals(userId).subscribe({
+      next: (customMeals: CustomMeal[]) => {
+        // 캐시 업데이트
+        this.customMealsCache = customMeals;
+        
+        // 해당 날짜와 시간대에 맞는 custom meal 찾기
+        const customMeal = customMeals.find(
+          (meal: CustomMeal) => meal.date === dateKey && meal.mealType === mealType
+        );
+
+        if (customMeal) {
+          this.selectedCustomMeal = customMeal;
+          this.showCustomMealDetails = true;
+          console.log('✅ Custom meal loaded from API:', customMeal);
+        } else {
+          this.selectedCustomMeal = null;
+          this.showCustomMealDetails = false;
+          console.warn('⚠️ Custom meal not found for:', dateKey, mealType);
+        }
+        
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading custom meal details:', err);
+        this.selectedCustomMeal = null;
+        this.showCustomMealDetails = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   // Meal 옵션 닫기
   closeMealOptions() {
     this.showMealOptions = false;
+    this.showCustomMealDetails = false;
+    this.selectedCustomMeal = null;
     this.selectedDay = null;
     this.selectedMealType = null;
     this.cdr.detectChanges();
+  }
+
+  // Custom meal 상세 정보 닫기
+  closeCustomMealDetails() {
+    this.showCustomMealDetails = false;
+    this.selectedCustomMeal = null;
+    this.selectedDay = null;
+    this.selectedMealType = null;
+    this.cdr.detectChanges();
+  }
+
+  // Ingredients를 파싱하여 배열로 반환 (예: "Tomato Sauce 150g\nSpaghetti 100g" -> [{name: "Tomato Sauce", qty: "150g"}, ...])
+  parseIngredients(ingredients: string): Array<{name: string, qty: string}> {
+    if (!ingredients || !ingredients.trim()) {
+      return [];
+    }
+    
+    const lines = ingredients.split('\n').filter(line => line.trim());
+    return lines.map(line => {
+      // "재료명 수량" 형식으로 파싱
+      const parts = line.trim().split(/\s+(?=\d|tbsp|tsp|g|kg|ml|l|cup|cups)/);
+      if (parts.length >= 2) {
+        return {
+          name: parts.slice(0, -1).join(' '),
+          qty: parts[parts.length - 1]
+        };
+      }
+      return { name: line.trim(), qty: '' };
+    });
+  }
+
+  // Custom meal 삭제
+  deleteCustomMeal() {
+    if (!this.selectedCustomMeal || !this.selectedCustomMeal._id) {
+      alert('No meal selected to delete');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${this.selectedCustomMeal.foodName}"?`)) {
+      return;
+    }
+
+    this.customMealService.deleteCustomMeal(this.selectedCustomMeal._id).subscribe({
+      next: () => {
+        console.log('✅ Custom meal deleted successfully');
+        
+        // mealPlans에서 제거
+        if (this.selectedDay && this.selectedMealType) {
+          const dateKey = this.getDateKey(this.selectedDay.fullDate);
+          const mealKey = `${dateKey}-${this.selectedMealType}`;
+          this.mealPlans.delete(mealKey);
+        }
+        
+        // 캐시에서도 제거
+        if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+          this.customMealsCache = this.customMealsCache.filter(
+            meal => meal._id !== this.selectedCustomMeal!._id
+          );
+        }
+        
+        // UI 업데이트
+        this.closeCustomMealDetails();
+        this.cdr.detectChanges();
+        
+        alert('Meal deleted successfully!');
+      },
+      error: (err) => {
+        console.error('❌ Error deleting custom meal:', err);
+        alert('Failed to delete meal. Please try again.');
+      }
+    });
+  }
+
+  // Custom meal 편집 (add-custom-meal 페이지로 이동)
+  editCustomMeal() {
+    if (!this.selectedCustomMeal || !this.selectedDay || !this.selectedMealType) {
+      alert('No meal selected to edit');
+      return;
+    }
+
+    const dateKey = this.getDateKey(this.selectedDay.fullDate);
+    this.router.navigate(['/add-custom-meal'], {
+      queryParams: {
+        date: dateKey,
+        mealType: this.selectedMealType,
+        edit: 'true',
+        id: this.selectedCustomMeal._id
+      }
+    });
   }
 
   // Add your own meal 버튼 클릭

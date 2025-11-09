@@ -11,6 +11,7 @@ const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
 const markedFoodRoutes = require('./routes/markedFoodRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const customMealRoutes = require('./routes/customMealRoutes');
 
 
 const app = express();
@@ -43,8 +44,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Base64 이미지를 위한 크기 제한 증가
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 /* Routes */
 app.use('/api/users', userRoutes);       // 用户路由
@@ -52,6 +53,7 @@ app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
 app.use('/api/marked-foods', markedFoodRoutes);
+app.use('/api/custom-meals', customMealRoutes);
 
 // 基础测试路由
 app.get('/', (req, res) => {
@@ -147,17 +149,23 @@ app.options('/api/foods/:id/status', cors());
 // app.js または foodRoutes.js
 app.put('/api/foods/:id', async (req, res) => {
   try {
+    const { qty } = req.body;
+    console.log(`🟢 [DB Update] Updating food ${req.params.id} with qty: ${qty}`);
+    
     const updatedFood = await Food.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { qty },
       { new: true }  // 更新後のデータを返す
     );
+    
     if (!updatedFood) {
       return res.status(404).json({ message: 'Food not found' });
     }
+    
+    console.log(`✅ [DB Update] Food updated in database: ${updatedFood.name}, new qty: ${updatedFood.qty}`);
     res.json(updatedFood);
   } catch (error) {
-    console.error('Error updating food:', error);
+    console.error('❌ [DB Update] Error updating food:', error);
     res.status(500).json({ message: 'Server error while updating food', error });
   }
 });

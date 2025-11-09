@@ -7,7 +7,7 @@
     <div class="content-wrapper">
       <!-- Left: Meal Form -->
       <div class="meal-form-container">
-        <h1 class="page-title">Add Custom meals</h1>
+        <h1 class="page-title">{{ isEditMode ? 'Edit Custom Meal' : 'Add Custom meals' }}</h1>
         
         <form class="meal-form" (ngSubmit)="createMeal()">
         <!-- Food Photo (Optional) -->
@@ -85,7 +85,7 @@
         <!-- Buttons -->
         <div class="form-actions">
           <button type="button" class="btn-back" (click)="back()">Back</button>
-          <button type="submit" class="btn-create">Create</button>
+          <button type="submit" class="btn-create">{{ isEditMode ? 'Update' : 'Create' }}</button>
         </div>
       </form>
     </div>
@@ -94,7 +94,7 @@
     <div class="inventory-wrapper">
       <div class="inventory-section">
         <div class="inventory-header">
-          <h2 class="section-title">Current inventory</h2>
+          <h2 class="section-title">Marked Foods</h2>
           <div class="search-filter-bar">
           <input 
             type="text" 
@@ -116,14 +116,13 @@
           <div class="header-cell">Name</div>
           <div class="header-cell">Quantity</div>
           <div class="header-cell">Category</div>
-          <div class="header-cell">Mark</div>
           <div class="header-cell">Expiry</div>
         </div>
 
         <div class="inventory-list">
           <div 
             class="inventory-item" 
-            *ngFor="let item of filteredInventory; let i = index"
+            *ngFor="let item of paginatedInventory; let i = index"
             [class.selected]="selectedItemIndex === i"
             (click)="selectItem(i)">
             <div class="item-name">{{ item.name }}</div>
@@ -136,20 +135,82 @@
                 {{ item.category }}
               </span>
             </div>
-            <div class="item-mark">
-              <span *ngIf="item.marked" class="marked-badge">
-                <span class="checkmark">✓</span>
-                Marked
-              </span>
-            </div>
             <div class="item-expiry">
               <span class="expiry-date">{{ item.expiry }}</span>
             </div>
           </div>
         </div>
+        
+        <!-- Pagination Controls -->
+        <div class="pagination-container" *ngIf="totalPages > 1">
+          <div class="pagination-buttons">
+            <button 
+              *ngFor="let page of getPagesArray()" 
+              class="page-button"
+              [class.active]="currentPage === page"
+              (click)="goToPage(page)">
+              {{ page }}
+            </button>
+          </div>
+        </div>
         </div>
       </div>
     </div>
+    </div>
+  </div>
+
+  <!-- Filter Drawer -->
+  <div class="filter-drawer" [class.open]="showFilter">
+    <div class="filter-header">
+      <h2>Filters</h2>
+      <button class="close-btn" (click)="toggleFilter()">×</button>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="filter-section">
+      <h3>Category</h3>
+      
+      <!-- All -->
+      <label>
+        <input
+          type="checkbox"
+          name="cat_all"
+          [checked]="selectedCategories.size === availableCategories.length"
+          (change)="onCategoryAllToggle($any($event.target).checked)" />
+        All
+      </label>
+
+      <!-- Individual Categories -->
+      <label *ngFor="let cat of availableCategories">
+        <input
+          type="checkbox"
+          name="cat_{{cat}}"
+          [checked]="selectedCategories.has(cat)"
+          (change)="onCategoryToggle(cat, $any($event.target).checked)" />
+        {{ cat }}
+      </label>
+    </div>
+
+    <!-- Expiry Filter -->
+    <div class="filter-section">
+      <h3>Expired in</h3>
+
+      <div class="expired-input-group">
+        <input
+          type="number"
+          [(ngModel)]="expiryFilterDays"
+          placeholder="Enter days"
+          min="0" />
+        <span>day(s)</span>
+      </div>
+
+      <button class="apply-btn" (click)="applyExpiryFilter()">Apply</button>
+      <button class="reset-btn" (click)="resetExpiryFilter()">Reset</button>
+    </div>
+
+    <!-- Reset All Filters -->
+    <div class="filter-section">
+      <button class="reset-all-btn" (click)="resetFilters()">Reset All Filters</button>
     </div>
   </div>
 </div>

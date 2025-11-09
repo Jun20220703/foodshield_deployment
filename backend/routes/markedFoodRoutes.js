@@ -63,12 +63,46 @@ router.get('/', async (req, res) => {
   }
 });
 
+// 🔄 Update marked food quantity (for partial removal)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { qty } = req.body;
+    console.log(`🟢 Updating marked food ${req.params.id} with qty: ${qty}`);
+    
+    const markedFood = await MarkedFood.findById(req.params.id);
+    
+    if (!markedFood) {
+      return res.status(404).json({ message: 'Marked food not found' });
+    }
+
+    if (qty <= 0) {
+      // If quantity becomes 0 or negative, delete the marked food
+      await MarkedFood.findByIdAndDelete(req.params.id);
+      console.log(`✅ Marked food ${req.params.id} deleted (qty <= 0)`);
+      return res.json({ message: 'Marked food removed', deleted: true });
+    }
+
+    markedFood.qty = qty;
+    await markedFood.save();
+    console.log(`✅ Marked food updated: ${markedFood.name}, new qty: ${markedFood.qty}`);
+    res.json(markedFood);
+  } catch (err) {
+    console.error('❌ Error updating marked food quantity:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ❌ Remove from marked food list
 router.delete('/:id', async (req, res) => {
   try {
-    await MarkedFood.findByIdAndDelete(req.params.id);
+    console.log(`🟢 Deleting marked food ${req.params.id}`);
+    const deleted = await MarkedFood.findByIdAndDelete(req.params.id);
+    if (deleted) {
+      console.log(`✅ Marked food deleted: ${deleted.name}`);
+    }
     res.json({ message: 'Marked food removed' });
   } catch (err) {
+    console.error('❌ Error deleting marked food:', err);
     res.status(500).json({ message: err.message });
   }
 });

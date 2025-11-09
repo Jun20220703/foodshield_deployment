@@ -1,9 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../../sidebar/sidebar.component';
 import { FoodService, Food } from '../../../services/food.service';
+import { BrowseFoodService, MarkedFood } from '../../../services/browse-food.service';
+import { CustomMealService, CustomMeal } from '../../../services/custom-meal.service';
 
 interface InventoryItem {
   name: string;
@@ -11,6 +13,8 @@ interface InventoryItem {
   category: string;
   marked: boolean;
   expiry: string;
+  foodId?: string; // Add foodId for merging
+  markedQuantity?: number; // Add markedQuantity
 }
 
 @Component({
@@ -29,17 +33,34 @@ export class AddCustomMealComponent implements OnInit {
   
   selectedDate: string = '';
   selectedMealType: string = '';
+  isEditMode: boolean = false;
+  editMealId: string | null = null;
 
   searchTerm: string = '';
   selectedItemIndex: number = -1;
 
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
+  
+  // Pagination
+  itemsPerPage: number = 10;
+  currentPage: number = 1;
+  paginatedInventory: InventoryItem[] = [];
+  totalPages: number = 1;
+
+  // Filter
+  showFilter: boolean = false;
+  selectedCategories: Set<string> = new Set();
+  expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
+  availableCategories: string[] = []; // Will be populated from actual inventory data
 
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private foodService: FoodService
+    private foodService: FoodService,
+    private browseService: BrowseFoodService,
+    private customMealService: CustomMealService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
@@ -47,10 +68,48 @@ export class AddCustomMealComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
       this.selectedDate = params['date'] || '';
       this.selectedMealType = params['mealType'] || '';
+      this.isEditMode = params['edit'] === 'true';
+      this.editMealId = params['id'] || null;
+      
+      // Edit 모드이고 id가 있으면 기존 데이터 로드
+      if (this.isEditMode && this.editMealId) {
+        this.loadExistingMeal(this.editMealId);
+      }
     });
+    
+    // CRITICAL: Ensure filter drawer is closed by default
+    this.showFilter = false;
+    
+    // Initialize with empty arrays to prevent undefined errors
+    this.inventory = [];
+    this.filteredInventory = [];
+    this.paginatedInventory = [];
     
     // Load inventory from database
     this.loadInventory();
+  }
+
+  // 기존 meal 데이터 로드
+  loadExistingMeal(mealId: string) {
+    this.customMealService.getCustomMealById(mealId).subscribe({
+      next: (meal: CustomMeal) => {
+        console.log('✅ Existing meal loaded:', meal);
+        // 폼 필드에 기존 데이터 채우기
+        this.foodName = meal.foodName || '';
+        this.ingredients = meal.ingredients || '';
+        this.howToCook = meal.howToCook || '';
+        this.kcal = meal.kcal || '';
+        this.foodPhoto = meal.photo || null;
+        this.selectedDate = meal.date || this.selectedDate;
+        this.selectedMealType = meal.mealType || this.selectedMealType;
+        
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading existing meal:', err);
+        alert('Failed to load meal data. Please try again.');
+      }
+    });
   }
 
   loadInventory() {
@@ -72,37 +131,116 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
 
-    this.foodService.getFoods(userId).subscribe({
-      next: (data: Food[]) => {
-        // status가 'inventory'인 항목만 필터링하고 InventoryItem 형식으로 변환
-        this.inventory = data
-          .filter((f: any) => f.owner === userId && f.status === 'inventory')
-          .map((food: any) => {
-            // expiry 날짜 포맷팅 (Date 객체를 DD/MM/YYYY 형식으로)
+    // Load only marked foods (same as planWeeklyMeal page)
+    this.browseService.getMarkedFoods().subscribe({
+      next: (markedFoods: MarkedFood[]) => {
+        console.log('📌 Loaded marked foods:', markedFoods);
+        
+        // Convert marked foods to InventoryItem format
+        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
             let expiryStr = '';
-            if (food.expiry) {
-              const expiryDate = new Date(food.expiry);
+          if (markedFood.expiry) {
+            const expiryDate = new Date(markedFood.expiry);
               const day = String(expiryDate.getDate()).padStart(2, '0');
               const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
               const year = expiryDate.getFullYear();
               expiryStr = `${day}/${month}/${year}`;
             }
 
+          // Handle foodId - it might be an object if populated, or a string
+          let foodIdStr = '';
+          const foodIdValue = (markedFood as any).foodId;
+          
+          if (typeof foodIdValue === 'string') {
+            foodIdStr = foodIdValue;
+          } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+            foodIdStr = foodIdValue._id;
+          } else if (foodIdValue) {
+            foodIdStr = String(foodIdValue);
+          }
+
+          // Use exact qty from database
+          const dbQty = markedFood.qty || 0;
+
             return {
-              name: food.name,
-              quantity: food.qty || 0,
-              category: food.category || 'Other',
-              marked: food.marked || false,
+            foodId: foodIdStr,
+            name: markedFood.name,
+            quantity: dbQty, // Exact quantity from database
+            category: markedFood.category || 'Other',
+            marked: true,
+            markedQuantity: dbQty, // Exact marked quantity from database
               expiry: expiryStr
             };
           });
         
+        // Merge marked items with same foodId (same food item marked multiple times)
+        const markedItemsByFoodId = new Map<string, InventoryItem>();
+        markedItems.forEach(item => {
+          const foodId = item.foodId;
+          if (!foodId) {
+            return;
+          }
+          
+          const existing = markedItemsByFoodId.get(foodId);
+          if (existing) {
+            // If same foodId exists, sum quantities from database
+            existing.quantity += item.quantity;
+            existing.markedQuantity = (existing.markedQuantity || 0) + item.markedQuantity;
+          } else {
+            // Add new item
+            markedItemsByFoodId.set(foodId, { ...item });
+          }
+        });
+
+        this.inventory = Array.from(markedItemsByFoodId.values());
+        console.log('📦 Inventory loaded:', this.inventory.length, 'items');
+        
+        // CRITICAL FIX: On initial load, skip ALL filtering and show ALL items immediately
+        // Set filteredInventory directly to all items
         this.filteredInventory = [...this.inventory];
+        console.log('✅ filteredInventory set to ALL items:', this.filteredInventory.length);
+        
+        // Update available categories for filter UI (but don't apply filters yet)
+        this.updateAvailableCategories();
+        console.log('📋 Available categories:', this.availableCategories);
+        console.log('✅ Selected categories:', Array.from(this.selectedCategories));
+        
+        // CRITICAL: Set paginatedInventory DIRECTLY without calling applyFilters
+        // This ensures items are visible immediately on page load
+        this.currentPage = 1;
+        if (this.filteredInventory.length > 0) {
+          const startIndex = 0;
+          const endIndex = Math.min(this.itemsPerPage, this.filteredInventory.length);
+          this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+          this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+          console.log('✅ paginatedInventory set DIRECTLY:', this.paginatedInventory.length, 'items');
+          console.log('✅ Total pages:', this.totalPages);
+          console.log('✅ Items to display:', this.paginatedInventory.map(i => i.name));
+          
+          // CRITICAL: Force Angular to detect changes and update UI
+          setTimeout(() => {
+            this.cdr.detectChanges();
+            console.log('✅ Change detection triggered');
+          }, 0);
+        } else {
+          this.paginatedInventory = [];
+          this.totalPages = 1;
+          console.log('⚠️ No items to display');
+          setTimeout(() => {
+            this.cdr.detectChanges();
+          }, 0);
+        }
       },
       error: (err) => {
-        console.error('Error loading inventory:', err);
+        console.error('❌ Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
+        this.paginatedInventory = [];
+        this.totalPages = 1;
+        this.currentPage = 1;
+        this.availableCategories = [];
+        this.selectedCategories.clear();
+        this.updatePagination();
       }
     });
   }
@@ -110,12 +248,102 @@ export class AddCustomMealComponent implements OnInit {
   onPhotoChange(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
+      const file = input.files[0];
+      
+      // 파일 크기 제한 (5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSize) {
+        alert('Image size is too large. Please select an image smaller than 5MB.');
+        input.value = ''; // Reset input
+        return;
+      }
+      
+      // 이미지 파일인지 확인
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
+        input.value = ''; // Reset input
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (e: any) => {
-        this.foodPhoto = e.target.result;
+        const base64String = e.target.result as string;
+        
+        // Base64 문자열이 너무 길면 압축 시도
+        if (base64String.length > 1000000) { // 약 1MB
+          console.warn('⚠️ Image is large, compressing...');
+          this.compressImage(base64String).then(compressed => {
+            this.foodPhoto = compressed;
+            this.cdr.detectChanges();
+          }).catch(err => {
+            console.error('❌ Error compressing image:', err);
+            // 압축 실패해도 원본 사용
+            this.foodPhoto = base64String;
+            this.cdr.detectChanges();
+          });
+        } else {
+          this.foodPhoto = base64String;
+          this.cdr.detectChanges();
+        }
       };
-      reader.readAsDataURL(input.files[0]);
+      
+      reader.onerror = (error) => {
+        console.error('❌ Error reading file:', error);
+        alert('Failed to read image file. Please try again.');
+        input.value = ''; // Reset input
+      };
+      
+      reader.readAsDataURL(file);
     }
+  }
+
+  // 이미지 압축 (간단한 방법: canvas 사용)
+  compressImage(base64String: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+        
+        // 최대 크기 설정 (800px)
+        const maxWidth = 800;
+        const maxHeight = 800;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // JPEG로 압축 (품질 0.8)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(compressedBase64);
+      };
+      
+      img.onerror = (error) => {
+        reject(error);
+      };
+      
+      img.src = base64String;
+    });
   }
 
   triggerPhotoUpload() {
@@ -135,22 +363,80 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
 
-    // TODO: 실제로 meal 데이터를 저장하는 로직 구현
-    // 현재는 콘솔에 출력하고 이전 페이지로 돌아감
-    const mealData = {
-      date: this.selectedDate,
-      mealType: this.selectedMealType,
-      foodName: this.foodName,
-      ingredients: this.ingredients,
-      howToCook: this.howToCook,
-      kcal: this.kcal,
-      photo: this.foodPhoto
+    // Get user ID from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      alert('User ID not found. Please log in again.');
+      return;
+    }
+
+    // Validate date and mealType
+    if (!this.selectedDate || !this.selectedMealType) {
+      alert('Date and meal type are required. Please go back and select a date and meal type.');
+      return;
+    }
+
+    // Prepare meal data
+    const mealData: CustomMeal = {
+      foodName: this.foodName.trim(),
+      ingredients: this.ingredients.trim(),
+      howToCook: this.howToCook.trim(),
+      kcal: this.kcal.trim(),
+      photo: this.foodPhoto || null,
+      date: this.selectedDate, // YYYY-MM-DD format
+      mealType: this.selectedMealType, // Breakfast, Lunch, Dinner, Snack
+      owner: userId
     };
 
-    console.log('Meal created:', mealData);
-    
-    // 이전 페이지로 돌아가기
-    this.router.navigate(['/planWeeklyMeal']);
+    // Photo 크기 확인 및 로깅
+    if (mealData.photo) {
+      const photoSize = mealData.photo.length;
+      console.log('📸 Photo size:', photoSize, 'characters');
+      if (photoSize > 2000000) { // 약 2MB
+        console.warn('⚠️ Photo is very large, this may cause issues');
+      }
+    }
+
+    // Edit 모드인지 확인
+    if (this.isEditMode && this.editMealId) {
+      // Update existing meal
+      console.log('🟢 Updating custom meal:', { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null });
+      this.customMealService.updateCustomMeal(this.editMealId, mealData).subscribe({
+        next: (updatedMeal) => {
+          console.log('✅ Custom meal updated successfully:', updatedMeal);
+          alert('Custom meal updated successfully!');
+          
+          // Navigate back to planWeeklyMeal page
+          this.router.navigate(['/planWeeklyMeal']);
+        },
+        error: (err) => {
+          console.error('❌ Error updating custom meal:', err);
+          console.error('❌ Error details:', JSON.stringify(err, null, 2));
+          const errorMessage = err.error?.message || err.message || 'Unknown error';
+          alert(`Failed to update custom meal: ${errorMessage}`);
+        }
+      });
+    } else {
+      // Create new meal
+      console.log('🟢 Creating custom meal:', { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null });
+      this.customMealService.createCustomMeal(mealData).subscribe({
+        next: (savedMeal) => {
+          console.log('✅ Custom meal created successfully:', savedMeal);
+          alert('Custom meal created successfully!');
+          
+          // Navigate back to planWeeklyMeal page
+          this.router.navigate(['/planWeeklyMeal']);
+        },
+        error: (err) => {
+          console.error('❌ Error creating custom meal:', err);
+          console.error('❌ Error details:', JSON.stringify(err, null, 2));
+          const errorMessage = err.error?.message || err.message || 'Unknown error';
+          alert(`Failed to create custom meal: ${errorMessage}`);
+        }
+      });
+    }
   }
 
   back() {
@@ -158,19 +444,166 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   filterInventory() {
-    if (!this.searchTerm.trim()) {
-      this.filteredInventory = [...this.inventory];
+    this.applyFilters();
+  }
+
+  updatePagination() {
+    // Ensure filteredInventory exists
+    if (!this.filteredInventory) {
+      this.filteredInventory = [];
+    }
+    
+    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    if (this.totalPages === 0) {
+      this.totalPages = 1;
+      this.currentPage = 1;
+      this.paginatedInventory = [];
     } else {
-      this.filteredInventory = this.inventory.filter(item =>
-        item.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
-      );
+      if (this.currentPage > this.totalPages) {
+        this.currentPage = this.totalPages;
+      }
+      const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+      const endIndex = startIndex + this.itemsPerPage;
+      this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+    }
+    console.log('📄 Pagination updated - filteredInventory:', this.filteredInventory.length, 'items');
+    console.log('📄 Pagination updated - Page', this.currentPage, 'of', this.totalPages);
+    console.log('📄 Pagination updated - paginatedInventory:', this.paginatedInventory.length, 'items');
+    console.log('📄 Paginated items:', this.paginatedInventory.map(i => i.name));
+  }
+
+  goToPage(page: number) {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.updatePagination();
     }
   }
 
+  getPagesArray(): number[] {
+    return Array.from({ length: this.totalPages }, (_, i) => i + 1);
+  }
+
   toggleFilter() {
-    // Toggle filter functionality can be implemented here
-    console.log('Filter toggled');
+    this.showFilter = !this.showFilter;
+  }
+
+  onCategoryToggle(category: string, checked: boolean) {
+    if (checked) {
+      this.selectedCategories.add(category);
+    } else {
+      this.selectedCategories.delete(category);
+    }
+    this.applyFilters();
+  }
+
+  onCategoryAllToggle(checked: boolean) {
+    if (checked) {
+      this.selectedCategories = new Set(this.availableCategories);
+    } else {
+      this.selectedCategories.clear();
+    }
+    this.applyFilters();
+  }
+
+  applyExpiryFilter() {
+    this.applyFilters();
+  }
+
+  resetExpiryFilter() {
+    this.expiryFilterDays = null;
+    this.applyFilters();
+  }
+
+  applyFilters() {
+    // If inventory is empty, clear filteredInventory
+    if (this.inventory.length === 0) {
+      this.filteredInventory = [];
+      this.updatePagination();
+      return;
+    }
+
+    // Start with ALL items from inventory
+    let filtered = [...this.inventory];
+    console.log('🔍 applyFilters - Starting with', filtered.length, 'items');
+
+    // Category filter - ONLY apply if SOME (but not all) categories are selected
+    // If NO categories selected OR ALL categories selected, show ALL items
+    if (this.availableCategories.length > 0) {
+      const allSelected = this.selectedCategories.size === this.availableCategories.length;
+      const noneSelected = this.selectedCategories.size === 0;
+      
+      // Only filter if some (but not all) categories are selected
+      if (!allSelected && !noneSelected && this.selectedCategories.size > 0) {
+        console.log('🔍 Applying category filter:', Array.from(this.selectedCategories));
+        filtered = filtered.filter(item => this.selectedCategories.has(item.category));
+        console.log('🔍 After category filter:', filtered.length, 'items');
+      } else {
+        // If all categories selected or none selected, show all items
+        console.log('🔍 No category filter - allSelected:', allSelected, 'noneSelected:', noneSelected, '- showing all items');
+      }
+    } else {
+      // No categories available, show all items
+      console.log('🔍 No categories available, showing all items');
+    }
+
+    // Expiry filter
+    if (this.expiryFilterDays !== null && this.expiryFilterDays !== undefined) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const filterDate = new Date(today);
+      filterDate.setDate(today.getDate() + this.expiryFilterDays);
+
+      filtered = filtered.filter(item => {
+        if (!item.expiry) return false;
+        const expiryDate = new Date(item.expiry.split('/').reverse().join('-'));
+        expiryDate.setHours(0, 0, 0, 0);
+        return expiryDate <= filterDate;
+      });
+    }
+
+    // Search filter
+    if (this.searchTerm.trim()) {
+      const searchLower = this.searchTerm.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchLower) ||
+        item.category.toLowerCase().includes(searchLower)
+      );
+    }
+
+    this.filteredInventory = filtered;
+    this.currentPage = 1; // Reset to first page when filtering
+    this.updatePagination();
+  }
+
+  resetFilters() {
+    this.selectedCategories = new Set(this.availableCategories);
+    this.expiryFilterDays = null;
+    this.searchTerm = '';
+    this.applyFilters();
+  }
+
+  updateAvailableCategories() {
+    const categories = new Set<string>();
+    this.inventory.forEach(item => {
+      if (item.category) {
+        categories.add(item.category);
+      }
+    });
+    this.availableCategories = Array.from(categories).sort();
+    
+    // CRITICAL: ALWAYS initialize selectedCategories with ALL available categories
+    // This ensures ALL items are visible by default when page loads
+    // We MUST do this EVERY TIME to ensure all items are shown
+    if (this.availableCategories.length > 0) {
+      // Force reset to all categories - don't check if empty, just always set it
+      this.selectedCategories = new Set(this.availableCategories);
+      console.log('✅ FORCED selectedCategories initialization with ALL categories:', Array.from(this.selectedCategories));
+      console.log('✅ Total categories:', this.availableCategories.length, 'Selected:', this.selectedCategories.size);
+    } else {
+      // If no categories, clear selectedCategories
+      this.selectedCategories.clear();
+      console.log('⚠️ No categories available');
+    }
   }
 
   selectItem(index: number) {
@@ -178,15 +611,22 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   getCategoryIcon(category: string): string {
-    const icons: { [key: string]: string } = {
-      'Fruit': '🍎',
-      'Vegetable': '🥬',
-      'Meat': '🥩',
-      'Dairy': '🥛',
-      'Grains': '🌾',
-      'Other': '📦'
-    };
-    return icons[category] || '📦';
+    if (!category) return '📦';
+    
+    // Normalize category name (lowercase, handle singular/plural)
+    const normalized = category.trim().toLowerCase();
+    const singular = normalized.endsWith('s') ? normalized.slice(0, -1) : normalized;
+    
+    // Map to icons (case-insensitive, handles singular/plural)
+    if (singular.includes('fruit')) return '🍎';
+    if (singular.includes('vegetable')) return '🥬';
+    if (singular.includes('meat')) return '🥩';
+    if (singular.includes('dairy')) return '🥛';
+    if (singular.includes('grain') || singular.includes('carb')) return '🌾';
+    if (singular.includes('other')) return '📦';
+    
+    // Fallback to default
+    return '📦';
   }
 }
 
