@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService, Food } from '../../services/food.service';
 import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
+import { CustomMealService, CustomMeal } from '../../services/custom-meal.service';
 
 interface DayInfo {
   name: string;
@@ -92,7 +93,8 @@ export class PlanWeeklyMealComponent implements OnInit {
     private cdr: ChangeDetectorRef,
     private router: Router,
     private foodService: FoodService,
-    private browseService: BrowseFoodService
+    private browseService: BrowseFoodService,
+    private customMealService: CustomMealService
   ) {}
 
   ngOnInit() {
@@ -109,6 +111,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     
     this.initializeWeekDays();
     this.loadInventory();
+    this.loadCustomMeals();
   }
 
   loadInventory() {
@@ -425,6 +428,9 @@ export class PlanWeeklyMealComponent implements OnInit {
       day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
     });
     
+    // Custom meals 다시 로드 (주가 변경되었으므로)
+    this.loadCustomMeals();
+    
     this.cdr.detectChanges();
   }
 
@@ -454,6 +460,9 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.weekDays.forEach(day => {
       day.isCurrentMonth = day.fullDate.getMonth() === this.targetMonth && day.fullDate.getFullYear() === this.targetYear;
     });
+    
+    // Custom meals 다시 로드 (주가 변경되었으므로)
+    this.loadCustomMeals();
     
     this.cdr.detectChanges();
   }
@@ -1041,6 +1050,48 @@ export class PlanWeeklyMealComponent implements OnInit {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  // Custom meals 로드
+  loadCustomMeals() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping custom meals load.');
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      return;
+    }
+
+    this.customMealService.getCustomMeals(userId).subscribe({
+      next: (customMeals: CustomMeal[]) => {
+        console.log('📅 Custom meals loaded:', customMeals.length);
+        
+        // Custom meals를 mealPlans Map에 추가
+        customMeals.forEach((meal: CustomMeal) => {
+          if (meal.date && meal.mealType) {
+            const mealKey = `${meal.date}-${meal.mealType}`;
+            const mealPlan: MealPlan = {
+              dateKey: meal.date,
+              mealType: meal.mealType,
+              mealName: meal.foodName
+            };
+            this.mealPlans.set(mealKey, mealPlan);
+            console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
+          }
+        });
+        
+        // UI 업데이트
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading custom meals:', err);
+      }
+    });
   }
 
   // Meal slot 클릭 핸들러

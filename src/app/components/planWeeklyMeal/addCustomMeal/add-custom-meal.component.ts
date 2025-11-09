@@ -5,6 +5,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../../sidebar/sidebar.component';
 import { FoodService, Food } from '../../../services/food.service';
 import { BrowseFoodService, MarkedFood } from '../../../services/browse-food.service';
+import { CustomMealService, CustomMeal } from '../../../services/custom-meal.service';
 
 interface InventoryItem {
   name: string;
@@ -56,6 +57,7 @@ export class AddCustomMealComponent implements OnInit {
     private route: ActivatedRoute,
     private foodService: FoodService,
     private browseService: BrowseFoodService,
+    private customMealService: CustomMealService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -104,14 +106,14 @@ export class AddCustomMealComponent implements OnInit {
         
         // Convert marked foods to InventoryItem format
         const markedItems = markedFoods.map((markedFood: MarkedFood) => {
-          let expiryStr = '';
+            let expiryStr = '';
           if (markedFood.expiry) {
             const expiryDate = new Date(markedFood.expiry);
-            const day = String(expiryDate.getDate()).padStart(2, '0');
-            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-            const year = expiryDate.getFullYear();
-            expiryStr = `${day}/${month}/${year}`;
-          }
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
 
           // Handle foodId - it might be an object if populated, or a string
           let foodIdStr = '';
@@ -128,17 +130,17 @@ export class AddCustomMealComponent implements OnInit {
           // Use exact qty from database
           const dbQty = markedFood.qty || 0;
 
-          return {
+            return {
             foodId: foodIdStr,
             name: markedFood.name,
             quantity: dbQty, // Exact quantity from database
             category: markedFood.category || 'Other',
             marked: true,
             markedQuantity: dbQty, // Exact marked quantity from database
-            expiry: expiryStr
-          };
-        });
-
+              expiry: expiryStr
+            };
+          });
+        
         // Merge marked items with same foodId (same food item marked multiple times)
         const markedItemsByFoodId = new Map<string, InventoryItem>();
         markedItems.forEach(item => {
@@ -239,22 +241,49 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
 
-    // TODO: 실제로 meal 데이터를 저장하는 로직 구현
-    // 현재는 콘솔에 출력하고 이전 페이지로 돌아감
-    const mealData = {
-      date: this.selectedDate,
-      mealType: this.selectedMealType,
-      foodName: this.foodName,
-      ingredients: this.ingredients,
-      howToCook: this.howToCook,
-      kcal: this.kcal,
-      photo: this.foodPhoto
+    // Get user ID from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      alert('User ID not found. Please log in again.');
+      return;
+    }
+
+    // Validate date and mealType
+    if (!this.selectedDate || !this.selectedMealType) {
+      alert('Date and meal type are required. Please go back and select a date and meal type.');
+      return;
+    }
+
+    // Prepare meal data
+    const mealData: CustomMeal = {
+      foodName: this.foodName.trim(),
+      ingredients: this.ingredients.trim(),
+      howToCook: this.howToCook.trim(),
+      kcal: this.kcal.trim(),
+      photo: this.foodPhoto,
+      date: this.selectedDate, // YYYY-MM-DD format
+      mealType: this.selectedMealType, // Breakfast, Lunch, Dinner, Snack
+      owner: userId
     };
 
-    console.log('Meal created:', mealData);
-    
-    // 이전 페이지로 돌아가기
+    console.log('🟢 Creating custom meal:', mealData);
+
+    // Save to database
+    this.customMealService.createCustomMeal(mealData).subscribe({
+      next: (savedMeal) => {
+        console.log('✅ Custom meal created successfully:', savedMeal);
+        alert('Custom meal created successfully!');
+        
+        // Navigate back to planWeeklyMeal page
     this.router.navigate(['/planWeeklyMeal']);
+      },
+      error: (err) => {
+        console.error('❌ Error creating custom meal:', err);
+        alert('Failed to create custom meal. Please try again.');
+      }
+    });
   }
 
   back() {

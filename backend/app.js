@@ -11,6 +11,7 @@ const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
 const markedFoodRoutes = require('./routes/markedFoodRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const customMealRoutes = require('./routes/customMealRoutes');
 
 
 const app = express();
@@ -52,6 +53,7 @@ app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
 app.use('/api/marked-foods', markedFoodRoutes);
+app.use('/api/custom-meals', customMealRoutes);
 
 // 基础测试路由
 app.get('/', (req, res) => {
