@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -45,11 +45,18 @@ export class AddCustomMealComponent implements OnInit {
   paginatedInventory: InventoryItem[] = [];
   totalPages: number = 1;
 
+  // Filter
+  showFilter: boolean = false;
+  selectedCategories: Set<string> = new Set();
+  expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
+  availableCategories: string[] = []; // Will be populated from actual inventory data
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
     private foodService: FoodService,
-    private browseService: BrowseFoodService
+    private browseService: BrowseFoodService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
@@ -58,6 +65,14 @@ export class AddCustomMealComponent implements OnInit {
       this.selectedDate = params['date'] || '';
       this.selectedMealType = params['mealType'] || '';
     });
+    
+    // CRITICAL: Ensure filter drawer is closed by default
+    this.showFilter = false;
+    
+    // Initialize with empty arrays to prevent undefined errors
+    this.inventory = [];
+    this.filteredInventory = [];
+    this.paginatedInventory = [];
     
     // Load inventory from database
     this.loadInventory();
@@ -144,13 +159,54 @@ export class AddCustomMealComponent implements OnInit {
         });
 
         this.inventory = Array.from(markedItemsByFoodId.values());
+        console.log('📦 Inventory loaded:', this.inventory.length, 'items');
+        
+        // CRITICAL FIX: On initial load, skip ALL filtering and show ALL items immediately
+        // Set filteredInventory directly to all items
         this.filteredInventory = [...this.inventory];
-        this.updatePagination();
+        console.log('✅ filteredInventory set to ALL items:', this.filteredInventory.length);
+        
+        // Update available categories for filter UI (but don't apply filters yet)
+        this.updateAvailableCategories();
+        console.log('📋 Available categories:', this.availableCategories);
+        console.log('✅ Selected categories:', Array.from(this.selectedCategories));
+        
+        // CRITICAL: Set paginatedInventory DIRECTLY without calling applyFilters
+        // This ensures items are visible immediately on page load
+        this.currentPage = 1;
+        if (this.filteredInventory.length > 0) {
+          const startIndex = 0;
+          const endIndex = Math.min(this.itemsPerPage, this.filteredInventory.length);
+          this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+          this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+          console.log('✅ paginatedInventory set DIRECTLY:', this.paginatedInventory.length, 'items');
+          console.log('✅ Total pages:', this.totalPages);
+          console.log('✅ Items to display:', this.paginatedInventory.map(i => i.name));
+          
+          // CRITICAL: Force Angular to detect changes and update UI
+          setTimeout(() => {
+            this.cdr.detectChanges();
+            console.log('✅ Change detection triggered');
+          }, 0);
+        } else {
+          this.paginatedInventory = [];
+          this.totalPages = 1;
+          console.log('⚠️ No items to display');
+          setTimeout(() => {
+            this.cdr.detectChanges();
+          }, 0);
+        }
       },
       error: (err) => {
-        console.error('Error loading marked foods:', err);
+        console.error('❌ Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
+        this.paginatedInventory = [];
+        this.totalPages = 1;
+        this.currentPage = 1;
+        this.availableCategories = [];
+        this.selectedCategories.clear();
+        this.updatePagination();
       }
     });
   }
@@ -206,26 +262,32 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   filterInventory() {
-    if (!this.searchTerm.trim()) {
-      this.filteredInventory = [...this.inventory];
-    } else {
-      this.filteredInventory = this.inventory.filter(item =>
-        item.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
-      );
-    }
-    this.currentPage = 1; // Reset to first page when filtering
-    this.updatePagination();
+    this.applyFilters();
   }
 
   updatePagination() {
-    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
-    if (this.currentPage > this.totalPages && this.totalPages > 0) {
-      this.currentPage = this.totalPages;
+    // Ensure filteredInventory exists
+    if (!this.filteredInventory) {
+      this.filteredInventory = [];
     }
-    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-    const endIndex = startIndex + this.itemsPerPage;
-    this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+    
+    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    if (this.totalPages === 0) {
+      this.totalPages = 1;
+      this.currentPage = 1;
+      this.paginatedInventory = [];
+    } else {
+      if (this.currentPage > this.totalPages) {
+        this.currentPage = this.totalPages;
+      }
+      const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+      const endIndex = startIndex + this.itemsPerPage;
+      this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+    }
+    console.log('📄 Pagination updated - filteredInventory:', this.filteredInventory.length, 'items');
+    console.log('📄 Pagination updated - Page', this.currentPage, 'of', this.totalPages);
+    console.log('📄 Pagination updated - paginatedInventory:', this.paginatedInventory.length, 'items');
+    console.log('📄 Paginated items:', this.paginatedInventory.map(i => i.name));
   }
 
   goToPage(page: number) {
@@ -240,8 +302,126 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   toggleFilter() {
-    // Toggle filter functionality can be implemented here
-    console.log('Filter toggled');
+    this.showFilter = !this.showFilter;
+  }
+
+  onCategoryToggle(category: string, checked: boolean) {
+    if (checked) {
+      this.selectedCategories.add(category);
+    } else {
+      this.selectedCategories.delete(category);
+    }
+    this.applyFilters();
+  }
+
+  onCategoryAllToggle(checked: boolean) {
+    if (checked) {
+      this.selectedCategories = new Set(this.availableCategories);
+    } else {
+      this.selectedCategories.clear();
+    }
+    this.applyFilters();
+  }
+
+  applyExpiryFilter() {
+    this.applyFilters();
+  }
+
+  resetExpiryFilter() {
+    this.expiryFilterDays = null;
+    this.applyFilters();
+  }
+
+  applyFilters() {
+    // If inventory is empty, clear filteredInventory
+    if (this.inventory.length === 0) {
+      this.filteredInventory = [];
+      this.updatePagination();
+      return;
+    }
+
+    // Start with ALL items from inventory
+    let filtered = [...this.inventory];
+    console.log('🔍 applyFilters - Starting with', filtered.length, 'items');
+
+    // Category filter - ONLY apply if SOME (but not all) categories are selected
+    // If NO categories selected OR ALL categories selected, show ALL items
+    if (this.availableCategories.length > 0) {
+      const allSelected = this.selectedCategories.size === this.availableCategories.length;
+      const noneSelected = this.selectedCategories.size === 0;
+      
+      // Only filter if some (but not all) categories are selected
+      if (!allSelected && !noneSelected && this.selectedCategories.size > 0) {
+        console.log('🔍 Applying category filter:', Array.from(this.selectedCategories));
+        filtered = filtered.filter(item => this.selectedCategories.has(item.category));
+        console.log('🔍 After category filter:', filtered.length, 'items');
+      } else {
+        // If all categories selected or none selected, show all items
+        console.log('🔍 No category filter - allSelected:', allSelected, 'noneSelected:', noneSelected, '- showing all items');
+      }
+    } else {
+      // No categories available, show all items
+      console.log('🔍 No categories available, showing all items');
+    }
+
+    // Expiry filter
+    if (this.expiryFilterDays !== null && this.expiryFilterDays !== undefined) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const filterDate = new Date(today);
+      filterDate.setDate(today.getDate() + this.expiryFilterDays);
+
+      filtered = filtered.filter(item => {
+        if (!item.expiry) return false;
+        const expiryDate = new Date(item.expiry.split('/').reverse().join('-'));
+        expiryDate.setHours(0, 0, 0, 0);
+        return expiryDate <= filterDate;
+      });
+    }
+
+    // Search filter
+    if (this.searchTerm.trim()) {
+      const searchLower = this.searchTerm.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchLower) ||
+        item.category.toLowerCase().includes(searchLower)
+      );
+    }
+
+    this.filteredInventory = filtered;
+    this.currentPage = 1; // Reset to first page when filtering
+    this.updatePagination();
+  }
+
+  resetFilters() {
+    this.selectedCategories = new Set(this.availableCategories);
+    this.expiryFilterDays = null;
+    this.searchTerm = '';
+    this.applyFilters();
+  }
+
+  updateAvailableCategories() {
+    const categories = new Set<string>();
+    this.inventory.forEach(item => {
+      if (item.category) {
+        categories.add(item.category);
+      }
+    });
+    this.availableCategories = Array.from(categories).sort();
+    
+    // CRITICAL: ALWAYS initialize selectedCategories with ALL available categories
+    // This ensures ALL items are visible by default when page loads
+    // We MUST do this EVERY TIME to ensure all items are shown
+    if (this.availableCategories.length > 0) {
+      // Force reset to all categories - don't check if empty, just always set it
+      this.selectedCategories = new Set(this.availableCategories);
+      console.log('✅ FORCED selectedCategories initialization with ALL categories:', Array.from(this.selectedCategories));
+      console.log('✅ Total categories:', this.availableCategories.length, 'Selected:', this.selectedCategories.size);
+    } else {
+      // If no categories, clear selectedCategories
+      this.selectedCategories.clear();
+      console.log('⚠️ No categories available');
+    }
   }
 
   selectItem(index: number) {
