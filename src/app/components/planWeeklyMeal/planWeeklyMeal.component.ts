@@ -59,9 +59,12 @@ export class PlanWeeklyMealComponent implements OnInit {
   
   // Meal planning data
   mealPlans: Map<string, MealPlan> = new Map(); // key: "YYYY-MM-DD-mealType"
+  customMealsCache: CustomMeal[] = []; // Custom meals 캐시
   selectedDay: DayInfo | null = null;
   selectedMealType: string | null = null;
   showMealOptions: boolean = false;
+  selectedCustomMeal: CustomMeal | null = null; // 현재 선택된 custom meal
+  showCustomMealDetails: boolean = false; // Custom meal 상세 정보 표시 여부
   
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
@@ -1071,6 +1074,9 @@ export class PlanWeeklyMealComponent implements OnInit {
       next: (customMeals: CustomMeal[]) => {
         console.log('📅 Custom meals loaded:', customMeals.length);
         
+        // Custom meals 캐시 업데이트
+        this.customMealsCache = customMeals;
+        
         // Custom meals를 mealPlans Map에 추가
         customMeals.forEach((meal: CustomMeal) => {
           if (meal.date && meal.mealType) {
@@ -1108,20 +1114,174 @@ export class PlanWeeklyMealComponent implements OnInit {
     if (!hasMeal) {
       // meal이 없으면 옵션 표시
       this.showMealOptions = true;
+      this.showCustomMealDetails = false;
+      this.selectedCustomMeal = null;
     } else {
-      // meal이 있으면 편집 가능하도록 (추후 구현)
+      // meal이 있으면 custom meal 정보 표시 (캐시에서 즉시 로드)
       this.showMealOptions = false;
+      this.loadCustomMealDetailsFromCache(dateKey, mealType);
     }
     
     this.cdr.detectChanges();
   }
 
+  // Custom meal 상세 정보를 캐시에서 즉시 로드
+  loadCustomMealDetailsFromCache(dateKey: string, mealType: string) {
+    // 캐시에서 해당 날짜와 시간대에 맞는 custom meal 찾기
+    const customMeal = this.customMealsCache.find(
+      (meal: CustomMeal) => meal.date === dateKey && meal.mealType === mealType
+    );
+
+    if (customMeal) {
+      this.selectedCustomMeal = customMeal;
+      this.showCustomMealDetails = true;
+      console.log('✅ Custom meal loaded from cache:', customMeal);
+      this.cdr.detectChanges();
+    } else {
+      // 캐시에 없으면 API 호출 (fallback)
+      console.warn('⚠️ Custom meal not found in cache, loading from API...');
+      this.loadCustomMealDetailsFromAPI(dateKey, mealType);
+    }
+  }
+
+  // Custom meal 상세 정보를 API에서 로드 (fallback)
+  loadCustomMealDetailsFromAPI(dateKey: string, mealType: string) {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      return;
+    }
+
+    this.customMealService.getCustomMeals(userId).subscribe({
+      next: (customMeals: CustomMeal[]) => {
+        // 캐시 업데이트
+        this.customMealsCache = customMeals;
+        
+        // 해당 날짜와 시간대에 맞는 custom meal 찾기
+        const customMeal = customMeals.find(
+          (meal: CustomMeal) => meal.date === dateKey && meal.mealType === mealType
+        );
+
+        if (customMeal) {
+          this.selectedCustomMeal = customMeal;
+          this.showCustomMealDetails = true;
+          console.log('✅ Custom meal loaded from API:', customMeal);
+        } else {
+          this.selectedCustomMeal = null;
+          this.showCustomMealDetails = false;
+          console.warn('⚠️ Custom meal not found for:', dateKey, mealType);
+        }
+        
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading custom meal details:', err);
+        this.selectedCustomMeal = null;
+        this.showCustomMealDetails = false;
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
   // Meal 옵션 닫기
   closeMealOptions() {
     this.showMealOptions = false;
+    this.showCustomMealDetails = false;
+    this.selectedCustomMeal = null;
     this.selectedDay = null;
     this.selectedMealType = null;
     this.cdr.detectChanges();
+  }
+
+  // Custom meal 상세 정보 닫기
+  closeCustomMealDetails() {
+    this.showCustomMealDetails = false;
+    this.selectedCustomMeal = null;
+    this.selectedDay = null;
+    this.selectedMealType = null;
+    this.cdr.detectChanges();
+  }
+
+  // Ingredients를 파싱하여 배열로 반환 (예: "Tomato Sauce 150g\nSpaghetti 100g" -> [{name: "Tomato Sauce", qty: "150g"}, ...])
+  parseIngredients(ingredients: string): Array<{name: string, qty: string}> {
+    if (!ingredients || !ingredients.trim()) {
+      return [];
+    }
+    
+    const lines = ingredients.split('\n').filter(line => line.trim());
+    return lines.map(line => {
+      // "재료명 수량" 형식으로 파싱
+      const parts = line.trim().split(/\s+(?=\d|tbsp|tsp|g|kg|ml|l|cup|cups)/);
+      if (parts.length >= 2) {
+        return {
+          name: parts.slice(0, -1).join(' '),
+          qty: parts[parts.length - 1]
+        };
+      }
+      return { name: line.trim(), qty: '' };
+    });
+  }
+
+  // Custom meal 삭제
+  deleteCustomMeal() {
+    if (!this.selectedCustomMeal || !this.selectedCustomMeal._id) {
+      alert('No meal selected to delete');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete "${this.selectedCustomMeal.foodName}"?`)) {
+      return;
+    }
+
+    this.customMealService.deleteCustomMeal(this.selectedCustomMeal._id).subscribe({
+      next: () => {
+        console.log('✅ Custom meal deleted successfully');
+        
+        // mealPlans에서 제거
+        if (this.selectedDay && this.selectedMealType) {
+          const dateKey = this.getDateKey(this.selectedDay.fullDate);
+          const mealKey = `${dateKey}-${this.selectedMealType}`;
+          this.mealPlans.delete(mealKey);
+        }
+        
+        // 캐시에서도 제거
+        if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+          this.customMealsCache = this.customMealsCache.filter(
+            meal => meal._id !== this.selectedCustomMeal!._id
+          );
+        }
+        
+        // UI 업데이트
+        this.closeCustomMealDetails();
+        this.cdr.detectChanges();
+        
+        alert('Meal deleted successfully!');
+      },
+      error: (err) => {
+        console.error('❌ Error deleting custom meal:', err);
+        alert('Failed to delete meal. Please try again.');
+      }
+    });
+  }
+
+  // Custom meal 편집 (add-custom-meal 페이지로 이동)
+  editCustomMeal() {
+    if (!this.selectedCustomMeal || !this.selectedDay || !this.selectedMealType) {
+      alert('No meal selected to edit');
+      return;
+    }
+
+    const dateKey = this.getDateKey(this.selectedDay.fullDate);
+    this.router.navigate(['/add-custom-meal'], {
+      queryParams: {
+        date: dateKey,
+        mealType: this.selectedMealType,
+        edit: 'true',
+        id: this.selectedCustomMeal._id
+      }
+    });
   }
 
   // Add your own meal 버튼 클릭

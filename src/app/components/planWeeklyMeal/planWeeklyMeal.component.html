@@ -30,9 +30,6 @@
                    [class.selected]="selectedDay && selectedDay.fullDate.getTime() === day.fullDate.getTime() && selectedMealType === meal">
                 <div class="meal-indicator"></div>
                 <div class="meal-name">{{ meal }}</div>
-                <div class="meal-content" *ngIf="hasMeal(day, meal)">
-                  {{ getMealName(day, meal) }}
-                </div>
               </div>
             </div>
           </div>
@@ -71,6 +68,67 @@
               <path d="M18 15L12 9L6 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
+        </div>
+      </div>
+
+      <!-- Custom Meal Details Section -->
+      <div class="custom-meal-details-section" *ngIf="showCustomMealDetails && selectedCustomMeal">
+        <div class="custom-meal-card">
+          <div class="custom-meal-content">
+            <!-- Left: Food Photo, Name, Kcal -->
+            <div class="meal-info-left">
+              <div class="meal-photo-container">
+                <img *ngIf="selectedCustomMeal.photo" [src]="selectedCustomMeal.photo" alt="Food photo" class="meal-photo">
+                <div *ngIf="!selectedCustomMeal.photo" class="meal-photo-placeholder">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12V2M5 12C5 13.1046 5.89543 14 7 14C8.10457 14 9 13.1046 9 12V2M5 12V20M9 12V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M15 2V20M15 12C15 13.1046 15.8954 14 17 14C18.1046 14 19 13.1046 19 12C19 10.8954 18.1046 10 17 10C15.8954 10 15 10.8954 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="meal-field-group">
+                <label class="meal-field-label">Food Name</label>
+                <div class="meal-field-value">{{ selectedCustomMeal.foodName }}</div>
+              </div>
+              <div class="meal-field-group">
+                <label class="meal-field-label">Kcal</label>
+                <div class="meal-field-value">{{ selectedCustomMeal.kcal || 'N/A' }} Kcal</div>
+              </div>
+            </div>
+
+            <!-- Middle: Ingredients -->
+            <div class="meal-info-middle">
+              <label class="meal-section-label">Ingredients</label>
+              <div class="ingredients-container">
+                <div class="ingredient-item" *ngFor="let ingredient of parseIngredients(selectedCustomMeal.ingredients)">
+                  <span class="ingredient-name">{{ ingredient.name }}</span>
+                  <span class="ingredient-qty" *ngIf="ingredient.qty">{{ ingredient.qty }}</span>
+                </div>
+                <div *ngIf="parseIngredients(selectedCustomMeal.ingredients).length === 0" class="no-ingredients">
+                  No ingredients listed
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: How to Cook -->
+            <div class="meal-info-right">
+              <label class="meal-section-label">How to Cook</label>
+              <div class="cooking-instructions">
+                <div class="instruction-line" *ngFor="let line of selectedCustomMeal.howToCook.split('\n')">
+                  {{ line }}
+                </div>
+                <div *ngIf="!selectedCustomMeal.howToCook || !selectedCustomMeal.howToCook.trim()" class="no-instructions">
+                  No cooking instructions provided
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="meal-action-buttons">
+            <button class="btn-edit" (click)="editCustomMeal()">Edit</button>
+            <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
+          </div>
         </div>
       </div>
     </div>
