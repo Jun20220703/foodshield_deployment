@@ -94,7 +94,7 @@
     <div class="inventory-wrapper">
       <div class="inventory-section">
         <div class="inventory-header">
-          <h2 class="section-title">Current inventory</h2>
+          <h2 class="section-title">Marked Foods</h2>
           <div class="search-filter-bar">
           <input 
             type="text" 
@@ -116,14 +116,13 @@
           <div class="header-cell">Name</div>
           <div class="header-cell">Quantity</div>
           <div class="header-cell">Category</div>
-          <div class="header-cell">Mark</div>
           <div class="header-cell">Expiry</div>
         </div>
 
         <div class="inventory-list">
           <div 
             class="inventory-item" 
-            *ngFor="let item of filteredInventory; let i = index"
+            *ngFor="let item of paginatedInventory; let i = index"
             [class.selected]="selectedItemIndex === i"
             (click)="selectItem(i)">
             <div class="item-name">{{ item.name }}</div>
@@ -136,15 +135,22 @@
                 {{ item.category }}
               </span>
             </div>
-            <div class="item-mark">
-              <span *ngIf="item.marked" class="marked-badge">
-                <span class="checkmark">✓</span>
-                Marked
-              </span>
-            </div>
             <div class="item-expiry">
               <span class="expiry-date">{{ item.expiry }}</span>
             </div>
+          </div>
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div class="pagination-container" *ngIf="totalPages > 1">
+          <div class="pagination-buttons">
+            <button 
+              *ngFor="let page of getPagesArray()" 
+              class="page-button"
+              [class.active]="currentPage === page"
+              (click)="goToPage(page)">
+              {{ page }}
+            </button>
           </div>
         </div>
         </div>

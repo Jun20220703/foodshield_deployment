@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../../sidebar/sidebar.component';
 import { FoodService, Food } from '../../../services/food.service';
+import { BrowseFoodService, MarkedFood } from '../../../services/browse-food.service';
 
 interface InventoryItem {
   name: string;
@@ -11,6 +12,8 @@ interface InventoryItem {
   category: string;
   marked: boolean;
   expiry: string;
+  foodId?: string; // Add foodId for merging
+  markedQuantity?: number; // Add markedQuantity
 }
 
 @Component({
@@ -35,11 +38,18 @@ export class AddCustomMealComponent implements OnInit {
 
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
+  
+  // Pagination
+  itemsPerPage: number = 10;
+  currentPage: number = 1;
+  paginatedInventory: InventoryItem[] = [];
+  totalPages: number = 1;
 
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private foodService: FoodService
+    private foodService: FoodService,
+    private browseService: BrowseFoodService
   ) {}
 
   ngOnInit() {
@@ -72,35 +82,73 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
 
-    this.foodService.getFoods(userId).subscribe({
-      next: (data: Food[]) => {
-        // status가 'inventory'인 항목만 필터링하고 InventoryItem 형식으로 변환
-        this.inventory = data
-          .filter((f: any) => f.owner === userId && f.status === 'inventory')
-          .map((food: any) => {
-            // expiry 날짜 포맷팅 (Date 객체를 DD/MM/YYYY 형식으로)
-            let expiryStr = '';
-            if (food.expiry) {
-              const expiryDate = new Date(food.expiry);
-              const day = String(expiryDate.getDate()).padStart(2, '0');
-              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-              const year = expiryDate.getFullYear();
-              expiryStr = `${day}/${month}/${year}`;
-            }
-
-            return {
-              name: food.name,
-              quantity: food.qty || 0,
-              category: food.category || 'Other',
-              marked: food.marked || false,
-              expiry: expiryStr
-            };
-          });
+    // Load only marked foods (same as planWeeklyMeal page)
+    this.browseService.getMarkedFoods().subscribe({
+      next: (markedFoods: MarkedFood[]) => {
+        console.log('📌 Loaded marked foods:', markedFoods);
         
+        // Convert marked foods to InventoryItem format
+        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+          let expiryStr = '';
+          if (markedFood.expiry) {
+            const expiryDate = new Date(markedFood.expiry);
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const year = expiryDate.getFullYear();
+            expiryStr = `${day}/${month}/${year}`;
+          }
+
+          // Handle foodId - it might be an object if populated, or a string
+          let foodIdStr = '';
+          const foodIdValue = (markedFood as any).foodId;
+          
+          if (typeof foodIdValue === 'string') {
+            foodIdStr = foodIdValue;
+          } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+            foodIdStr = foodIdValue._id;
+          } else if (foodIdValue) {
+            foodIdStr = String(foodIdValue);
+          }
+
+          // Use exact qty from database
+          const dbQty = markedFood.qty || 0;
+
+          return {
+            foodId: foodIdStr,
+            name: markedFood.name,
+            quantity: dbQty, // Exact quantity from database
+            category: markedFood.category || 'Other',
+            marked: true,
+            markedQuantity: dbQty, // Exact marked quantity from database
+            expiry: expiryStr
+          };
+        });
+
+        // Merge marked items with same foodId (same food item marked multiple times)
+        const markedItemsByFoodId = new Map<string, InventoryItem>();
+        markedItems.forEach(item => {
+          const foodId = item.foodId;
+          if (!foodId) {
+            return;
+          }
+          
+          const existing = markedItemsByFoodId.get(foodId);
+          if (existing) {
+            // If same foodId exists, sum quantities from database
+            existing.quantity += item.quantity;
+            existing.markedQuantity = (existing.markedQuantity || 0) + item.markedQuantity;
+          } else {
+            // Add new item
+            markedItemsByFoodId.set(foodId, { ...item });
+          }
+        });
+
+        this.inventory = Array.from(markedItemsByFoodId.values());
         this.filteredInventory = [...this.inventory];
+        this.updatePagination();
       },
       error: (err) => {
-        console.error('Error loading inventory:', err);
+        console.error('Error loading marked foods:', err);
         this.inventory = [];
         this.filteredInventory = [];
       }
@@ -166,6 +214,29 @@ export class AddCustomMealComponent implements OnInit {
         item.category.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }
+    this.currentPage = 1; // Reset to first page when filtering
+    this.updatePagination();
+  }
+
+  updatePagination() {
+    this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+    if (this.currentPage > this.totalPages && this.totalPages > 0) {
+      this.currentPage = this.totalPages;
+    }
+    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+    const endIndex = startIndex + this.itemsPerPage;
+    this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+  }
+
+  goToPage(page: number) {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.updatePagination();
+    }
+  }
+
+  getPagesArray(): number[] {
+    return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
   toggleFilter() {
@@ -178,15 +249,22 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   getCategoryIcon(category: string): string {
-    const icons: { [key: string]: string } = {
-      'Fruit': '🍎',
-      'Vegetable': '🥬',
-      'Meat': '🥩',
-      'Dairy': '🥛',
-      'Grains': '🌾',
-      'Other': '📦'
-    };
-    return icons[category] || '📦';
+    if (!category) return '📦';
+    
+    // Normalize category name (lowercase, handle singular/plural)
+    const normalized = category.trim().toLowerCase();
+    const singular = normalized.endsWith('s') ? normalized.slice(0, -1) : normalized;
+    
+    // Map to icons (case-insensitive, handles singular/plural)
+    if (singular.includes('fruit')) return '🍎';
+    if (singular.includes('vegetable')) return '🥬';
+    if (singular.includes('meat')) return '🥩';
+    if (singular.includes('dairy')) return '🥛';
+    if (singular.includes('grain') || singular.includes('carb')) return '🌾';
+    if (singular.includes('other')) return '📦';
+    
+    // Fallback to default
+    return '📦';
   }
 }
 

@@ -322,7 +322,7 @@
 
 .table-headers {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr;
+  grid-template-columns: 1.5fr 0.5fr 1.8fr 1.5fr;
   gap: 15px;
   margin-bottom: 15px;
 }
@@ -330,10 +330,30 @@
 .header-cell {
   background: #e9ecef;
   color: #1a1a1a;
-  padding: 12px 15px;
+  padding: 10px 12px;
   border-radius: 10px;
   font-weight: 600;
   font-size: 0.9rem;
+  text-align: center;
+}
+
+.header-cell:first-child {
+  text-align: left;
+  padding-left: 15px;
+  padding-right: 12px;
+}
+
+.header-cell:nth-child(2) {
+  text-align: center;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.header-cell:nth-child(3) {
+  text-align: center;
+}
+
+.header-cell:nth-child(4) {
   text-align: center;
 }
 
@@ -347,7 +367,7 @@
 
 .inventory-item {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr;
+  grid-template-columns: 1.5fr 0.5fr 1.8fr 1.5fr;
   gap: 15px;
   align-items: center;
   padding: 15px;
@@ -373,6 +393,11 @@
   font-weight: 600;
   color: #1a1a1a;
   font-size: 0.95rem;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  text-align: left;
+  padding-left: 5px;
 }
 
 .item-quantity {
@@ -396,7 +421,7 @@
 
 .item-category {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
 }
 
@@ -408,7 +433,7 @@
 
 .item-expiry {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
 }
 
@@ -419,11 +444,11 @@
   gap: 6px;
   background: #e8f5e8;
   color: #1a1a1a;
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: 15px;
   font-size: 0.85rem;
   font-weight: 500;
-  width: 100%;
+  max-width: fit-content;
 }
 
 .category-icon {
@@ -472,12 +497,62 @@
 .expiry-date {
   background: #dc3545;
   color: white;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 500;
   text-align: center;
   display: inline-block;
-  width: 100%;
+  max-width: fit-content;
+  margin-left: auto;
+  margin-right: -10px;
+}
+
+/* Pagination Styles */
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 15px 0;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.page-button {
+  background: #4a7c59;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.page-button:hover {
+  background: #3a6b49;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.page-button.active {
+  background: #2d5a3d;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transform: scale(1.1);
+}
+
+.page-button:active {
+  transform: scale(0.95);
 }
 
