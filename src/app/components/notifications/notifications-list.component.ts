@@ -25,11 +25,15 @@ export class NotificationsListComponent implements OnInit {
     const userId = localStorage.getItem('userId'); // ← ログイン時に保存されている前提
   if (userId) {
     this.notificationService.checkExpiry(userId).subscribe({
-      next: (res) => console.log('🟢 Expiry check result:', res),
+      next: (res) => {
+        console.log('🟢 Expiry check result:', res);
+        this.loadNotifications();
+      },
       error: (err) => console.error('❌ Error checking expiry:', err),
     });
-  }
+  } else {
     this.loadNotifications();
+  }
     this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
