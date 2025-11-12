@@ -203,6 +203,74 @@ exports.getDaily = async (req, res) => {
       console.log("🔍 Debug - Today's expired samples:", expiredSamples);
     }
 
+    // ====== ✅ TOP 3 EXPIRED FOODS (all time, sorted by qty) ======
+    // Query for foods with status "expired" OR foods that have passed their expiry date
+    const now = new Date();
+    const topExpiredQuery = {
+      ...(ownerId && { owner: ownerId }),
+      $or: [
+        { status: "expired" }, // Foods explicitly marked as expired
+        { 
+          expiry: { $lt: now }, // Foods past their expiry date (regardless of status)
+          status: { $ne: "consumed" } // Exclude already consumed foods
+        }
+      ]
+    };
+    console.log("🔍 Top Expired Query:", JSON.stringify(topExpiredQuery, null, 2));
+    console.log("🔍 Current time for expiry check:", now.toISOString());
+    
+    // Debug: Check total expired foods for this user
+    const totalExpired = await Food.countDocuments(topExpiredQuery);
+    console.log("🔍 Total expired/past-expiry foods for this user:", totalExpired);
+    
+    // Debug: Check all foods for this user (regardless of status)
+    if (ownerId) {
+      const allUserFoods = await Food.countDocuments({ owner: ownerId });
+      console.log("🔍 Total foods for this user (all statuses):", allUserFoods);
+      
+      // Check foods past expiry date
+      const pastExpiryQuery = {
+        owner: ownerId,
+        expiry: { $lt: now }
+      };
+      const pastExpiryCount = await Food.countDocuments(pastExpiryQuery);
+      console.log("🔍 Foods past expiry date for this user:", pastExpiryCount);
+      
+      // Get sample of foods past expiry
+      const samplePastExpiry = await Food.find(pastExpiryQuery)
+        .limit(5)
+        .select('name qty status expiry owner')
+        .lean();
+      console.log("🔍 Sample foods past expiry:", JSON.stringify(samplePastExpiry, null, 2));
+    }
+    
+    let topExpired = [];
+    try {
+      if (totalExpired === 0) {
+        console.log("⚠️ No expired foods found, returning empty array");
+        topExpired = [];
+      } else {
+        topExpired = await Food.aggregate([
+          { $match: topExpiredQuery },
+          { $group: { 
+            _id: "$name", 
+            count: { $sum: { $ifNull: ["$qty", 0] } } 
+          } },
+          { $sort: { count: -1 } }, // Sort by count descending (highest first)
+          { $limit: 3 }, // Get top 3
+          { $project: { name: "$_id", count: 1, _id: 0 } }
+        ]);
+        console.log("📊 Top 3 expired foods aggregation result:", JSON.stringify(topExpired, null, 2));
+      }
+    } catch (err) {
+      console.error("🔥 Error in topExpired aggregation:", err);
+      topExpired = [];
+    }
+
+    // Ensure array is always an array
+    const safeTopExpired = Array.isArray(topExpired) ? topExpired : [];
+    console.log("📊 Safe top expired (final):", JSON.stringify(safeTopExpired, null, 2));
+
     const result = {
       header: {
         consumed: consumedCount,
@@ -213,7 +281,9 @@ exports.getDaily = async (req, res) => {
         labels: ["Consumed", "Donation", "Expired"],
         values: [consumedCount, donationCount, expiredCount]
       },
-      topExpired: [] // next feature
+      topExpired: safeTopExpired,
+      topDonated: [], // For future use
+      topConsumed: [] // For future use
     };
     
     console.log("✅ Final result:", result);

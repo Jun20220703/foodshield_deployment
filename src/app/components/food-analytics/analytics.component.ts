@@ -20,7 +20,7 @@ export class AnalyticsComponent implements OnInit {
   private api = inject(AnalyticsService);
 
   // Month / Year
-  range = signal<Range>('month');
+  range = signal<Range>('day');
   loading = signal<boolean>(true);
   data = signal<AnalyticsData | null>(null);
 
@@ -40,7 +40,10 @@ export class AnalyticsComponent implements OnInit {
   currentBarData = computed(() => {
     const status = this.selectedStatus();
     const data = this.data();
-    if (!data) return { labels: [], datasets: [] };
+    if (!data) {
+      console.log("⚠️ No data available for bar chart");
+      return { labels: [], datasets: [] };
+    }
 
     let topFoods: { name: string; count: number }[] = [];
     let colors: string[] = [];
@@ -49,6 +52,7 @@ export class AnalyticsComponent implements OnInit {
       case 'expired':
         topFoods = data.topExpired || [];
         colors = ['#f56b6b', '#fbc1a7', '#f8a8a8']; // reds
+        console.log("📊 Top Expired Foods:", topFoods);
         break;
       case 'donated':
         topFoods = data.topDonated || [];
@@ -60,13 +64,25 @@ export class AnalyticsComponent implements OnInit {
         break;
     }
 
-    return {
-      labels: topFoods.map((i: any) => i.name),
+    console.log(`📊 Raw ${status} foods:`, topFoods);
+
+    // Sort by count descending and take top 3
+    const sortedTopFoods = topFoods
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+
+    console.log(`📊 Sorted top 3 ${status} foods:`, sortedTopFoods);
+
+    const result = {
+      labels: sortedTopFoods.map((i: any) => i.name),
       datasets: [{
-        data: topFoods.map((i: any) => i.count),
-        backgroundColor: colors
+        data: sortedTopFoods.map((i: any) => i.count),
+        backgroundColor: colors.slice(0, sortedTopFoods.length)
       }]
     };
+
+    console.log(`📊 Final bar chart data for ${status}:`, result);
+    return result;
   });
 
   // ✅ Get title based on selected status
@@ -84,7 +100,7 @@ export class AnalyticsComponent implements OnInit {
     }
   }
 
-  // ✅ Get top food name based on selected status
+  // ✅ Get top food name based on selected status (the one with highest count/qty)
   getTopFoodName(): string | null {
     const status = this.selectedStatus();
     const data = this.data();
@@ -103,7 +119,11 @@ export class AnalyticsComponent implements OnInit {
         break;
     }
 
-    return topFoods[0]?.name || null;
+    if (topFoods.length === 0) return null;
+
+    // Sort by count descending and get the first one (highest count/qty)
+    const sorted = [...topFoods].sort((a, b) => b.count - a.count);
+    return sorted[0]?.name || null;
   }
 
   pieOptions: ChartConfiguration<'pie'>['options'] = {
@@ -135,24 +155,34 @@ export class AnalyticsComponent implements OnInit {
 
   private load() {
     this.loading.set(true);
-    this.api.getAnalytics(this.range()).subscribe((res: AnalyticsData) => {
-      console.log("📌 API returned:", res);   // ✅ 加这一行
-      this.data.set(res);
+    this.api.getAnalytics(this.range()).subscribe({
+      next: (res: AnalyticsData) => {
+        console.log("📌 API returned:", res);
+        console.log("📊 Top Expired:", res.topExpired);
+        console.log("📊 Top Donated:", res.topDonated);
+        console.log("📊 Top Consumed:", res.topConsumed);
+        this.data.set(res);
 
-      // pie: Consumed / Donated / Expired
-      this.pieData.set({
-        labels: res.pie.labels,
-        datasets: [{
-          data: res.pie.values,
-          // prototype colors
-          backgroundColor: ['#8afc9e', '#fad46b', '#f56b6b'],
-        }]
-      });
+        // pie: Consumed / Donated / Expired
+        this.pieData.set({
+          labels: res.pie.labels,
+          datasets: [{
+            data: res.pie.values,
+            // prototype colors
+            backgroundColor: ['#8afc9e', '#fad46b', '#f56b6b'],
+          }]
+        });
 
-      // bar: will be updated by currentBarData computed property
-      this.updateBarData();
+        // bar: will be updated by currentBarData computed property
+        this.updateBarData();
+        console.log("📊 Bar data after update:", this.currentBarData());
 
-      this.loading.set(false);
+        this.loading.set(false);
+      },
+      error: (error) => {
+        console.error("❌ Error loading analytics data:", error);
+        this.loading.set(false);
+      }
     });
   }
 

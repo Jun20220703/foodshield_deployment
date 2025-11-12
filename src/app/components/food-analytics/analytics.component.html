@@ -102,11 +102,16 @@
 
         <div class="panel-body">
           <div class="chart-wrap" *ngIf="!loading(); else loadingTpl">
-            <canvas baseChart
+            <canvas 
+              *ngIf="currentBarData().labels.length > 0; else noBarDataTpl"
+              baseChart
               [data]="currentBarData()"
               [options]="barOptions"
               chartType="bar">
             </canvas>
+            <ng-template #noBarDataTpl>
+              <div class="no-data-message">No data available for {{ getBarTitle() }}</div>
+            </ng-template>
           </div>
         </div>
       </div>
