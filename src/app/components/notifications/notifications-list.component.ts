@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { NotificationService, Notification } from '../../services/notification.service';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { CommonModule } from '@angular/common';
+import { Router, NavigationEnd } from '@angular/router'; 
+import { filter } from 'rxjs/operators';
 @Component({
   selector: 'app-notifications-list',
   templateUrl: './notifications-list.component.html',
@@ -12,16 +14,38 @@ export class NotificationsListComponent implements OnInit {
   notifications: Notification[] = [];
   activeTab: 'all' | 'unread' | 'read' = 'all';
 
-  constructor(private notificationService: NotificationService) {}
+  constructor(
+    private notificationService: NotificationService,
+    private router:Router,
+    private cdr: ChangeDetectorRef   // ✅ 追加
+
+  ) {}
 
   ngOnInit(): void {
+    const userId = localStorage.getItem('userId'); // ← ログイン時に保存されている前提
+  if (userId) {
+    this.notificationService.checkExpiry(userId).subscribe({
+      next: (res) => console.log('🟢 Expiry check result:', res),
+      error: (err) => console.error('❌ Error checking expiry:', err),
+    });
+  }
     this.loadNotifications();
+    this.router.events
+      .pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe((event: NavigationEnd) => {
+        if (event.urlAfterRedirects === '/notifications') {
+          this.loadNotifications();
+        }
+      });
   }
 
   // 🔹 通知を取得
   loadNotifications(): void {
     this.notificationService.getNotifications().subscribe({
-      next: (data) => (this.notifications = data),
+      next: (data) => {
+        this.notifications = data;
+        this.cdr.detectChanges();   // ✅ ここがポイント
+      },
       error: (err) => console.error('Error fetching notifications:', err),
     });
   }
@@ -59,6 +83,9 @@ export class NotificationsListComponent implements OnInit {
       this.notificationService.markAsRead(n._id).subscribe(() => {
         n.read = true; // 即時UI更新
       });
+    }
+    if(n._id){
+      this.router.navigate(['/notifications', n._id]);
     }
     console.log('Open detail:', n);
   }

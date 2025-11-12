@@ -1,20 +1,23 @@
+// ✅ notificationService.js
 const Notification = require('../models/Notification');
 
-// 通知を作成する共通関数
-async function sendNotification(type, title, message, userId) {
+async function sendNotification({ type, title, message, userId, meta, read = false }) {
   try {
     const newNotification = new Notification({
       type,
       title,
       message,
       userId,
-      createdAt: new Date(),
-      read: false
+      meta,
+      read,
+      createdAt: new Date()
     });
     await newNotification.save();
     console.log(`✅ Notification sent: ${title}`);
-  } catch (err) {
-    console.error("❌ Failed to send notification:", err);
+    return newNotification;
+  } catch (error) {
+    console.error("❌ Failed to send notification:", error);
+    throw err;
   }
 }
 

@@ -21,9 +21,19 @@ export class NotificationService {
 
   constructor(private http: HttpClient) {}
 
-  // すべての通知を取得
+  // ✅ ログインユーザーの通知だけ取得
   getNotifications(): Observable<Notification[]> {
-    return this.http.get<Notification[]>(this.apiUrl);
+    const userId = localStorage.getItem('userId'); // ローカルストレージから取得
+    if (!userId) {
+      console.warn('User ID not found in localStorage');
+      return new Observable<Notification[]>((observer) => {
+        observer.next([]); // 空配列返して安全に終了
+        observer.complete();
+      });
+    }
+
+    // /api/notifications?userId=xxx 形式でリクエスト
+    return this.http.get<Notification[]>(`${this.apiUrl}?userId=${userId}`);
   }
 
   // 通知を作成
@@ -40,4 +50,16 @@ export class NotificationService {
   deleteNotification(id: string): Observable<any> {
     return this.http.delete(`${this.apiUrl}/${id}`);
   }
+
+  // 通知を1件取得（idで検索）
+  getById(id: string): Observable<Notification> {
+    const userId = localStorage.getItem('userId');
+    console.log('🟢 バックエンドへ送信:', `${this.apiUrl}/${id}?userId=${userId}`);
+    return this.http.get<Notification>(`${this.apiUrl}/${id}?userId=${userId}`);
+  }
+
+  checkExpiry(userId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/check-expiry`, { userId });
+  }
+
 }
