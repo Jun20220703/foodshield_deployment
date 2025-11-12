@@ -102,4 +102,22 @@ export class NotificationsListComponent implements OnInit {
   get read(): Notification[] {
     return this.notifications.filter((n) => n.read);
   }
+
+   getEmoji(type: string): string {
+  switch (type) {
+    case 'expiry':
+      return '⏰'; // 期限間近
+    case 'expired':
+      return '⚠️'; // 期限切れ
+    case 'inventory':
+      return '📦'; // 在庫関連
+    case 'low_quantity':
+      return '🔔'; // 残りわずか
+    case 'donation':
+      return '❤️'; // 寄付
+    default:
+      return '📢'; // その他
+  }
+}
+
 }

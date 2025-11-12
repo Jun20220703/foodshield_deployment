@@ -6,7 +6,7 @@
 
     <div *ngIf="notification" class="card">
       <h2 class="header">
-        [{{ notification?.type | titlecase }}] {{ notification?.title }}
+        [{{ getEmoji(notification?.type || '') | titlecase }}] {{ notification?.title }}
       </h2>
       <p class="date">
         {{ notification?.createdAt | date: 'dd MMMM yyyy, h:mm a' }}

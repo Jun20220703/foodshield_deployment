@@ -41,6 +41,23 @@ export class NotificationDetailComponent implements OnInit {
       });
     }
   }
+  getEmoji(type: string): string {
+  switch (type) {
+    case 'expiry':
+      return '⏰'; // 期限間近
+    case 'expired':
+      return '⚠️'; // 期限切れ
+    case 'inventory':
+      return '📦'; // 在庫関連
+    case 'low_quantity':
+      return '🔔'; // 残りわずか
+    case 'donation':
+      return '❤️'; // 寄付
+    default:
+      return '📢'; // その他
+  }
+}
+
 
   back(): void {
     this.router.navigate(['/notifications-list']);
