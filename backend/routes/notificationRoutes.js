@@ -18,7 +18,6 @@ router.get('/', async (req, res) => {
 
     // 2️⃣ userIdで絞り込み
     const notifications = await Notification.find({ userId }).sort({ createdAt: -1 });
-
     res.json(notifications);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching notifications', error });
@@ -68,50 +67,75 @@ router.post('/check-expiry', async (req, res) => {
       const expiry = new Date(food.expiry);
       const diffInDays = (expiry - today) / (1000 * 3600 * 24);
       console.log(`🧾 ${food.name} expires in ${diffInDays.toFixed(1)} days`);
+      // ✅ 日付整形
+      const formattedDate = expiry.toLocaleDateString('en-GB', {
+        day: '2-digit', month: 'long', year: 'numeric'
+      });
+      const quantity = parseInt(food.qty, 10);
+
+      console.log(`🧾 ${food.name} expires in ${diffInDays.toFixed(1)} days (qty=${quantity})`);
 
       // 3日以内に期限切れ
       if (diffInDays <= 3 && diffInDays >= 0) {
-        const existingNotification = await Notification.findOne({
+        const existingExpiry = await Notification.findOne({
           userId,
           type: 'expiry',
           'meta.foodId': food._id,
         });
-
-        if (existingNotification) {
-          console.log(`⚠️ Skipped duplicate notification for ${food.name}`);
-          continue;
+        if (!existingExpiry) {
+          await sendNotification({
+            userId,
+            type: 'expiry',
+            title: 'Food Expiring Soon',
+            message: `Your "${food.name}" will expire on ${formattedDate}. Please use or donate it soon.`,
+            meta: { foodId: food._id },
+            read: false
+          });
+          sentCount++;
         }
-
-        // ✅ 日付整形
-        const formattedDate = expiry.toLocaleDateString('en-GB', {
-          day: '2-digit', month: 'long', year: 'numeric'
-        });
-
-        // ✅ メッセージ候補
-        const suggestions = [
-          `Your "${food.name}" is nearing its expiry on ${formattedDate}. Maybe you can cook something tasty with it today! 🍽️`,
-          `Heads up! Your "${food.name}" will expire soon (${formattedDate}). Consider using it soon or donating it to someone in need. 💚`,
-          `Your "${food.name}" will reach its best-by date on ${formattedDate}. Don’t let it go to waste — use or share it! 🌍`
-        ];
-
-        // ✅ メッセージを確実に取得
-        const message = suggestions.length > 0 ? suggestions[Math.floor(Math.random() * suggestions.length)] : 
-          `Your "${food.name}" will expire on ${formattedDate}. Please take action soon.`;
-
-        // ✅ 通知作成
-        await sendNotification({
+      }
+      
+      //賞味期限切れ
+      if (diffInDays < 0) {
+        const existingExpired = await Notification.findOne({
           userId,
-          type: 'expiry',
-          title: 'Food Expiring Soon',
-          message, // ✅ これで常に定義される
-          meta: { foodId: food._id },
-          read: false
+          type: 'expired',
+          'meta.foodId': food._id,
         });
-
-        sentCount++;
+        if (!existingExpired) {
+          await sendNotification({
+            userId,
+            type: 'expired',
+            title: 'Food Expired',
+            message: `Your "${food.name}" has expired on ${formattedDate}. Please discard or handle it safely.`,
+            meta: { foodId: food._id },
+            read: false
+          });
+          sentCount++;
+        }
+      }
+      
+      // 🟠 3️⃣ Low quantity notification（在庫が少ない）
+      if (quantity <= 1) {
+        const existingLow = await Notification.findOne({
+          userId,
+          type: 'low_quantity',
+          'meta.foodId': food._id,
+        });
+        if (!existingLow) {
+          await sendNotification({
+            userId,
+            type: 'low_quantity',
+            title: 'Low Quantity Alert',
+            message: `Your "${food.name}" is running low. Consider restocking soon.`,
+            meta: { foodId: food._id },
+            read: false
+          });
+          sentCount++;
+        }
       }
     }
-
+  
     res.json({ message: `Checked ${foods.length} foods, sent ${sentCount} new notifications.` });
   } catch (err) {
     console.error('Error checking expiry:', err);
