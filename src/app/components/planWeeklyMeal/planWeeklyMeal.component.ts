@@ -276,26 +276,26 @@ export class PlanWeeklyMealComponent implements OnInit {
 
         // Convert to InventoryItem format
         const inventoryItems = allFoods.map((food: Food) => {
-          let expiryStr = '';
-          if (food.expiry) {
-            const expiryDate = new Date(food.expiry);
-            const day = String(expiryDate.getDate()).padStart(2, '0');
-            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-            const year = expiryDate.getFullYear();
-            expiryStr = `${day}/${month}/${year}`;
-          }
+            let expiryStr = '';
+            if (food.expiry) {
+              const expiryDate = new Date(food.expiry);
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
 
-          return {
+            return {
             foodId: food._id || '',
-            name: food.name,
-            quantity: food.qty || 0,
-            category: food.category || 'Other',
+              name: food.name,
+              quantity: food.qty || 0,
+              category: food.category || 'Other',
             marked: false,
             markedQuantity: 0,
-            expiry: expiryStr
-          };
-        });
-
+              expiry: expiryStr
+            };
+          });
+        
         this.inventory = inventoryItems;
         console.log('📦 Current Inventory loaded:', this.inventory.length, 'items');
 

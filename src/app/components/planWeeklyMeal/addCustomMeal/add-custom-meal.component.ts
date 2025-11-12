@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -63,6 +63,7 @@ export class AddCustomMealComponent implements OnInit {
   // Ingredient selection modal
   showIngredientModal: boolean = false;
   selectedIngredientQuantity: { [key: string]: number } = {}; // Store selected quantities for each ingredient
+  isLoadingInventory: boolean = false; // Loading state for inventory
 
   constructor(
     private router: Router,
@@ -70,7 +71,8 @@ export class AddCustomMealComponent implements OnInit {
     private foodService: FoodService,
     private browseService: BrowseFoodService,
     private customMealService: CustomMealService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
   ) {}
 
   ngOnInit() {
@@ -243,6 +245,7 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   loadMarkedFoods() {
+    this.isLoadingInventory = true;
     // Load only marked foods (same as planWeeklyMeal page)
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
@@ -307,44 +310,31 @@ export class AddCustomMealComponent implements OnInit {
         this.inventory = Array.from(markedItemsByFoodId.values());
         console.log('📦 Inventory loaded:', this.inventory.length, 'items');
         
-        // CRITICAL FIX: On initial load, skip ALL filtering and show ALL items immediately
         // Set filteredInventory directly to all items
         this.filteredInventory = [...this.inventory];
         console.log('✅ filteredInventory set to ALL items:', this.filteredInventory.length);
         
-        // Update available categories for filter UI (but don't apply filters yet)
+        // Update available categories
         this.updateAvailableCategories();
         console.log('📋 Available categories:', this.availableCategories);
-        console.log('✅ Selected categories:', Array.from(this.selectedCategories));
         
-        // CRITICAL: Set paginatedInventory DIRECTLY without calling applyFilters
-        // This ensures items are visible immediately on page load
-        this.currentPage = 1;
-        if (this.filteredInventory.length > 0) {
-          const startIndex = 0;
-          const endIndex = Math.min(this.itemsPerPage, this.filteredInventory.length);
-          this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
-          this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
-          console.log('✅ paginatedInventory set DIRECTLY:', this.paginatedInventory.length, 'items');
-          console.log('✅ Total pages:', this.totalPages);
-          console.log('✅ Items to display:', this.paginatedInventory.map(i => i.name));
-          
-          // CRITICAL: Force Angular to detect changes and update UI
-          setTimeout(() => {
-            this.cdr.detectChanges();
-            console.log('✅ Change detection triggered');
-          }, 0);
-        } else {
-          this.paginatedInventory = [];
-          this.totalPages = 1;
-          console.log('⚠️ No items to display');
-          setTimeout(() => {
-            this.cdr.detectChanges();
-          }, 0);
-        }
+        // Apply filters to ensure filteredInventory is correct
+        this.applyFilters();
+        
+        // Clear loading state
+        this.isLoadingInventory = false;
+        
+        // Force immediate UI update
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+        this.ngZone.run(() => {
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+        });
       },
       error: (err) => {
         console.error('❌ Error loading marked foods:', err);
+        this.isLoadingInventory = false;
         this.inventory = [];
         this.filteredInventory = [];
         this.paginatedInventory = [];
@@ -396,28 +386,23 @@ export class AddCustomMealComponent implements OnInit {
         this.updateAvailableCategories();
         console.log('📋 Available categories:', this.availableCategories);
 
-        // Set paginatedInventory
-        this.currentPage = 1;
-        if (this.filteredInventory.length > 0) {
-          const startIndex = 0;
-          const endIndex = Math.min(this.itemsPerPage, this.filteredInventory.length);
-          this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
-          this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
-          console.log('✅ paginatedInventory set DIRECTLY:', this.paginatedInventory.length, 'items');
-
-          setTimeout(() => {
-            this.cdr.detectChanges();
-          }, 0);
-        } else {
-          this.paginatedInventory = [];
-          this.totalPages = 1;
-          setTimeout(() => {
-            this.cdr.detectChanges();
-          }, 0);
-        }
+        // Apply filters to ensure filteredInventory is correct
+        this.applyFilters();
+        
+        // Clear loading state
+        this.isLoadingInventory = false;
+        
+        // Force immediate UI update
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+        this.ngZone.run(() => {
+          this.cdr.markForCheck();
+          this.cdr.detectChanges();
+        });
       },
       error: (err) => {
         console.error('❌ Error loading Current Inventory:', err);
+        this.isLoadingInventory = false;
         this.inventory = [];
         this.filteredInventory = [];
         this.paginatedInventory = [];
@@ -431,12 +416,22 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   onInventoryTypeChange() {
-    // Reset filters and reload inventory
+    // Set loading state without clearing data immediately
+    this.isLoadingInventory = true;
+    
+    // Reset filters
     this.searchTerm = '';
     this.selectedCategories.clear();
     this.expiryFilterDays = null;
-    this.currentPage = 1;
-    this.loadInventory();
+    
+    // Force immediate UI update to show loading state
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+    
+    // Load new inventory immediately within Angular zone
+    this.ngZone.run(() => {
+      this.loadInventory();
+    });
   }
 
   onPhotoChange(event: Event) {
@@ -673,6 +668,10 @@ export class AddCustomMealComponent implements OnInit {
     console.log('📄 Pagination updated - Page', this.currentPage, 'of', this.totalPages);
     console.log('📄 Pagination updated - paginatedInventory:', this.paginatedInventory.length, 'items');
     console.log('📄 Paginated items:', this.paginatedInventory.map(i => i.name));
+    
+    // Force UI update after pagination changes
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
   }
 
   goToPage(page: number) {
@@ -779,6 +778,10 @@ export class AddCustomMealComponent implements OnInit {
     this.currentPage = 1; // Reset to first page when filtering
     this.updatePagination();
     console.log('🔍 Final filteredInventory:', this.filteredInventory.length, 'items');
+    
+    // Force UI update after filtering
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
   }
 
   resetFilters() {

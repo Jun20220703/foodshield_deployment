@@ -132,8 +132,8 @@
             <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
             <select 
               class="inventory-type-dropdown" 
-              [(ngModel)]="inventoryType" 
-              (change)="onInventoryTypeChange()"
+              [ngModel]="inventoryType" 
+              (ngModelChange)="inventoryType = $event; onInventoryTypeChange()"
               title="Select inventory type">
               <option value="marked">Marked Foods</option>
               <option value="non-marked">Non-Marked Foods</option>
@@ -165,10 +165,17 @@
           <div class="header-cell">Action</div>
         </div>
 
-        <div class="inventory-list">
-          <div 
-            class="inventory-item ingredient-selectable" 
-            *ngFor="let item of paginatedInventory; let i = index">
+              <div class="inventory-list" [class.loading]="isLoadingInventory">
+                <!-- Loading overlay -->
+                <div class="loading-overlay" *ngIf="isLoadingInventory">
+                  <div class="loading-spinner"></div>
+                  <p class="loading-text">Loading...</p>
+                </div>
+                <!-- Inventory items -->
+                <div 
+                  class="inventory-item ingredient-selectable" 
+                  *ngFor="let item of paginatedInventory; let i = index"
+                  [class.fade-in]="!isLoadingInventory">
             <div class="item-name">{{ item.name }}</div>
             <div class="item-quantity">
               <input 
