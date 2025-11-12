@@ -1582,6 +1582,36 @@
   transform: scale(0.98);
 }
 
+.btn-scroll-up {
+  background: white;
+  border: 2px solid #4a7c59;
+  border-radius: 8px;
+  padding: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #4a7c59;
+}
+
+.btn-scroll-up:hover {
+  background: #e8f5e8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 124, 89, 0.3);
+}
+
+.btn-scroll-up:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-scroll-up svg {
+  width: 24px;
+  height: 24px;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
   .custom-meal-content {

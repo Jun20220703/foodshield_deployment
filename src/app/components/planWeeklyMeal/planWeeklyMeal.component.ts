@@ -1367,5 +1367,20 @@ export class PlanWeeklyMealComponent implements OnInit {
     selectedDate.setHours(0, 0, 0, 0);
     return selectedDate.getTime() < today.getTime();
   }
+
+  // 선택된 custom meal의 날짜가 지난 날짜인지 확인
+  isSelectedMealPastDate(): boolean {
+    if (!this.selectedCustomMeal || !this.selectedCustomMeal.date) {
+      return false;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // date는 YYYY-MM-DD 형식
+    const mealDate = new Date(this.selectedCustomMeal.date);
+    mealDate.setHours(0, 0, 0, 0);
+    
+    return mealDate.getTime() < today.getTime();
+  }
 }
 

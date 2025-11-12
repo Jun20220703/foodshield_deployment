@@ -127,8 +127,17 @@
 
           <!-- Action Buttons -->
           <div class="meal-action-buttons">
-            <button class="btn-edit" (click)="editCustomMeal()">Edit</button>
-            <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
+            <!-- 지난 날짜인 경우 위쪽 화살표 버튼만 표시 -->
+            <button *ngIf="isSelectedMealPastDate()" class="btn-scroll-up" (click)="closeCustomMealDetails()">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5V19M12 5L5 12M12 5L19 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <!-- 오늘이거나 미래 날짜인 경우 Edit/Delete 버튼 표시 -->
+            <ng-container *ngIf="!isSelectedMealPastDate()">
+              <button class="btn-edit" (click)="editCustomMeal()">Edit</button>
+              <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
+            </ng-container>
           </div>
         </div>
       </div>
