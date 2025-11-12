@@ -613,20 +613,18 @@ export class PlanWeeklyMealComponent implements OnInit {
       });
     }
 
-    // Apply search term filter
+    // Apply search term filter - Only search by name, not category
     if (this.searchTerm.trim()) {
       const searchTermLower = this.searchTerm.toLowerCase().trim();
       const searchWords = searchTermLower.split(/\s+/).filter(word => word.length > 0);
       
       filtered = filtered.filter(item => {
         const itemNameLower = item.name.toLowerCase();
-        const itemCategoryLower = item.category.toLowerCase();
         
         return searchWords.every(word => {
           const wordPattern = new RegExp(`(^|\\s)${this.escapeRegex(word)}`, 'i');
           const nameMatch = wordPattern.test(itemNameLower) || itemNameLower === word;
-          const categoryMatch = wordPattern.test(itemCategoryLower) || itemCategoryLower === word;
-          return nameMatch || categoryMatch;
+          return nameMatch;
         });
       });
     }

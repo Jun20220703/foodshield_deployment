@@ -640,6 +640,12 @@ export class AddCustomMealComponent implements OnInit {
     this.applyFilters();
   }
 
+  onSearchInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.searchTerm = input.value;
+    this.applyFilters();
+  }
+
   updatePagination() {
     // Ensure filteredInventory exists
     if (!this.filteredInventory) {
@@ -754,18 +760,21 @@ export class AddCustomMealComponent implements OnInit {
       });
     }
 
-    // Search filter
-    if (this.searchTerm.trim()) {
-      const searchLower = this.searchTerm.toLowerCase();
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchLower) ||
-        item.category.toLowerCase().includes(searchLower)
-      );
+    // Search filter - Only search by name, not category
+    if (this.searchTerm && this.searchTerm.trim().length > 0) {
+      const searchLower = this.searchTerm.trim().toLowerCase();
+      console.log('🔍 Applying search filter with term:', searchLower);
+      const beforeSearchCount = filtered.length;
+      filtered = filtered.filter(item => {
+        return item.name && item.name.toLowerCase().includes(searchLower);
+      });
+      console.log('🔍 After search filter:', filtered.length, 'items (was', beforeSearchCount, ')');
     }
 
     this.filteredInventory = filtered;
     this.currentPage = 1; // Reset to first page when filtering
     this.updatePagination();
+    console.log('🔍 Final filteredInventory:', this.filteredInventory.length, 'items');
   }
 
   resetFilters() {

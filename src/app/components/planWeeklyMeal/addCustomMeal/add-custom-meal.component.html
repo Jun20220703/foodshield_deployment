@@ -138,7 +138,8 @@
             class="search-input" 
             placeholder="Food item Name"
             [(ngModel)]="searchTerm"
-            (input)="filterInventory()">
+            (input)="onSearchInput($event)"
+            (keyup)="onSearchInput($event)">
           <button class="search-btn" (click)="filterInventory()">
             <span class="search-icon">🔍</span>
           </button>
