@@ -32,7 +32,7 @@ export class AddCustomMealComponent implements OnInit {
   kcal: string = '';
   
   // Ingredients with quantities
-  ingredientList: Array<{ name: string; quantity: string }> = [{ name: '', quantity: '' }];
+  ingredientList: Array<{ name: string; quantity: string }> = [];
   
   selectedDate: string = '';
   selectedMealType: string = '';
@@ -86,12 +86,8 @@ export class AddCustomMealComponent implements OnInit {
       // Edit 모드이고 id가 있으면 기존 데이터 로드
       if (this.isEditMode && this.editMealId) {
         this.loadExistingMeal(this.editMealId);
-      } else {
-        // Not in edit mode, ensure ingredientList is initialized
-        if (this.ingredientList.length === 0) {
-          this.ingredientList = [{ name: '', quantity: '' }];
-        }
       }
+      // Not in edit mode: ingredientList starts empty, user clicks button to add
     });
     
     // CRITICAL: Ensure filter drawer is closed by default
@@ -102,10 +98,7 @@ export class AddCustomMealComponent implements OnInit {
     this.filteredInventory = [];
     this.paginatedInventory = [];
     
-    // Ensure ingredientList has at least one row (if not in edit mode)
-    if (!this.isEditMode && this.ingredientList.length === 0) {
-      this.ingredientList = [{ name: '', quantity: '' }];
-    }
+    // ingredientList starts empty - user will add ingredients via button
     
     // Load inventory from database
     this.loadInventory();
@@ -147,8 +140,7 @@ export class AddCustomMealComponent implements OnInit {
     this.ingredientList = [];
     
     if (!ingredientsStr || !ingredientsStr.trim()) {
-      // If empty, add one empty row
-      this.ingredientList.push({ name: '', quantity: '' });
+      // If empty, keep list empty
       return;
     }
     
@@ -156,7 +148,7 @@ export class AddCustomMealComponent implements OnInit {
     const lines = ingredientsStr.split(/[\n,]/).map(line => line.trim()).filter(line => line.length > 0);
     
     if (lines.length === 0) {
-      this.ingredientList.push({ name: '', quantity: '' });
+      // If no valid lines, keep list empty
       return;
     }
     
@@ -183,10 +175,7 @@ export class AddCustomMealComponent implements OnInit {
       }
     });
     
-    // If no ingredients parsed, add one empty row
-    if (this.ingredientList.length === 0) {
-      this.ingredientList.push({ name: '', quantity: '' });
-    }
+    // If no ingredients parsed, keep list empty (no need to add empty row)
   }
 
   // Convert ingredientList to ingredients string for database
@@ -208,12 +197,7 @@ export class AddCustomMealComponent implements OnInit {
 
   // Remove ingredient row
   removeIngredient(index: number) {
-    if (this.ingredientList.length > 1) {
-      this.ingredientList.splice(index, 1);
-    } else {
-      // If only one row, just clear it
-      this.ingredientList[0] = { name: '', quantity: '' };
-    }
+    this.ingredientList.splice(index, 1);
   }
 
   loadInventory() {
@@ -857,8 +841,8 @@ export class AddCustomMealComponent implements OnInit {
     const quantity = this.selectedIngredientQuantity[item.name] || item.quantity || 1;
     const quantityStr = quantity > 0 ? String(quantity) : '';
     
-    // Add to ingredientList
-    this.ingredientList.push({
+    // Add to ingredientList at the beginning (top of the list)
+    this.ingredientList.unshift({
       name: item.name,
       quantity: quantityStr
     });
