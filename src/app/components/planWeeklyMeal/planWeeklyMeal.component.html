@@ -113,13 +113,13 @@
 
             <!-- Right: How to Cook -->
             <div class="meal-info-right">
-              <label class="meal-section-label">How to Cook</label>
+              <label class="meal-section-label">Remark</label>
               <div class="cooking-instructions">
-                <div class="instruction-line" *ngFor="let line of selectedCustomMeal.howToCook.split('\n')">
+                <div class="instruction-line" *ngFor="let line of selectedCustomMeal.remark.split('\n')">
                   {{ line }}
                 </div>
-                <div *ngIf="!selectedCustomMeal.howToCook || !selectedCustomMeal.howToCook.trim()" class="no-instructions">
-                  No cooking instructions provided
+                <div *ngIf="!selectedCustomMeal.remark || !selectedCustomMeal.remark.trim()" class="no-instructions">
+                  No remark provided
                 </div>
               </div>
             </div>

@@ -17,6 +17,7 @@
               <img 
                 [src]="recipe.image" 
                 [alt]="recipe.name" 
+                title="Recipe image"
                 class="recipe-image"
                 (error)="onImageError($event)"
                 (load)="onImageLoad($event)">

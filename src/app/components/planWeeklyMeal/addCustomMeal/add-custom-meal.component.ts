@@ -28,8 +28,11 @@ export class AddCustomMealComponent implements OnInit {
   foodPhoto: string | null = null;
   foodName: string = '';
   ingredients: string = '';
-  howToCook: string = '';
+  remark: string = '';
   kcal: string = '';
+  
+  // Ingredients with quantities
+  ingredientList: Array<{ name: string; quantity: string }> = [{ name: '', quantity: '' }];
   
   selectedDate: string = '';
   selectedMealType: string = '';
@@ -74,6 +77,11 @@ export class AddCustomMealComponent implements OnInit {
       // Edit 모드이고 id가 있으면 기존 데이터 로드
       if (this.isEditMode && this.editMealId) {
         this.loadExistingMeal(this.editMealId);
+      } else {
+        // Not in edit mode, ensure ingredientList is initialized
+        if (this.ingredientList.length === 0) {
+          this.ingredientList = [{ name: '', quantity: '' }];
+        }
       }
     });
     
@@ -85,8 +93,18 @@ export class AddCustomMealComponent implements OnInit {
     this.filteredInventory = [];
     this.paginatedInventory = [];
     
+    // Ensure ingredientList has at least one row (if not in edit mode)
+    if (!this.isEditMode && this.ingredientList.length === 0) {
+      this.ingredientList = [{ name: '', quantity: '' }];
+    }
+    
     // Load inventory from database
     this.loadInventory();
+    
+    // Force change detection to ensure UI updates
+    setTimeout(() => {
+      this.cdr.detectChanges();
+    }, 0);
   }
 
   // 기존 meal 데이터 로드
@@ -97,11 +115,14 @@ export class AddCustomMealComponent implements OnInit {
         // 폼 필드에 기존 데이터 채우기
         this.foodName = meal.foodName || '';
         this.ingredients = meal.ingredients || '';
-        this.howToCook = meal.howToCook || '';
+        this.remark = meal.remark || '';
         this.kcal = meal.kcal || '';
         this.foodPhoto = meal.photo || null;
         this.selectedDate = meal.date || this.selectedDate;
         this.selectedMealType = meal.mealType || this.selectedMealType;
+        
+        // Parse ingredients string into ingredientList
+        this.parseIngredientsToList(meal.ingredients || '');
         
         this.cdr.detectChanges();
       },
@@ -110,6 +131,80 @@ export class AddCustomMealComponent implements OnInit {
         alert('Failed to load meal data. Please try again.');
       }
     });
+  }
+
+  // Parse ingredients string into ingredientList
+  parseIngredientsToList(ingredientsStr: string) {
+    this.ingredientList = [];
+    
+    if (!ingredientsStr || !ingredientsStr.trim()) {
+      // If empty, add one empty row
+      this.ingredientList.push({ name: '', quantity: '' });
+      return;
+    }
+    
+    // Split by newline or comma
+    const lines = ingredientsStr.split(/[\n,]/).map(line => line.trim()).filter(line => line.length > 0);
+    
+    if (lines.length === 0) {
+      this.ingredientList.push({ name: '', quantity: '' });
+      return;
+    }
+    
+    // Parse each line: "Ingredient Name 200g" or "Ingredient Name" or "Ingredient Name, 200g"
+    lines.forEach(line => {
+      // Try to extract quantity (numbers followed by units like g, kg, ml, l, tbsp, tsp, cup, cups, oz, lb)
+      const quantityMatch = line.match(/\s+(\d+(?:\.\d+)?)\s*(g|kg|ml|l|tbsp|tsp|cup|cups|oz|lb|개|조각|컵|스푼|작은술|큰술)\s*$/i);
+      
+      if (quantityMatch) {
+        const quantity = quantityMatch[1] + quantityMatch[2];
+        const name = line.substring(0, quantityMatch.index).trim();
+        this.ingredientList.push({ name, quantity });
+      } else {
+        // No quantity found, check if there's a number at the end
+        const numberMatch = line.match(/\s+(\d+(?:\.\d+)?)\s*$/);
+        if (numberMatch) {
+          const quantity = numberMatch[1];
+          const name = line.substring(0, numberMatch.index).trim();
+          this.ingredientList.push({ name, quantity });
+        } else {
+          // Just ingredient name, no quantity
+          this.ingredientList.push({ name: line, quantity: '' });
+        }
+      }
+    });
+    
+    // If no ingredients parsed, add one empty row
+    if (this.ingredientList.length === 0) {
+      this.ingredientList.push({ name: '', quantity: '' });
+    }
+  }
+
+  // Convert ingredientList to ingredients string for database
+  convertIngredientsListToString(): string {
+    return this.ingredientList
+      .filter(ing => ing.name.trim().length > 0)
+      .map(ing => {
+        const name = ing.name.trim();
+        const qty = ing.quantity.trim();
+        return qty ? `${name} ${qty}` : name;
+      })
+      .join('\n');
+  }
+
+  // Add new ingredient row
+  addIngredient() {
+    this.ingredientList.push({ name: '', quantity: '' });
+  }
+
+  // Remove ingredient row
+  removeIngredient(index: number) {
+    if (this.ingredientList.length > 1) {
+      this.ingredientList.splice(index, 1);
+    } else {
+      // If only one row, just clear it
+      this.ingredientList[0] = { name: '', quantity: '' };
+    }
   }
 
   loadInventory() {
@@ -378,11 +473,14 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
 
+    // Convert ingredientList to string format for database
+    const ingredientsString = this.convertIngredientsListToString();
+    
     // Prepare meal data
     const mealData: CustomMeal = {
       foodName: this.foodName.trim(),
-      ingredients: this.ingredients.trim(),
-      howToCook: this.howToCook.trim(),
+      ingredients: ingredientsString,
+      remark: this.remark.trim(),
       kcal: this.kcal.trim(),
       photo: this.foodPhoto || null,
       date: this.selectedDate, // YYYY-MM-DD format

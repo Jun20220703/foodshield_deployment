@@ -52,28 +52,55 @@
         <!-- Ingredients -->
         <div class="form-group">
           <label class="form-label">Ingredients</label>
-          <textarea 
-            class="form-textarea" 
-            [(ngModel)]="ingredients" 
-            name="ingredients"
-            placeholder="Enter ingredients"
-            rows="6"></textarea>
+          <div class="ingredients-list">
+            <div 
+              class="ingredient-item" 
+              *ngFor="let ingredient of ingredientList; let i = index">
+              <input 
+                type="text" 
+                class="ingredient-name-input" 
+                [(ngModel)]="ingredient.name"
+                [name]="'ingredientName' + i"
+                placeholder="Ingredient name"
+                required>
+              <input 
+                type="text" 
+                class="ingredient-quantity-input" 
+                [(ngModel)]="ingredient.quantity"
+                [name]="'ingredientQuantity' + i"
+                placeholder="Quantity"
+                required>
+              <button 
+                type="button" 
+                class="remove-ingredient-btn" 
+                (click)="removeIngredient(i)"
+                [disabled]="ingredientList.length === 1">
+                ×
+              </button>
+            </div>
+            <button 
+              type="button" 
+              class="add-ingredient-btn" 
+              (click)="addIngredient()">
+              + Add Ingredient
+            </button>
+          </div>
         </div>
 
         <!-- How to Cook -->
         <div class="form-group">
-          <label class="form-label">How to Cook</label>
+          <label class="form-label">Remark(Optional)</label>
           <textarea 
             class="form-textarea" 
-            [(ngModel)]="howToCook" 
-            name="howToCook"
-            placeholder="Enter cooking instructions"
+            [(ngModel)]="remark" 
+            name="remark"
+            placeholder="Enter remark (optional)"
             rows="6"></textarea>
         </div>
 
         <!-- Kcal -->
         <div class="form-group">
-          <label class="form-label">Kcal</label>
+          <label class="form-label">Kcal(Optional)</label>
           <input 
             type="text" 
             class="form-input" 
