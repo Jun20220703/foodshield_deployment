@@ -60,6 +60,10 @@ export class AddCustomMealComponent implements OnInit {
   // Inventory type selection
   inventoryType: 'marked' | 'non-marked' = 'marked';
 
+  // Ingredient selection modal
+  showIngredientModal: boolean = false;
+  selectedIngredientQuantity: { [key: string]: number } = {}; // Store selected quantities for each ingredient
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
@@ -829,6 +833,40 @@ export class AddCustomMealComponent implements OnInit {
     
     // Fallback to default
     return '📦';
+  }
+
+  openIngredientModal() {
+    this.showIngredientModal = true;
+    // Initialize selected quantities
+    this.paginatedInventory.forEach(item => {
+      if (!this.selectedIngredientQuantity[item.name]) {
+        this.selectedIngredientQuantity[item.name] = item.quantity || 1;
+      }
+    });
+  }
+
+  closeIngredientModal() {
+    this.showIngredientModal = false;
+    this.selectedIngredientQuantity = {};
+  }
+
+  selectIngredient(item: InventoryItem) {
+    const quantity = this.selectedIngredientQuantity[item.name] || item.quantity || 1;
+    const quantityStr = quantity > 0 ? String(quantity) : '';
+    
+    // Add to ingredientList
+    this.ingredientList.push({
+      name: item.name,
+      quantity: quantityStr
+    });
+    
+    // Close modal after selection
+    this.closeIngredientModal();
+    this.cdr.detectChanges();
+  }
+
+  updateIngredientQuantity(itemName: string, quantity: number) {
+    this.selectedIngredientQuantity[itemName] = Math.max(1, quantity);
   }
 }
 

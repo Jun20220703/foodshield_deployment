@@ -61,7 +61,8 @@
                 class="ingredient-name-input" 
                 [(ngModel)]="ingredient.name"
                 [name]="'ingredientName' + i"
-                placeholder="Ingredient name"
+                placeholder="Click to select from inventory"
+                (click)="openIngredientModal()"
                 required>
               <input 
                 type="text" 
@@ -81,8 +82,8 @@
             <button 
               type="button" 
               class="add-ingredient-btn" 
-              (click)="addIngredient()">
-              + Add Ingredient
+              (click)="openIngredientModal()">
+              + Add Ingredient from Inventory
             </button>
           </div>
         </div>
@@ -117,9 +118,15 @@
       </form>
     </div>
 
-    <!-- Right: Current Inventory Section -->
-    <div class="inventory-wrapper">
-      <div class="inventory-section">
+    <!-- Ingredient Selection Modal -->
+    <div class="ingredient-modal-overlay" *ngIf="showIngredientModal" (click)="closeIngredientModal()">
+      <div class="ingredient-modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h2 class="modal-title">Select Ingredients</h2>
+          <button class="modal-close-btn" (click)="closeIngredientModal()">×</button>
+        </div>
+        
+        <div class="inventory-section">
         <div class="inventory-header">
           <div class="inventory-title-row">
             <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
@@ -155,17 +162,23 @@
           <div class="header-cell">Quantity</div>
           <div class="header-cell">Category</div>
           <div class="header-cell">Expiry</div>
+          <div class="header-cell">Action</div>
         </div>
 
         <div class="inventory-list">
           <div 
-            class="inventory-item" 
-            *ngFor="let item of paginatedInventory; let i = index"
-            [class.selected]="selectedItemIndex === i"
-            (click)="selectItem(i)">
+            class="inventory-item ingredient-selectable" 
+            *ngFor="let item of paginatedInventory; let i = index">
             <div class="item-name">{{ item.name }}</div>
             <div class="item-quantity">
-              <span class="quantity-circle">{{ item.quantity }}</span>
+              <input 
+                type="number" 
+                class="quantity-input"
+                [value]="selectedIngredientQuantity[item.name] || item.quantity || 1"
+                (input)="updateIngredientQuantity(item.name, +$any($event.target).value)"
+                min="1"
+                [max]="item.quantity">
+              <span class="quantity-label">/ {{ item.quantity }}</span>
             </div>
             <div class="item-category">
               <span class="category-badge" [class]="'category-' + item.category.toLowerCase()">
@@ -175,6 +188,13 @@
             </div>
             <div class="item-expiry">
               <span class="expiry-date">{{ item.expiry }}</span>
+            </div>
+            <div class="item-action">
+              <button 
+                class="select-ingredient-btn"
+                (click)="selectIngredient(item)">
+                Select
+              </button>
             </div>
           </div>
         </div>
@@ -193,8 +213,10 @@
         </div>
         </div>
       </div>
+        </div>
+      </div>
     </div>
-    </div>
+
   </div>
 
   <!-- Filter Drawer -->

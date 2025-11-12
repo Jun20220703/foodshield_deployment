@@ -25,11 +25,12 @@
 
 .meal-form-container {
   font-family: 'Inter', sans-serif;
-  flex: 2;
-  min-width: 0;
-  max-width: 65%;
+  width: 100%;
+  max-width: 1200px;
   display: flex;
   flex-direction: column;
+  margin: 0 auto;
+  margin-left: 50px;
 }
 
 .page-title {
@@ -367,9 +368,9 @@
   color: #1a1a1a;
   cursor: pointer;
   transition: all 0.2s ease;
-  appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+  appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%234a7c59' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
@@ -469,6 +470,144 @@
   grid-template-columns: 1.5fr 0.5fr 1.8fr 1.5fr;
   gap: 15px;
   margin-bottom: 15px;
+}
+
+/* Modal styles for ingredient selection */
+.ingredient-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  padding-left: 200px;
+}
+
+.ingredient-modal-content {
+  background: white;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.ingredient-modal-content .inventory-section {
+  overflow-y: auto;
+  flex: 1;
+  border-radius: 0 0 20px 20px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 2px solid #e9ecef;
+  border-radius: 20px 20px 0 0;
+  background: white;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #666;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.modal-close-btn:hover {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+/* Ingredient selectable items in modal */
+.ingredient-selectable {
+  cursor: default;
+}
+
+.ingredient-selectable:hover {
+  background: #f8f9fa;
+}
+
+.quantity-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 2px solid #4a7c59;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  text-align: center;
+  margin-right: 8px;
+}
+
+.quantity-input:focus {
+  outline: none;
+  border-color: #5a8c69;
+  box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
+}
+
+.quantity-label {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.select-ingredient-btn {
+  background: #4a7c59;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select-ingredient-btn:hover {
+  background: #5a8c69;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(74, 124, 89, 0.3);
+}
+
+.select-ingredient-btn:active {
+  transform: translateY(0);
+}
+
+/* Update table headers for modal (5 columns) */
+.ingredient-modal-content .table-headers {
+  grid-template-columns: 1.5fr 1fr 1.8fr 1.5fr 1fr;
+}
+
+.ingredient-modal-content .inventory-item {
+  grid-template-columns: 1.5fr 1fr 1.8fr 1.5fr 1fr;
+}
+
+.item-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .header-cell {
