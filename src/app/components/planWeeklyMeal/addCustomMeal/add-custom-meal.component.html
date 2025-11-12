@@ -121,7 +121,17 @@
     <div class="inventory-wrapper">
       <div class="inventory-section">
         <div class="inventory-header">
-          <h2 class="section-title">Marked Foods</h2>
+          <div class="inventory-title-row">
+            <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
+            <select 
+              class="inventory-type-dropdown" 
+              [(ngModel)]="inventoryType" 
+              (change)="onInventoryTypeChange()"
+              title="Select inventory type">
+              <option value="marked">Marked Foods</option>
+              <option value="non-marked">Non-Marked Foods</option>
+            </select>
+          </div>
           <div class="search-filter-bar">
           <input 
             type="text" 

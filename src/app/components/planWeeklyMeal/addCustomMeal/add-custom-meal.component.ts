@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../../sidebar/sidebar.component';
-import { FoodService, Food } from '../../../services/food.service';
-import { BrowseFoodService, MarkedFood } from '../../../services/browse-food.service';
+import { FoodService } from '../../../services/food.service';
+import { BrowseFoodService, MarkedFood, Food } from '../../../services/browse-food.service';
 import { CustomMealService, CustomMeal } from '../../../services/custom-meal.service';
 
 interface InventoryItem {
@@ -56,6 +56,9 @@ export class AddCustomMealComponent implements OnInit {
   selectedCategories: Set<string> = new Set();
   expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
   availableCategories: string[] = []; // Will be populated from actual inventory data
+  
+  // Inventory type selection
+  inventoryType: 'marked' | 'non-marked' = 'marked';
 
   constructor(
     private router: Router,
@@ -226,6 +229,16 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
 
+    if (this.inventoryType === 'marked') {
+      // Load marked foods
+      this.loadMarkedFoods();
+    } else {
+      // Load non-marked foods
+      this.loadNonMarkedFoods();
+    }
+  }
+
+  loadMarkedFoods() {
     // Load only marked foods (same as planWeeklyMeal page)
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
@@ -338,6 +351,88 @@ export class AddCustomMealComponent implements OnInit {
         this.updatePagination();
       }
     });
+  }
+
+  loadNonMarkedFoods() {
+    // Load Current Inventory data directly
+    this.browseService.getFoods().subscribe({
+      next: (allFoods: Food[]) => {
+        console.log('📌 Loaded Current Inventory foods:', allFoods);
+
+        // Convert to InventoryItem format
+        const inventoryItems = allFoods.map((food: Food) => {
+          let expiryStr = '';
+          if (food.expiry) {
+            const expiryDate = new Date(food.expiry);
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const year = expiryDate.getFullYear();
+            expiryStr = `${day}/${month}/${year}`;
+          }
+
+          return {
+            foodId: food._id || '',
+            name: food.name,
+            quantity: food.qty || 0,
+            category: food.category || 'Other',
+            marked: false,
+            markedQuantity: 0,
+            expiry: expiryStr
+          };
+        });
+
+        this.inventory = inventoryItems;
+        console.log('📦 Current Inventory loaded:', this.inventory.length, 'items');
+
+        // Set filteredInventory directly to all items
+        this.filteredInventory = [...this.inventory];
+        console.log('✅ filteredInventory set to ALL items:', this.filteredInventory.length);
+
+        // Update available categories
+        this.updateAvailableCategories();
+        console.log('📋 Available categories:', this.availableCategories);
+
+        // Set paginatedInventory
+        this.currentPage = 1;
+        if (this.filteredInventory.length > 0) {
+          const startIndex = 0;
+          const endIndex = Math.min(this.itemsPerPage, this.filteredInventory.length);
+          this.paginatedInventory = this.filteredInventory.slice(startIndex, endIndex);
+          this.totalPages = Math.ceil(this.filteredInventory.length / this.itemsPerPage);
+          console.log('✅ paginatedInventory set DIRECTLY:', this.paginatedInventory.length, 'items');
+
+          setTimeout(() => {
+            this.cdr.detectChanges();
+          }, 0);
+        } else {
+          this.paginatedInventory = [];
+          this.totalPages = 1;
+          setTimeout(() => {
+            this.cdr.detectChanges();
+          }, 0);
+        }
+      },
+      error: (err) => {
+        console.error('❌ Error loading Current Inventory:', err);
+        this.inventory = [];
+        this.filteredInventory = [];
+        this.paginatedInventory = [];
+        this.totalPages = 1;
+        this.currentPage = 1;
+        this.availableCategories = [];
+        this.selectedCategories.clear();
+        this.updatePagination();
+      }
+    });
+  }
+
+  onInventoryTypeChange() {
+    // Reset filters and reload inventory
+    this.searchTerm = '';
+    this.selectedCategories.clear();
+    this.expiryFilterDays = null;
+    this.currentPage = 1;
+    this.loadInventory();
   }
 
   onPhotoChange(event: Event) {

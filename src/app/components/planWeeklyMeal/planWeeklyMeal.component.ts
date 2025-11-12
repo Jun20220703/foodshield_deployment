@@ -147,14 +147,14 @@ export class PlanWeeklyMealComponent implements OnInit {
         // Convert marked foods to InventoryItem format
         // Use exact quantities from database
         const markedItems = markedFoods.map((markedFood: MarkedFood) => {
-          let expiryStr = '';
+            let expiryStr = '';
           if (markedFood.expiry) {
             const expiryDate = new Date(markedFood.expiry);
-            const day = String(expiryDate.getDate()).padStart(2, '0');
-            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-            const year = expiryDate.getFullYear();
-            expiryStr = `${day}/${month}/${year}`;
-          }
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
 
           // Handle foodId - it might be an object if populated, or a string
           let foodIdStr = '';
@@ -181,7 +181,7 @@ export class PlanWeeklyMealComponent implements OnInit {
           //   foodId: foodIdStr
           // });
 
-          return {
+            return {
             foodId: foodIdStr,
             name: markedFood.name,
             quantity: dbQty, // Exact quantity from database
@@ -190,9 +190,9 @@ export class PlanWeeklyMealComponent implements OnInit {
             markedQuantity: dbQty, // Exact marked quantity from database
             expiry: expiryStr,
             markedFoodIds: markedFood._id ? [markedFood._id] : []
-          };
-        });
-
+            };
+          });
+        
         // Merge marked items with same foodId (same food item marked multiple times)
         // Sum up quantities from database accurately
         const markedItemsByFoodId = new Map<string, InventoryItem>();
