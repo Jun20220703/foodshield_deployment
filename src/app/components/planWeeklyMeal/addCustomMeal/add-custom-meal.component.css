@@ -583,6 +583,11 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  margin: 0 auto;
+  margin-left: auto;
+  margin-right: 3px;
+  display: block;
+  width: fit-content;
 }
 
 .select-ingredient-btn:hover {
@@ -597,17 +602,21 @@
 
 /* Update table headers for modal (5 columns) */
 .ingredient-modal-content .table-headers {
-  grid-template-columns: 1.5fr 1fr 1.8fr 1.5fr 1fr;
+  grid-template-columns: 2fr 1.2fr 1.5fr 1.3fr 1fr;
+  gap: 12px;
 }
 
 .ingredient-modal-content .inventory-item {
-  grid-template-columns: 1.5fr 1fr 1.8fr 1.5fr 1fr;
+  grid-template-columns: 2fr 1.2fr 1.5fr 1.3fr 1fr;
+  gap: 12px;
 }
 
 .item-action {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  text-align: center;
 }
 
 .header-cell {
@@ -704,7 +713,7 @@
 
 .item-category {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
 }
 
@@ -716,8 +725,10 @@
 
 .item-expiry {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
+  width: 100%;
+  text-align: center;
 }
 
 .category-badge {
@@ -785,10 +796,12 @@
   font-size: 0.8rem;
   font-weight: 500;
   text-align: center;
-  display: inline-block;
+  display: block;
   max-width: fit-content;
+  margin: 0 auto;
   margin-left: auto;
-  margin-right: -10px;
+  margin-right: 20px;
+  width: fit-content;
 }
 
 /* Pagination Styles */
