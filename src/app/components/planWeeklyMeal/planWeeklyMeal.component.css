@@ -37,7 +37,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   color: #1a1a1a;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 /* Calendar Section */
@@ -478,11 +478,53 @@
 
 .inventory-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   margin-bottom: 25px;
-  flex-wrap: wrap;
   gap: 15px;
+}
+
+.inventory-title-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: 0;
+  gap: 15px;
+}
+
+.inventory-type-dropdown {
+  padding: 10px 40px 10px 16px;
+  background: white !important;
+  border: 2px solid #4a7c59 !important;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%234a7c59' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  min-width: 180px;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.inventory-type-dropdown:hover {
+  background-color: #e8f5e8;
+  border-color: #5a8c69;
+}
+
+.inventory-type-dropdown:focus {
+  outline: none;
+  border-color: #4a7c59;
+  box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
 }
 
 .search-filter-bar {
