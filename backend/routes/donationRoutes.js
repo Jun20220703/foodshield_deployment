@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const DonationList = require('../models/DonationList');
+const Food = require('../models/Food');
 const { sendNotification } = require('../services/notificationService');
+const Notification = require('../models/Notification');
 // ➕ Add to donation
 router.post('/', async (req, res) => {
   try {
@@ -26,6 +28,33 @@ router.post('/', async (req, res) => {
 
     // 🟢 保存
     await donation.save();
+
+    await Food.findByIdAndUpdate(foodId, {status: 'donation'});
+
+    const foodItem = await Food.findById(foodId);
+    if (foodItem){
+      const existingNotification = await Notification.findOne({
+        userId: owner,
+        type: 'donation',
+        'meta.foodId': foodId
+      });
+      if (existingNotification) {
+        console.log(`⚠️ Skipped duplicate donation notification for ${foodItem.name}`);
+        return res.status(200).json({
+          message: 'Donation saved (notification skipped)',
+          donation
+        });
+      }
+      await sendNotification({
+        userId: owner,
+        type: 'donation',
+        title: 'Donation Completed 🎉',
+        message: `Thank you! Your "${foodItem.name}" has been added to the donation list. 
+You’re helping reduce food waste and support others! 💚`,
+        meta: { foodId },
+        read: false
+      });
+    }
 
     // ✅ 成功レスポンスを返す
     res.status(201).json(donation);
