@@ -645,6 +645,15 @@
   border-left: 4px solid #4a7c59;
 }
 
+.inventory-item.expiring-soon {
+  background: #ffffcc;
+  border-left: 4px solid #ffeb3b;
+}
+
+.inventory-item.expiring-soon:hover {
+  background: #ffff99;
+}
+
 .item-name {
   font-weight: 600;
   color: #1a1a1a;

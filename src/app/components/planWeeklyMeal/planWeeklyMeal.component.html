@@ -190,6 +190,7 @@
           class="inventory-item" 
           *ngFor="let item of paginatedInventory; let i = index"
           [class.selected]="selectedItemIndex === i"
+          [class.expiring-soon]="getDaysUntilExpiry(item.expiry) <= 7 && getDaysUntilExpiry(item.expiry) >= 0"
           (click)="selectItem(i)">
           <div class="item-name">{{ item.name }}</div>
           <div class="item-quantity">
