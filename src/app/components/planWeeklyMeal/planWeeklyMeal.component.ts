@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -1301,33 +1302,93 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
+    console.log('🗑️ Deleting custom meal:', this.selectedCustomMeal);
+    console.log('🗑️ Meal ingredients:', this.selectedCustomMeal?.ingredients);
+    
     this.customMealService.deleteCustomMeal(this.selectedCustomMeal._id).subscribe({
       next: () => {
-        console.log('✅ Custom meal deleted successfully');
+        console.log('✅ Custom meal deleted successfully from database');
         
-        // mealPlans에서 제거
-        if (this.selectedDay && this.selectedMealType) {
-          const dateKey = this.getDateKey(this.selectedDay.fullDate);
-          const mealKey = `${dateKey}-${this.selectedMealType}`;
-          this.mealPlans.delete(mealKey);
+        // Restore ingredient quantities to marked/non-marked foods
+        if (!this.selectedCustomMeal || !this.selectedCustomMeal.ingredients) {
+          console.warn('⚠️ No ingredients to restore');
+          // If no ingredients, just proceed with deletion
+          if (this.selectedDay && this.selectedMealType) {
+            const dateKey = this.getDateKey(this.selectedDay.fullDate);
+            const mealKey = `${dateKey}-${this.selectedMealType}`;
+            this.mealPlans.delete(mealKey);
+          }
+          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+            this.customMealsCache = this.customMealsCache.filter(
+              meal => meal._id !== this.selectedCustomMeal!._id
+            );
+          }
+          this.closeCustomMealDetails();
+          
+          // Reload inventory
+          this.loadInventory();
+          
+          // Reload custom meals to update the meal plans display
+          this.loadCustomMeals();
+          
+          this.cdr.detectChanges();
+          alert('Meal deleted successfully!');
+          return;
         }
         
-        // 캐시에서도 제거
-        if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
-          this.customMealsCache = this.customMealsCache.filter(
-            meal => meal._id !== this.selectedCustomMeal!._id
-          );
-        }
-        
-        // UI 업데이트
-        this.closeCustomMealDetails();
-        this.cdr.detectChanges();
-        
-        alert('Meal deleted successfully!');
+        this.restoreIngredientQuantities(this.selectedCustomMeal.ingredients).then(() => {
+          // mealPlans에서 제거
+          if (this.selectedDay && this.selectedMealType) {
+            const dateKey = this.getDateKey(this.selectedDay.fullDate);
+            const mealKey = `${dateKey}-${this.selectedMealType}`;
+            this.mealPlans.delete(mealKey);
+          }
+          
+          // 캐시에서도 제거
+          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+            this.customMealsCache = this.customMealsCache.filter(
+              meal => meal._id !== this.selectedCustomMeal!._id
+            );
+          }
+          
+          // UI 업데이트
+          this.closeCustomMealDetails();
+          
+          // Reload inventory to reflect restored quantities
+          this.loadInventory();
+          
+          // Reload custom meals to update the meal plans display
+          this.loadCustomMeals();
+          
+          this.cdr.detectChanges();
+          
+          alert('Meal deleted successfully!');
+        }).catch((err: any) => {
+          console.error('❌ Error restoring ingredient quantities:', err);
+          // Still proceed with deletion even if restoration fails
+          if (this.selectedDay && this.selectedMealType) {
+            const dateKey = this.getDateKey(this.selectedDay.fullDate);
+            const mealKey = `${dateKey}-${this.selectedMealType}`;
+            this.mealPlans.delete(mealKey);
+          }
+          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+            this.customMealsCache = this.customMealsCache.filter(
+              meal => meal._id !== this.selectedCustomMeal!._id
+            );
+          }
+            this.closeCustomMealDetails();
+            
+            // Reload inventory even if restoration failed
+            this.loadInventory();
+            
+            this.cdr.detectChanges();
+            alert('Meal deleted but failed to restore ingredient quantities. Please check your inventory.');
+        });
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('❌ Error deleting custom meal:', err);
-        alert('Failed to delete meal. Please try again.');
+        console.error('❌ Error details:', JSON.stringify(err, null, 2));
+        alert(`Failed to delete meal: ${err.error?.message || err.message || 'Unknown error'}. Please try again.`);
       }
     });
   }
@@ -1447,6 +1508,191 @@ export class PlanWeeklyMealComponent implements OnInit {
     mealDate.setHours(0, 0, 0, 0);
     
     return mealDate.getTime() < today.getTime();
+  }
+
+  // Parse ingredients string and restore quantities to marked/non-marked foods
+  // Format: "IngredientName Quantity [marked|non-marked]"
+  async restoreIngredientQuantities(ingredientsStr: string): Promise<void> {
+    console.log('🔄 Starting restoreIngredientQuantities with:', ingredientsStr);
+    
+    if (!ingredientsStr || !ingredientsStr.trim()) {
+      console.warn('⚠️ No ingredients string provided');
+      return;
+    }
+
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Parse ingredients
+    const lines = ingredientsStr.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    console.log('📝 Parsed lines:', lines);
+    const ingredients: Array<{ name: string; quantity: number; inventoryType: 'marked' | 'non-marked' }> = [];
+
+    for (const line of lines) {
+      console.log('🔍 Processing line:', line);
+      
+      // Extract inventory type: [marked] or [non-marked]
+      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*$/);
+      const inventoryType = typeMatch ? (typeMatch[1] as 'marked' | 'non-marked') : 'marked';
+      const lineWithoutType = typeMatch ? line.substring(0, typeMatch.index).trim() : line;
+      console.log('📦 Inventory type:', inventoryType, 'Line without type:', lineWithoutType);
+
+      // Extract quantity - try multiple patterns
+      let quantity = 0;
+      let name = '';
+      
+      // Pattern 1: "Name 200g [marked]" or "Name 200 [marked]"
+      const quantityMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*(g|kg|ml|l|tbsp|tsp|cup|cups|oz|lb|개|조각|컵|스푼|작은술|큰술)?\s*$/i);
+      if (quantityMatch) {
+        quantity = parseFloat(quantityMatch[1]);
+        name = lineWithoutType.substring(0, quantityMatch.index).trim();
+        console.log('✅ Pattern 1 matched - Name:', name, 'Quantity:', quantity);
+      } else {
+        // Pattern 2: "Name 200 [marked]" (just number)
+        const numberMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*$/);
+        if (numberMatch) {
+          quantity = parseFloat(numberMatch[1]);
+          name = lineWithoutType.substring(0, numberMatch.index).trim();
+          console.log('✅ Pattern 2 matched - Name:', name, 'Quantity:', quantity);
+        } else {
+          // Pattern 3: "Name [marked]" (no quantity, skip)
+          console.warn('⚠️ No quantity found in line:', line);
+          continue;
+        }
+      }
+
+      if (name && quantity > 0) {
+        ingredients.push({ name: name.toLowerCase(), quantity, inventoryType });
+        console.log('✅ Added ingredient:', { name: name.toLowerCase(), quantity, inventoryType });
+      }
+    }
+
+    console.log('📋 Final ingredients array:', ingredients);
+    
+    if (ingredients.length === 0) {
+      console.warn('⚠️ No valid ingredients parsed');
+      return;
+    }
+
+    // Get all marked foods and non-marked foods
+    const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+    const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+
+    const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+    if (!markedFoods || !allFoods) {
+      throw new Error('Failed to load inventory');
+    }
+
+    // Process each ingredient
+    const updatePromises: Promise<any>[] = [];
+
+    for (const ingredient of ingredients) {
+      console.log(`🔄 Processing ingredient for restoration:`, ingredient);
+      
+      if (ingredient.inventoryType === 'marked') {
+        // Find matching marked food - normalize both names for comparison
+        const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
+        const markedFood = markedFoods.find(mf => {
+          const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
+        console.log(`🔍 Available marked foods (full details):`, markedFoods);
+        console.log(`🔍 Available marked foods (names only):`, markedFoods.map(mf => ({ 
+          name: mf.name, 
+          normalized: (mf.name || '').toLowerCase().trim(),
+          qty: mf.qty,
+          _id: mf._id
+        })));
+        
+        if (markedFood && markedFood._id) {
+          const newQty = (markedFood.qty || 0) + ingredient.quantity;
+          console.log(`📈 Restoring marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
+              .then(() => console.log(`✅ Successfully restored marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to restore marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          console.warn(`⚠️ Marked food not found for restoration: ${ingredient.name}`);
+          console.warn(`⚠️ Available marked foods:`, markedFoods.map(mf => mf.name));
+          
+          // If marked food doesn't exist, try to find it in non-marked foods and create a marked food entry
+          console.log(`🔄 Trying to find "${ingredient.name}" in non-marked foods to create marked food entry...`);
+          const nonMarkedFood = allFoods.find(f => {
+            const foodNameNormalized = (f.name || '').toLowerCase().trim();
+            return foodNameNormalized === ingredientNameNormalized;
+          });
+          
+          if (nonMarkedFood && nonMarkedFood._id) {
+            console.log(`✅ Found in non-marked foods, creating marked food entry:`, nonMarkedFood);
+            // Create a new marked food entry with the restored quantity
+            const newMarkedFoodData = {
+              foodId: nonMarkedFood._id,
+              name: nonMarkedFood.name,
+              qty: ingredient.quantity,
+              category: nonMarkedFood.category || 'Other',
+              storage: nonMarkedFood.storage || 'Fridge',
+              expiry: nonMarkedFood.expiry || '',
+              notes: nonMarkedFood.notes || ''
+            };
+            updatePromises.push(
+              firstValueFrom(this.browseService.markFood(newMarkedFoodData))
+                .then(() => console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to create marked food entry for "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            console.warn(`⚠️ Food "${ingredient.name}" not found in either marked or non-marked foods. Cannot restore.`);
+          }
+        }
+      } else {
+        // Find matching non-marked food (current inventory) - normalize both names for comparison
+        const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
+        const food = allFoods.find(f => {
+          const foodNameNormalized = (f.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
+        console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
+          name: f.name, 
+          normalized: (f.name || '').toLowerCase().trim(),
+          qty: f.qty 
+        })));
+        
+        if (food && food._id) {
+          const newQty = (food.qty || 0) + ingredient.quantity;
+          console.log(`📈 Restoring non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
+              .then(() => console.log(`✅ Successfully restored non-marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to restore non-marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          console.warn(`⚠️ Non-marked food not found for restoration: ${ingredient.name}`);
+          console.warn(`⚠️ Available non-marked foods:`, allFoods.map(f => f.name));
+        }
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log('✅ All ingredient quantities restored successfully');
+    } else {
+      console.warn('⚠️ No update promises to execute - no ingredients matched');
+    }
   }
 }
 

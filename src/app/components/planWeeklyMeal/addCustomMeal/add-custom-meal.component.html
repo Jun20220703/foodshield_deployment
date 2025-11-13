@@ -56,14 +56,22 @@
             <div 
               class="ingredient-item" 
               *ngFor="let ingredient of ingredientList; let i = index">
-              <input 
-                type="text" 
-                class="ingredient-name-input" 
-                [(ngModel)]="ingredient.name"
-                [name]="'ingredientName' + i"
-                placeholder="Click to select from inventory"
-                (click)="openIngredientModal()"
-                required>
+              <div class="ingredient-name-wrapper">
+                <span class="inventory-type-badge" 
+                      [class.marked]="(ingredient.inventoryType || 'marked') === 'marked'" 
+                      [class.non-marked]="ingredient.inventoryType === 'non-marked'">
+                  {{ (ingredient.inventoryType || 'marked') === 'marked' ? 'Marked' : 'Non-Marked' }}
+                </span>
+                <input 
+                  type="text" 
+                  class="ingredient-name-input" 
+                  [(ngModel)]="ingredient.name"
+                  [name]="'ingredientName' + i"
+                  placeholder="Click to select from inventory"
+                  (click)="openIngredientModal()"
+                  readonly
+                  required>
+              </div>
               <input 
                 type="text" 
                 class="ingredient-quantity-input" 
@@ -120,10 +128,10 @@
     <!-- Ingredient Selection Modal -->
     <div class="ingredient-modal-overlay" *ngIf="showIngredientModal" (click)="closeIngredientModal()">
       <div class="ingredient-modal-content" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h2 class="modal-title">Select Ingredients</h2>
-          <button class="modal-close-btn" (click)="closeIngredientModal()">×</button>
-        </div>
+          <div class="modal-header">
+            <h2 class="modal-title">Select Ingredients ({{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }})</h2>
+            <button class="modal-close-btn" (click)="closeIngredientModal()">×</button>
+          </div>
         
         <div class="inventory-section">
         <div class="inventory-header">

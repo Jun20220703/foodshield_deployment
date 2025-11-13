@@ -1,4 +1,5 @@
 import { Component, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -32,7 +33,8 @@ export class AddCustomMealComponent implements OnInit {
   kcal: string = '';
   
   // Ingredients with quantities
-  ingredientList: Array<{ name: string; quantity: string }> = [];
+  ingredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }> = [];
+  originalIngredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }> = []; // Store original ingredients for edit mode
   
   selectedDate: string = '';
   selectedMealType: string = '';
@@ -126,6 +128,10 @@ export class AddCustomMealComponent implements OnInit {
         // Parse ingredients string into ingredientList
         this.parseIngredientsToList(meal.ingredients || '');
         
+        // Store original ingredients for comparison during edit
+        this.originalIngredientList = JSON.parse(JSON.stringify(this.ingredientList));
+        console.log('📋 Original ingredients stored:', this.originalIngredientList);
+        
         this.cdr.detectChanges();
       },
       error: (err) => {
@@ -136,6 +142,7 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   // Parse ingredients string into ingredientList
+  // Format: "IngredientName Quantity [marked|non-marked]"
   parseIngredientsToList(ingredientsStr: string) {
     this.ingredientList = [];
     
@@ -144,33 +151,38 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
     
-    // Split by newline or comma
-    const lines = ingredientsStr.split(/[\n,]/).map(line => line.trim()).filter(line => line.length > 0);
+    // Split by newline
+    const lines = ingredientsStr.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
     if (lines.length === 0) {
       // If no valid lines, keep list empty
       return;
     }
     
-    // Parse each line: "Ingredient Name 200g" or "Ingredient Name" or "Ingredient Name, 200g"
+    // Parse each line: "Ingredient Name 200g [marked]" or "Ingredient Name [non-marked]"
     lines.forEach(line => {
+      // Extract inventory type: [marked] or [non-marked]
+      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*$/);
+      const inventoryType = typeMatch ? (typeMatch[1] as 'marked' | 'non-marked') : 'marked';
+      const lineWithoutType = typeMatch ? line.substring(0, typeMatch.index).trim() : line;
+      
       // Try to extract quantity (numbers followed by units like g, kg, ml, l, tbsp, tsp, cup, cups, oz, lb)
-      const quantityMatch = line.match(/\s+(\d+(?:\.\d+)?)\s*(g|kg|ml|l|tbsp|tsp|cup|cups|oz|lb|개|조각|컵|스푼|작은술|큰술)\s*$/i);
+      const quantityMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*(g|kg|ml|l|tbsp|tsp|cup|cups|oz|lb|개|조각|컵|스푼|작은술|큰술)\s*$/i);
       
       if (quantityMatch) {
         const quantity = quantityMatch[1] + quantityMatch[2];
-        const name = line.substring(0, quantityMatch.index).trim();
-        this.ingredientList.push({ name, quantity });
+        const name = lineWithoutType.substring(0, quantityMatch.index).trim();
+        this.ingredientList.push({ name, quantity, inventoryType });
       } else {
         // No quantity found, check if there's a number at the end
-        const numberMatch = line.match(/\s+(\d+(?:\.\d+)?)\s*$/);
+        const numberMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*$/);
         if (numberMatch) {
           const quantity = numberMatch[1];
-          const name = line.substring(0, numberMatch.index).trim();
-          this.ingredientList.push({ name, quantity });
+          const name = lineWithoutType.substring(0, numberMatch.index).trim();
+          this.ingredientList.push({ name, quantity, inventoryType });
         } else {
           // Just ingredient name, no quantity
-          this.ingredientList.push({ name: line, quantity: '' });
+          this.ingredientList.push({ name: lineWithoutType, quantity: '', inventoryType });
         }
       }
     });
@@ -179,13 +191,16 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   // Convert ingredientList to ingredients string for database
+  // Format: "IngredientName Quantity [marked|non-marked]"
   convertIngredientsListToString(): string {
     return this.ingredientList
       .filter(ing => ing.name.trim().length > 0)
       .map(ing => {
         const name = ing.name.trim();
         const qty = ing.quantity.trim();
-        return qty ? `${name} ${qty}` : name;
+        const type = ing.inventoryType || 'marked'; // Default to marked if not specified
+        const baseStr = qty ? `${name} ${qty}` : name;
+        return `${baseStr} [${type}]`;
       })
       .join('\n');
   }
@@ -582,10 +597,17 @@ export class AddCustomMealComponent implements OnInit {
       this.customMealService.updateCustomMeal(this.editMealId, mealData).subscribe({
         next: (updatedMeal) => {
           console.log('✅ Custom meal updated successfully:', updatedMeal);
-          alert('Custom meal updated successfully!');
           
-          // Navigate back to planWeeklyMeal page
-          this.router.navigate(['/planWeeklyMeal']);
+          // Calculate difference between original and new ingredients
+          // Restore original quantities first, then reduce new quantities
+          this.adjustIngredientQuantitiesForEdit().then(() => {
+            alert('Custom meal updated successfully!');
+            this.router.navigate(['/planWeeklyMeal']);
+          }).catch((err: any) => {
+            console.error('❌ Error adjusting ingredient quantities:', err);
+            alert('Meal updated but failed to adjust ingredient quantities. Please check your inventory.');
+            this.router.navigate(['/planWeeklyMeal']);
+          });
         },
         error: (err) => {
           console.error('❌ Error updating custom meal:', err);
@@ -600,10 +622,17 @@ export class AddCustomMealComponent implements OnInit {
       this.customMealService.createCustomMeal(mealData).subscribe({
         next: (savedMeal) => {
           console.log('✅ Custom meal created successfully:', savedMeal);
-          alert('Custom meal created successfully!');
           
-          // Navigate back to planWeeklyMeal page
-          this.router.navigate(['/planWeeklyMeal']);
+          // Reduce ingredient quantities from marked/non-marked foods
+          this.reduceIngredientQuantities(this.ingredientList).then(() => {
+            alert('Custom meal created successfully!');
+            // Navigate back to planWeeklyMeal page
+            this.router.navigate(['/planWeeklyMeal']);
+          }).catch((err: any) => {
+            console.error('❌ Error reducing ingredient quantities:', err);
+            alert('Meal created but failed to update ingredient quantities. Please check your inventory.');
+            this.router.navigate(['/planWeeklyMeal']);
+          });
         },
         error: (err) => {
           console.error('❌ Error creating custom meal:', err);
@@ -841,11 +870,22 @@ export class AddCustomMealComponent implements OnInit {
     const quantity = this.selectedIngredientQuantity[item.name] || item.quantity || 1;
     const quantityStr = quantity > 0 ? String(quantity) : '';
     
-    // Add to ingredientList at the beginning (top of the list)
-    this.ingredientList.unshift({
+    // Add to ingredientList at the end (bottom of the list)
+    const newIngredient = {
       name: item.name,
-      quantity: quantityStr
-    });
+      quantity: quantityStr,
+      inventoryType: this.inventoryType // Store the inventory type when selecting
+    };
+    
+    console.log('🔍 Adding ingredient:', newIngredient);
+    console.log('🔍 Selected item:', item);
+    console.log('🔍 Current inventoryType:', this.inventoryType);
+    console.log('🔍 Current ingredientList before add:', this.ingredientList);
+    
+    // Add to the end of the list (bottom)
+    this.ingredientList.push(newIngredient);
+    
+    console.log('🔍 Current ingredientList after add:', this.ingredientList);
     
     // Close modal after selection
     this.closeIngredientModal();
@@ -854,6 +894,313 @@ export class AddCustomMealComponent implements OnInit {
 
   updateIngredientQuantity(itemName: string, quantity: number) {
     this.selectedIngredientQuantity[itemName] = Math.max(1, quantity);
+  }
+
+  // Reduce ingredient quantities from marked/non-marked foods
+  async reduceIngredientQuantities(ingredients: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }>): Promise<void> {
+    console.log('🔄 Starting reduceIngredientQuantities with ingredients:', ingredients);
+    
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Get all marked foods and non-marked foods
+    const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+    const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+
+    const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+    if (!markedFoods || !allFoods) {
+      throw new Error('Failed to load inventory');
+    }
+
+    console.log('📦 Loaded marked foods:', markedFoods.length);
+    console.log('📦 Loaded non-marked foods:', allFoods.length);
+
+    // Process each ingredient
+    const updatePromises: Promise<any>[] = [];
+
+    for (const ingredient of ingredients) {
+      console.log(`🔍 Processing ingredient:`, ingredient);
+      
+      if (!ingredient.name.trim() || !ingredient.quantity.trim()) {
+        console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
+        continue;
+      }
+
+      // Extract numeric value from quantity string (e.g., "200g" -> 200, "1.5kg" -> 1.5)
+      const quantityStr = ingredient.quantity.trim();
+      const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
+      if (!quantityMatch) {
+        console.warn(`⚠️ Could not parse quantity from: "${quantityStr}"`);
+        continue;
+      }
+      const quantityToReduce = parseFloat(quantityMatch[1]);
+      if (isNaN(quantityToReduce) || quantityToReduce <= 0) {
+        console.warn(`⚠️ Invalid quantity: ${quantityToReduce}`);
+        continue;
+      }
+
+      const inventoryType = ingredient.inventoryType || 'marked';
+      const ingredientNameNormalized = ingredient.name.trim().toLowerCase();
+      
+      console.log(`📋 Processing: "${ingredient.name}" (normalized: "${ingredientNameNormalized}"), quantity: ${quantityToReduce}, type: ${inventoryType}`);
+
+      if (inventoryType === 'marked') {
+        // Find matching marked food - normalize both names for comparison
+        const markedFood = markedFoods.find(mf => {
+          const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
+        console.log(`🔍 Available marked foods:`, markedFoods.map(mf => ({ 
+          name: mf.name, 
+          normalized: (mf.name || '').toLowerCase().trim(),
+          qty: mf.qty 
+        })));
+        
+        if (markedFood && markedFood._id) {
+          const newQty = Math.max(0, (markedFood.qty || 0) - quantityToReduce);
+          console.log(`📉 Reducing marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          
+          if (newQty === 0) {
+            // Delete if quantity becomes 0
+            updatePromises.push(
+              firstValueFrom(this.browseService.deleteMarkedFood(markedFood._id))
+                .then(() => console.log(`✅ Successfully deleted marked food "${ingredient.name}" (qty became 0)`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to delete marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            updatePromises.push(
+              firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
+                .then(() => console.log(`✅ Successfully reduced marked food "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to reduce marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          }
+        } else {
+          console.warn(`⚠️ Marked food not found: ${ingredient.name}`);
+          console.warn(`⚠️ Available marked foods:`, markedFoods.map(mf => mf.name));
+        }
+      } else {
+        // Find matching non-marked food (current inventory) - normalize both names for comparison
+        const food = allFoods.find(f => {
+          const foodNameNormalized = (f.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
+        console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
+          name: f.name, 
+          normalized: (f.name || '').toLowerCase().trim(),
+          qty: f.qty 
+        })));
+        
+        if (food && food._id) {
+          const newQty = Math.max(0, (food.qty || 0) - quantityToReduce);
+          console.log(`📉 Reducing non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
+              .then(() => console.log(`✅ Successfully reduced non-marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to reduce non-marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          console.warn(`⚠️ Non-marked food not found: ${ingredient.name}`);
+          console.warn(`⚠️ Available non-marked foods:`, allFoods.map(f => f.name));
+        }
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log('✅ All ingredient quantities reduced successfully');
+    } else {
+      console.warn('⚠️ No update promises to execute - no ingredients matched');
+      throw new Error('No ingredients were successfully processed for quantity reduction');
+    }
+  }
+
+  // Adjust ingredient quantities for edit mode
+  // Restore original quantities first, then reduce new quantities
+  async adjustIngredientQuantitiesForEdit(): Promise<void> {
+    console.log('🔄 Starting adjustIngredientQuantitiesForEdit');
+    console.log('📋 Original ingredients:', this.originalIngredientList);
+    console.log('📋 New ingredients:', this.ingredientList);
+    
+    // Step 1: Restore original quantities (add them back)
+    if (this.originalIngredientList.length > 0) {
+      console.log('📈 Step 1: Restoring original quantities...');
+      await this.restoreIngredientQuantities(this.originalIngredientList);
+    }
+    
+    // Step 2: Reduce new quantities (subtract new amounts)
+    if (this.ingredientList.length > 0) {
+      console.log('📉 Step 2: Reducing new quantities...');
+      await this.reduceIngredientQuantities(this.ingredientList);
+    }
+    
+    console.log('✅ Ingredient quantities adjusted successfully for edit');
+  }
+
+  // Restore ingredient quantities (used for edit mode)
+  async restoreIngredientQuantities(ingredients: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }>): Promise<void> {
+    console.log('🔄 Starting restoreIngredientQuantities with ingredients:', ingredients);
+    
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Get all marked foods and non-marked foods
+    const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+    const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+
+    const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+    if (!markedFoods || !allFoods) {
+      throw new Error('Failed to load inventory');
+    }
+
+    console.log('📦 Loaded marked foods:', markedFoods.length);
+    console.log('📦 Loaded non-marked foods:', allFoods.length);
+
+    // Process each ingredient
+    const updatePromises: Promise<any>[] = [];
+
+    for (const ingredient of ingredients) {
+      console.log(`🔍 Processing ingredient for restoration:`, ingredient);
+      
+      if (!ingredient.name.trim() || !ingredient.quantity.trim()) {
+        console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
+        continue;
+      }
+
+      // Extract numeric value from quantity string
+      const quantityStr = ingredient.quantity.trim();
+      const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
+      if (!quantityMatch) {
+        console.warn(`⚠️ Could not parse quantity from: "${quantityStr}"`);
+        continue;
+      }
+      const quantityToRestore = parseFloat(quantityMatch[1]);
+      if (isNaN(quantityToRestore) || quantityToRestore <= 0) {
+        console.warn(`⚠️ Invalid quantity: ${quantityToRestore}`);
+        continue;
+      }
+
+      const inventoryType = ingredient.inventoryType || 'marked';
+      const ingredientNameNormalized = ingredient.name.trim().toLowerCase();
+      
+      console.log(`📋 Restoring: "${ingredient.name}" (normalized: "${ingredientNameNormalized}"), quantity: ${quantityToRestore}, type: ${inventoryType}`);
+
+      if (inventoryType === 'marked') {
+        // Find matching marked food
+        const markedFood = markedFoods.find(mf => {
+          const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
+        
+        if (markedFood && markedFood._id) {
+          const newQty = (markedFood.qty || 0) + quantityToRestore;
+          console.log(`📈 Restoring marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
+              .then(() => console.log(`✅ Successfully restored marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to restore marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          // If marked food doesn't exist, try to find it in non-marked foods and create a marked food entry
+          console.log(`🔄 Trying to find "${ingredient.name}" in non-marked foods to create marked food entry...`);
+          const nonMarkedFood = allFoods.find(f => {
+            const foodNameNormalized = (f.name || '').toLowerCase().trim();
+            return foodNameNormalized === ingredientNameNormalized;
+          });
+          
+          if (nonMarkedFood && nonMarkedFood._id) {
+            console.log(`✅ Found in non-marked foods, creating marked food entry:`, nonMarkedFood);
+            let expiryDate = '';
+            if (nonMarkedFood.expiry) {
+              if (typeof nonMarkedFood.expiry === 'string') {
+                expiryDate = nonMarkedFood.expiry;
+              } else {
+                expiryDate = new Date(nonMarkedFood.expiry).toISOString();
+              }
+            } else {
+              const defaultExpiry = new Date();
+              defaultExpiry.setDate(defaultExpiry.getDate() + 7);
+              expiryDate = defaultExpiry.toISOString();
+            }
+            
+            const newMarkedFoodData = {
+              foodId: nonMarkedFood._id,
+              name: nonMarkedFood.name,
+              qty: quantityToRestore,
+              category: nonMarkedFood.category || 'Other',
+              storage: nonMarkedFood.storage || 'Fridge',
+              expiry: expiryDate,
+              notes: nonMarkedFood.notes || ''
+            };
+            updatePromises.push(
+              firstValueFrom(this.browseService.markFood(newMarkedFoodData))
+                .then(() => console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to create marked food entry for "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            console.warn(`⚠️ Marked food not found and cannot create from non-marked: ${ingredient.name}`);
+          }
+        }
+      } else {
+        // Find matching non-marked food
+        const food = allFoods.find(f => {
+          const foodNameNormalized = (f.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
+        
+        if (food && food._id) {
+          const newQty = (food.qty || 0) + quantityToRestore;
+          console.log(`📈 Restoring non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
+              .then(() => console.log(`✅ Successfully restored non-marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to restore non-marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          console.warn(`⚠️ Non-marked food not found for restoration: ${ingredient.name}`);
+        }
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log('✅ All ingredient quantities restored successfully');
+    } else {
+      console.warn('⚠️ No update promises to execute - no ingredients matched');
+    }
   }
 }
 
