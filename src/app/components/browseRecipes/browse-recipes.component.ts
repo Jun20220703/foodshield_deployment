@@ -425,7 +425,7 @@ export class BrowseRecipesComponent implements OnInit {
     const markedFoodNames = new Set(this.inventory.map(f => this.normalizeIngredientName(f.name)));
     const expiringFoodNames = new Set(
       allFoods
-        .filter(f => this.getDaysUntilExpiry(f.expiry) <= 7 && this.getDaysUntilExpiry(f.expiry) >= 0)
+        .filter(f => this.getDaysUntilExpiry(f.expiry) <= 7)
         .map(f => this.normalizeIngredientName(f.name))
     );
     
@@ -539,20 +539,20 @@ export class BrowseRecipesComponent implements OnInit {
         }
       });
 
-      // Calculate match percentage (only count ingredients with sufficient quantity)
-      const matchPercentage = (matchedCount / ingredients.length) * 100;
+      // Calculate match percentage (only count ingredients with sufficient quantity that are in marked foods)
+      const matchPercentage = ingredients.length > 0 ? (matchedCount / ingredients.length) * 100 : 0;
 
       console.log(`   Matched count: ${matchedCount}/${ingredients.length} (${matchPercentage.toFixed(1)}%)`);
       console.log(`   Has expiring ingredient: ${hasExpiringIngredient}`);
       console.log(`   All have sufficient quantity: ${allIngredientsHaveSufficientQuantity}`);
 
       // Show meal if:
-      // 1. 80% or more ingredients match marked foods with sufficient quantity, OR
-      // 2. Has at least one ingredient that expires in 7 days or less (and all ingredients have sufficient quantity)
+      // 1. 80% or more ingredients match marked foods with sufficient quantity AND all ingredients have sufficient quantity, OR
+      // 2. Has at least one ingredient that expires in 7 days or less AND all ingredients have sufficient quantity AND at least 80% match marked foods
       const shouldShow = (matchPercentage >= 80 && allIngredientsHaveSufficientQuantity) || 
-                        (hasExpiringIngredient && allIngredientsHaveSufficientQuantity);
+                        (hasExpiringIngredient && allIngredientsHaveSufficientQuantity && matchPercentage >= 80);
       
-      console.log(`   Should show: ${shouldShow}`);
+      console.log(`   Should show: ${shouldShow} (reason: ${matchPercentage >= 80 && allIngredientsHaveSufficientQuantity ? '80%+ match' : hasExpiringIngredient && allIngredientsHaveSufficientQuantity && matchPercentage >= 80 ? 'expiring + 80%+ match' : 'does not meet criteria'})`);
       
       return shouldShow;
     });
