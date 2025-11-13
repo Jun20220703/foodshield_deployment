@@ -97,3 +97,31 @@
   </div>
 </div>
 
+<!-- Plan Meal Modal -->
+<div class="modal-overlay" *ngIf="showPlanModal" (click)="closePlanModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <h2>Plan Meal</h2>
+    <div class="modal-form">
+      <div class="form-group">
+        <label for="mealDate">Date:</label>
+        <input type="date" id="mealDate" [(ngModel)]="selectedDate" required>
+      </div>
+      <div class="form-group">
+        <label for="mealType">Meal Type:</label>
+        <select id="mealType" [(ngModel)]="selectedMealType" required>
+          <option value="Breakfast">Breakfast</option>
+          <option value="Lunch">Lunch</option>
+          <option value="Dinner">Dinner</option>
+          <option value="Snack">Snack</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" (click)="closePlanModal()" [disabled]="isPlanning">Cancel</button>
+      <button class="btn-confirm" (click)="confirmPlanMeal()" [disabled]="isPlanning">
+        {{ isPlanning ? 'Planning...' : 'Confirm' }}
+      </button>
+    </div>
+  </div>
+</div>
+

@@ -1,8 +1,11 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { BrowseFoodService, MarkedFood, Food } from '../../services/browse-food.service';
+import { CustomMealService, CustomMeal } from '../../services/custom-meal.service';
+import { firstValueFrom } from 'rxjs';
 
 interface Recipe {
   id: string;
@@ -27,13 +30,17 @@ interface IngredientInfo {
   standalone: true,
   templateUrl: './meal-detail.component.html',
   styleUrls: ['./meal-detail.component.css'],
-  imports: [CommonModule, SidebarComponent]
+  imports: [CommonModule, FormsModule, SidebarComponent]
 })
 export class MealDetailComponent implements OnInit {
   recipeId: string = '';
   recipe: Recipe | null = null;
   imageError: boolean = false;
   ingredientsList: IngredientInfo[] = [];
+  showPlanModal: boolean = false;
+  selectedDate: string = '';
+  selectedMealType: string = '';
+  isPlanning: boolean = false;
 
   // Sample recipe data - in a real app, this would come from a service
   recipes: Recipe[] = [
@@ -68,6 +75,7 @@ export class MealDetailComponent implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private browseService: BrowseFoodService,
+    private customMealService: CustomMealService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -601,9 +609,223 @@ export class MealDetailComponent implements OnInit {
     }).unsubscribe();
   }
 
-  planMeal() {
-    // Navigate to planWeeklyMeal page
-    this.router.navigate(['/planWeeklyMeal']);
+  async planMeal() {
+    if (!this.recipe || this.ingredientsList.length === 0) {
+      alert('Recipe information is not available.');
+      return;
+    }
+
+    // Check if all ingredients have sufficient quantity
+    const insufficientIngredients: string[] = [];
+    
+    for (const ingredient of this.ingredientsList) {
+      const totalAvailable = ingredient.markedQuantity + ingredient.nonMarkedQuantity;
+      if (totalAvailable < ingredient.quantity) {
+        insufficientIngredients.push(`${ingredient.name} (needed: ${ingredient.quantity}, available: ${totalAvailable})`);
+      }
+    }
+
+    if (insufficientIngredients.length > 0) {
+      alert('Not enough ingredients in your inventory, try again next time please');
+      return;
+    }
+
+    // All ingredients have sufficient quantity, show date and meal type selection modal
+    this.showPlanModal = true;
+    // Set default date to today
+    const today = new Date();
+    this.selectedDate = today.toISOString().split('T')[0];
+    this.selectedMealType = 'Breakfast';
+  }
+
+  closePlanModal() {
+    this.showPlanModal = false;
+    this.selectedDate = '';
+    this.selectedMealType = '';
+  }
+
+  async confirmPlanMeal() {
+    if (!this.recipe || !this.selectedDate || !this.selectedMealType) {
+      alert('Please select date and meal type.');
+      return;
+    }
+
+    this.isPlanning = true;
+
+    try {
+      // Convert ingredients list to string format (same as add-custom-meal)
+      const ingredientsString = this.ingredientsList.map(ing => {
+        const inventoryType = ing.markedQuantity > 0 ? 'marked' : 'non-marked';
+        return `${ing.name} ${ing.quantity} [${inventoryType}]`;
+      }).join(', ');
+
+      // Create meal plan data
+      const mealData: CustomMeal = {
+        foodName: this.recipe.name,
+        ingredients: ingredientsString,
+        remark: this.recipe.description || '',
+        kcal: this.recipe.kcal || '',
+        photo: null,
+        date: this.selectedDate,
+        mealType: this.selectedMealType
+      };
+
+      // Create meal plan
+      const savedMeal = await firstValueFrom(this.customMealService.createCustomMeal(mealData));
+      console.log('✅ Meal plan created successfully:', savedMeal);
+
+      // Convert ingredientsList to format expected by reduceIngredientQuantities
+      const ingredientsForReduction = this.ingredientsList.map(ing => ({
+        name: ing.name,
+        quantity: String(ing.quantity),
+        inventoryType: (ing.markedQuantity > 0 ? 'marked' : 'non-marked') as 'marked' | 'non-marked'
+      }));
+
+      // Reduce ingredient quantities
+      await this.reduceIngredientQuantities(ingredientsForReduction);
+
+      alert('Meal plan created successfully!');
+      this.closePlanModal();
+      // Navigate to planWeeklyMeal page
+      this.router.navigate(['/planWeeklyMeal']);
+    } catch (error: any) {
+      console.error('❌ Error creating meal plan:', error);
+      const errorMessage = error.error?.message || error.message || 'Unknown error';
+      alert(`Failed to create meal plan: ${errorMessage}`);
+    } finally {
+      this.isPlanning = false;
+    }
+  }
+
+  async reduceIngredientQuantities(ingredients: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }>): Promise<void> {
+    console.log('🔄 Starting reduceIngredientQuantities with ingredients:', ingredients);
+    
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Get all marked foods and non-marked foods
+    const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+    const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+
+    const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+    if (!markedFoods || !allFoods) {
+      throw new Error('Failed to load inventory');
+    }
+
+    console.log('📦 Loaded marked foods:', markedFoods.length);
+    console.log('📦 Loaded non-marked foods:', allFoods.length);
+
+    // Process each ingredient
+    const updatePromises: Promise<any>[] = [];
+
+    for (const ingredient of ingredients) {
+      console.log(`🔍 Processing ingredient:`, ingredient);
+      
+      if (!ingredient.name.trim() || !ingredient.quantity.trim()) {
+        console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
+        continue;
+      }
+
+      // Extract numeric value from quantity string
+      const quantityStr = ingredient.quantity.trim();
+      const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
+      if (!quantityMatch) {
+        console.warn(`⚠️ Could not parse quantity from: "${quantityStr}"`);
+        continue;
+      }
+      const quantityToReduce = parseFloat(quantityMatch[1]);
+      if (isNaN(quantityToReduce) || quantityToReduce <= 0) {
+        console.warn(`⚠️ Invalid quantity: ${quantityToReduce}`);
+        continue;
+      }
+
+      const inventoryType = ingredient.inventoryType || 'marked';
+      const ingredientNameNormalized = ingredient.name.trim().toLowerCase();
+      
+      console.log(`📋 Processing: "${ingredient.name}" (normalized: "${ingredientNameNormalized}"), quantity: ${quantityToReduce}, type: ${inventoryType}`);
+
+      if (inventoryType === 'marked') {
+        // Find matching marked food - normalize both names for comparison
+        const markedFood = markedFoods.find(mf => {
+          const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        if (markedFood && markedFood._id) {
+          const newQty = Math.max(0, (markedFood.qty || 0) - quantityToReduce);
+          console.log(`📉 Reducing marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          
+          if (newQty === 0) {
+            // Delete if quantity becomes 0
+            updatePromises.push(
+              firstValueFrom(this.browseService.deleteMarkedFood(markedFood._id))
+                .then(() => console.log(`✅ Successfully deleted marked food "${ingredient.name}" (qty became 0)`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to delete marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            updatePromises.push(
+              firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
+                .then(() => console.log(`✅ Successfully reduced marked food "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to reduce marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          }
+        } else {
+          console.warn(`⚠️ Marked food not found: ${ingredient.name}`);
+        }
+      } else {
+        // Find matching non-marked food
+        const food = allFoods.find(f => {
+          const foodNameNormalized = (f.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        if (food && food._id) {
+          const newQty = Math.max(0, (food.qty || 0) - quantityToReduce);
+          console.log(`📉 Reducing non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          
+          if (newQty === 0) {
+            // Delete if quantity becomes 0
+            updatePromises.push(
+              firstValueFrom(this.browseService.deleteFood(food._id))
+                .then(() => console.log(`✅ Successfully deleted non-marked food "${ingredient.name}" (qty became 0)`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to delete non-marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            updatePromises.push(
+              firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
+                .then(() => console.log(`✅ Successfully reduced non-marked food "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to reduce non-marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          }
+        } else {
+          console.warn(`⚠️ Non-marked food not found: ${ingredient.name}`);
+        }
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log('✅ All ingredient quantities reduced successfully');
+    } else {
+      console.warn('⚠️ No update promises to execute - no ingredients matched');
+      throw new Error('No ingredients were successfully processed for quantity reduction');
+    }
   }
 
   onImageError(event: Event) {

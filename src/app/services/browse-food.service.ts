@@ -108,4 +108,9 @@ export class BrowseFoodService {
   updateMarkedFoodQty(id: string, qty: number): Observable<MarkedFood> {
     return this.http.patch<MarkedFood>(`${this.markedFoodsUrl}/${id}`, { qty });
   }
+
+  /** Delete food */
+  deleteFood(id: string): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/${id}`);
+  }
 }
