@@ -60,7 +60,10 @@ export class DonationListComponent implements OnInit{
   this.donationService.deleteDonation(donation._id).subscribe({
     next: (res: any) => {   // ← 型を明示
       console.log('Donation deleted:', res);
-      this.loadDonations();
+
+      this.donations = this.donations.filter(d => d._id !== donation._id);
+            this.cd.detectChanges();
+
     },
     error: (err: any) => {  // ← 型を明示
       console.error('Error deleting donation:', err);
