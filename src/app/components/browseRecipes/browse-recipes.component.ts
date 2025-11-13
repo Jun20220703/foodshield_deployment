@@ -57,16 +57,16 @@ export class BrowseRecipesComponent implements OnInit {
   suggestedMeals: Meal[] = [];
 
   genericMeals: Meal[] = [
-    { id: '4', name: 'Scrambled Eggs', image: 'assets/images/ge-food1.jpg', description: 'Egg 2, Onion 1, Salt, Oil 1, Carrot 1' },
-    { id: '5', name: 'Potato & Veggie Hash', image: 'assets/images/ge-food2.jpg', description: 'Potato 2, Onion 1, Bell Pepper 1, Parsley 1, Oil 1, Salt 1' },
-    { id: '6', name: 'Boiled Egg', image: 'assets/images/ge-food3.jpg', description: 'Egg 1, Salt, Water 1' },
-    { id: '7', name: 'Toast', image: 'assets/images/ge-food4.jpg', description: 'Bread 1, Butter 1' },
-    { id: '8', name: 'Vegetable Soup', image: 'assets/images/ge-food5.jpg', description: 'Onion 1, Carrot 1, Potato 1, Salt 1, Water 3' },
-    { id: '9', name: 'Simple Salad', image: 'assets/images/ge-food6.jpg', description: 'Lettuce 1, Tomato 1, Cucumber 1, Olive Oil 1, Salt 1' },
-    { id: '10', name: 'Mashed Potato', image: 'assets/images/ge-food7.jpg', description: 'Potato 2, Butter 1, Milk 1, Salt 1' },
-    { id: '11', name: 'Fried Rice', image: 'assets/images/ge-food8.jpg', description: 'Rice 1, Egg 1, Carrot 1, Onion 1, Oil 1, Salt 1' },
-    { id: '12', name: 'Cereal', image: 'assets/images/ge-food9.jpg', description: 'Cereal 1, Milk 1' },
-    { id: '13', name: 'Omelet', image: 'assets/images/ge-food10.jpg', description: 'Egg 2, Onion 1, Tomato 1, Oil 1, Salt 1' }
+    { id: '16', name: 'Scrambled Eggs', image: 'assets/images/ge-food1.jpg', description: 'Egg 2, Onion 1, Salt, Oil 1, Carrot 1' },
+    { id: '17', name: 'Potato & Veggie Hash', image: 'assets/images/ge-food2.jpg', description: 'Potato 2, Onion 1, Bell Pepper 1, Parsley 1, Oil 1, Salt 1' },
+    { id: '18', name: 'Boiled Egg', image: 'assets/images/ge-food3.jpg', description: 'Egg 1, Salt, Water 1' },
+    { id: '19', name: 'Toast', image: 'assets/images/ge-food4.jpg', description: 'Bread 1, Butter 1' },
+    { id: '20', name: 'Vegetable Soup', image: 'assets/images/ge-food5.jpg', description: 'Onion 1, Carrot 1, Potato 1, Salt 1, Water 3' },
+    { id: '21', name: 'Simple Salad', image: 'assets/images/ge-food6.jpg', description: 'Lettuce 1, Tomato 1, Cucumber 1, Olive Oil 1, Salt 1' },
+    { id: '22', name: 'Mashed Potato', image: 'assets/images/ge-food7.jpg', description: 'Potato 2, Butter 1, Milk 1, Salt 1' },
+    { id: '23', name: 'Fried Rice', image: 'assets/images/ge-food8.jpg', description: 'Rice 1, Egg 1, Carrot 1, Onion 1, Oil 1, Salt 1' },
+    { id: '24', name: 'Cereal', image: 'assets/images/ge-food9.jpg', description: 'Cereal 1, Milk 1' },
+    { id: '25', name: 'Omelet', image: 'assets/images/ge-food10.jpg', description: 'Egg 2, Onion 1, Tomato 1, Oil 1, Salt 1' }
   ];
 
   currentSuggestedIndex: number = 0;

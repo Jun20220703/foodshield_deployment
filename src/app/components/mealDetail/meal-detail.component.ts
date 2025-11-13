@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
+import { BrowseFoodService, MarkedFood, Food } from '../../services/browse-food.service';
 
 interface Recipe {
   id: string;
@@ -17,6 +17,9 @@ interface IngredientInfo {
   name: string;
   quantity: number;
   markedQuantity: number;
+  nonMarkedQuantity: number;
+  daysUntilExpiry?: number;
+  expiryLocation?: 'marked' | 'non-marked' | 'both';
 }
 
 @Component({
@@ -115,7 +118,7 @@ export class MealDetailComponent implements OnInit {
       // Extract ingredient name (remove quantity numbers)
       let name = trimmed.replace(/^\d+(?:\.\d+)?\s+/, '').replace(/\s+\d+(?:\.\d+)?$/, '').trim();
       
-      return { name, quantity, markedQuantity: 0 };
+      return { name, quantity, markedQuantity: 0, nonMarkedQuantity: 0, daysUntilExpiry: undefined, expiryLocation: undefined };
     }).filter(ing => {
       // Filter out only truly generic/abstract ingredients that don't represent actual food items
       const genericIngredients = ['spices', 'vegetables', 'dressing', 'milk or water'];
@@ -174,12 +177,13 @@ export class MealDetailComponent implements OnInit {
 
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
-        console.log('📦 Loaded marked foods:', markedFoods.map(f => ({ name: f.name, qty: f.qty })));
+        console.log('📦 Loaded marked foods:', markedFoods.map(f => ({ name: f.name, qty: f.qty, expiry: f.expiry })));
         
         // Create a map of normalized food names to total quantities
-        // Also store original names for matching
+        // Also store original names and expiry info for matching
         const markedFoodQuantities = new Map<string, number>();
         const markedFoodOriginalNames = new Map<string, string>(); // normalized -> original
+        const markedFoodExpiry = new Map<string, { days: number; expiry: string }>(); // normalized -> expiry info
         
         markedFoods.forEach((markedFood: MarkedFood) => {
           const normalizedName = this.normalizeIngredientName(markedFood.name);
@@ -189,9 +193,18 @@ export class MealDetailComponent implements OnInit {
           if (!markedFoodOriginalNames.has(normalizedName)) {
             markedFoodOriginalNames.set(normalizedName, markedFood.name);
           }
+          // Store expiry info (use the earliest expiry if multiple entries)
+          if (markedFood.expiry) {
+            const days = this.getDaysUntilExpiry(markedFood.expiry);
+            const existing = markedFoodExpiry.get(normalizedName);
+            if (!existing || days < existing.days) {
+              markedFoodExpiry.set(normalizedName, { days, expiry: markedFood.expiry });
+            }
+          }
         });
 
         console.log('📋 Marked food quantities:', Array.from(markedFoodQuantities.entries()));
+        console.log('📋 Marked food expiry info:', Array.from(markedFoodExpiry.entries()).map(([name, info]) => `${name}: ${info.days} days`));
         console.log('📋 Ingredients to match:', this.ingredientsList.map(i => i.name));
 
         // Update ingredients list with marked quantities from database
@@ -258,14 +271,45 @@ export class MealDetailComponent implements OnInit {
             }
           }
           
-          return { ...ingredient, markedQuantity: markedQty };
+          // Get expiry info if found in marked foods
+          let daysUntilExpiry: number | undefined;
+          let expiryLocation: 'marked' | 'non-marked' | 'both' | undefined;
+          
+          if (markedQty > 0) {
+            // Try direct match first
+            if (markedFoodExpiry.has(normalizedIngredient)) {
+              daysUntilExpiry = markedFoodExpiry.get(normalizedIngredient)!.days;
+              expiryLocation = 'marked';
+              console.log(`   📅 Expiry info (direct) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+            } else {
+              // Try flexible matching for expiry
+              for (const [normalizedName, expiryInfo] of markedFoodExpiry.entries()) {
+                const originalName = markedFoodOriginalNames.get(normalizedName) || normalizedName;
+                if (this.ingredientMatches(ingredient.name, originalName)) {
+                  daysUntilExpiry = expiryInfo.days;
+                  expiryLocation = 'marked';
+                  console.log(`   📅 Expiry info (flexible match) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+                  break;
+                }
+              }
+            }
+          }
+          
+          return { 
+            ...ingredient, 
+            markedQuantity: markedQty, 
+            nonMarkedQuantity: ingredient.nonMarkedQuantity || 0,
+            daysUntilExpiry: daysUntilExpiry !== undefined ? daysUntilExpiry : ingredient.daysUntilExpiry,
+            expiryLocation: expiryLocation || ingredient.expiryLocation
+          };
         });
         
         // Create completely new array to trigger change detection
         const newIngredientsList = updatedIngredients.map(ing => ({
           name: ing.name,
           quantity: ing.quantity,
-          markedQuantity: ing.markedQuantity
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0
         }));
         
         console.log('✅ Final ingredients with marked quantities:', 
@@ -275,10 +319,199 @@ export class MealDetailComponent implements OnInit {
         this.ingredientsList = newIngredientsList.map(ing => ({
           name: ing.name,
           quantity: ing.quantity,
-          markedQuantity: ing.markedQuantity
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0
         }));
         
         console.log('🔄 Updated ingredientsList:', this.ingredientsList);
+        
+        // After loading marked foods, check non-marked foods for items not found in marked
+        this.loadNonMarkedFoods();
+      },
+      error: (err) => {
+        console.error('Error loading marked foods:', err);
+        // Still try to load non-marked foods
+        this.loadNonMarkedFoods();
+      }
+    });
+  }
+
+  loadNonMarkedFoods() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ Window or localStorage not available for non-marked foods');
+      return;
+    }
+
+    // Check if ingredientsList is ready
+    if (!this.ingredientsList || this.ingredientsList.length === 0) {
+      console.warn('⚠️ ingredientsList is empty, cannot load non-marked foods');
+      return;
+    }
+
+    console.log('🔄 Loading non-marked foods for', this.ingredientsList.length, 'ingredients');
+
+    this.browseService.getFoods().subscribe({
+      next: (allFoods: Food[]) => {
+        console.log('📦 Loaded non-marked foods:', allFoods.length, 'items');
+        
+        // Get current user ID to filter foods
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id || '';
+
+        // Filter non-marked foods (status 'inventory' and owner matches)
+        const nonMarkedFoods = allFoods.filter((food: Food) => {
+          return food.owner === userId && (!food.status || food.status === 'inventory');
+        });
+
+        // Create a map of normalized food names to total quantities and expiry info
+        const nonMarkedFoodQuantities = new Map<string, number>();
+        const nonMarkedFoodOriginalNames = new Map<string, string>();
+        const nonMarkedFoodExpiry = new Map<string, { days: number; expiry: string }>(); // normalized -> expiry info
+
+        nonMarkedFoods.forEach((food: Food) => {
+          const normalizedName = this.normalizeIngredientName(food.name);
+          const currentQty = nonMarkedFoodQuantities.get(normalizedName) || 0;
+          nonMarkedFoodQuantities.set(normalizedName, currentQty + (food.qty || 0));
+          if (!nonMarkedFoodOriginalNames.has(normalizedName)) {
+            nonMarkedFoodOriginalNames.set(normalizedName, food.name);
+          }
+          // Store expiry info (use the earliest expiry if multiple entries)
+          if (food.expiry) {
+            const expiryStr = this.formatExpiryDate(food.expiry);
+            const days = this.getDaysUntilExpiry(expiryStr);
+            const existing = nonMarkedFoodExpiry.get(normalizedName);
+            if (!existing || days < existing.days) {
+              nonMarkedFoodExpiry.set(normalizedName, { days, expiry: expiryStr });
+            }
+          }
+        });
+
+        console.log('📋 Non-marked food quantities:', Array.from(nonMarkedFoodQuantities.entries()));
+        console.log('📋 Non-marked food expiry info:', Array.from(nonMarkedFoodExpiry.entries()).map(([name, info]) => `${name}: ${info.days} days`));
+
+        // Update ingredients list - check non-marked foods for items not in marked foods
+        const updatedIngredientsList = this.ingredientsList.map(ingredient => {
+          // Only check non-marked if not found in marked foods
+          if (ingredient.markedQuantity === 0) {
+            let nonMarkedQty = 0;
+            const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
+
+            // Step 1: Try direct normalized match
+            if (nonMarkedFoodQuantities.has(normalizedIngredient)) {
+              nonMarkedQty = nonMarkedFoodQuantities.get(normalizedIngredient)!;
+              const originalName = nonMarkedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
+              console.log(`   ✅ NON-MARKED MATCH: "${ingredient.name}" = "${originalName}" (qty: ${nonMarkedQty})`);
+            } else {
+              // Step 2: Try ingredientMatches method
+              let foundMatch = false;
+              for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
+                const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                
+                if (this.ingredientMatches(ingredient.name, originalName)) {
+                  nonMarkedQty = qty;
+                  console.log(`   ✅ NON-MARKED MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                  foundMatch = true;
+                  break;
+                }
+              }
+              
+              // Step 3: Try singular/plural matching
+              if (!foundMatch) {
+                for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
+                  const singularNormalized = normalizedName.replace(/s$/, '');
+                  const singularIngredient = normalizedIngredient.replace(/s$/, '');
+                  
+                  if (singularNormalized === normalizedIngredient || 
+                      normalizedName === singularIngredient || 
+                      singularNormalized === singularIngredient) {
+                    nonMarkedQty = qty;
+                    const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                    console.log(`   ✅ NON-MARKED SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                    foundMatch = true;
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Get expiry info if found in non-marked foods
+            let daysUntilExpiry: number | undefined = ingredient.daysUntilExpiry;
+            let expiryLocation: 'marked' | 'non-marked' | 'both' | undefined = ingredient.expiryLocation;
+            
+            if (nonMarkedQty > 0 && nonMarkedFoodExpiry.has(normalizedIngredient)) {
+              const expiryInfo = nonMarkedFoodExpiry.get(normalizedIngredient)!;
+              // If already has expiry from marked, compare and use the earliest
+              if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
+                daysUntilExpiry = expiryInfo.days;
+                expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
+                console.log(`   📅 Expiry info for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+              } else if (ingredient.markedQuantity > 0) {
+                expiryLocation = 'both';
+                console.log(`   📅 Expiry info (both) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+              }
+            } else if (nonMarkedQty > 0) {
+              // Try flexible matching for expiry
+              for (const [normalizedName, expiryInfo] of nonMarkedFoodExpiry.entries()) {
+                const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                if (this.ingredientMatches(ingredient.name, originalName)) {
+                  if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
+                    daysUntilExpiry = expiryInfo.days;
+                    expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
+                    console.log(`   📅 Expiry info (flexible match) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+                    break;
+                  }
+                }
+              }
+            }
+            
+            return { 
+              ...ingredient, 
+              nonMarkedQuantity: nonMarkedQty,
+              daysUntilExpiry,
+              expiryLocation
+            };
+          }
+          
+          // If already found in marked foods, keep nonMarkedQuantity as 0 but preserve expiry info
+          return { ...ingredient };
+        });
+
+        // Create completely new array to trigger change detection
+        const finalIngredientsList = updatedIngredientsList.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0,
+          daysUntilExpiry: ing.daysUntilExpiry,
+          expiryLocation: ing.expiryLocation
+        }));
+
+        console.log('✅ Final ingredients with all quantities:', 
+          finalIngredientsList.map(i => `${i.name}: Marked=${i.markedQuantity}, Non-Marked=${i.nonMarkedQuantity}, DaysUntilExpiry=${i.daysUntilExpiry}`));
+        
+        // Update ingredients list - create completely new array reference
+        this.ingredientsList = finalIngredientsList.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0,
+          daysUntilExpiry: ing.daysUntilExpiry,
+          expiryLocation: ing.expiryLocation
+        }));
+        
+        console.log('🔄 Updated ingredientsList with non-marked:', this.ingredientsList);
+        console.log('🔍 Checking non-marked items:', 
+          this.ingredientsList.filter(i => i.nonMarkedQuantity > 0).map(i => `${i.name}: ${i.nonMarkedQuantity}`));
+        
+        // Debug expiring items (include expired items too, <= 7 days)
+        const expiringItems = this.ingredientsList.filter(i => 
+          i.daysUntilExpiry !== undefined && i.daysUntilExpiry <= 7
+        );
+        console.log('🔴 Checking expiring items (<=7 days):', 
+          expiringItems.map(i => `${i.name}: ${i.daysUntilExpiry} days (${i.expiryLocation})`));
+        console.log('🔴 Expiring items count:', expiringItems.length);
+        console.log('🔴 All ingredients with expiry:', 
+          this.ingredientsList.map(i => `${i.name}: daysUntilExpiry=${i.daysUntilExpiry}, expiryLocation=${i.expiryLocation}`));
         
         // Force change detection
         try {
@@ -291,13 +524,65 @@ export class MealDetailComponent implements OnInit {
         }
       },
       error: (err) => {
-        console.error('Error loading marked foods:', err);
+        console.error('Error loading non-marked foods:', err);
       }
     });
   }
 
+  getDaysUntilExpiry(expiry: string): number {
+    if (!expiry) return 999; // No expiry date means far future
+    
+    try {
+      // Parse expiry date (DD/MM/YYYY format)
+      const expiryParts = expiry.split('/');
+      if (expiryParts.length !== 3) return 999;
+      
+      const expiryDate = new Date(
+        parseInt(expiryParts[2]), 
+        parseInt(expiryParts[1]) - 1, 
+        parseInt(expiryParts[0])
+      );
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch (error) {
+      return 999; // Error parsing date, return large number
+    }
+  }
+
+  formatExpiryDate(expiry: string | Date): string {
+    if (!expiry) return '';
+    
+    try {
+      const expiryDate = typeof expiry === 'string' ? new Date(expiry) : expiry;
+      const day = String(expiryDate.getDate()).padStart(2, '0');
+      const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+      const year = expiryDate.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      return '';
+    }
+  }
+
   trackByIngredientName(index: number, ingredient: IngredientInfo): string {
-    return `${ingredient.name}-${ingredient.markedQuantity}`;
+    return `${ingredient.name}-${ingredient.markedQuantity}-${ingredient.nonMarkedQuantity}-${ingredient.daysUntilExpiry || 0}`;
+  }
+
+  getExpiryMessage(daysUntilExpiry: number | undefined): string {
+    if (daysUntilExpiry === undefined) return '';
+    
+    if (daysUntilExpiry < 0) {
+      const daysAgo = Math.abs(daysUntilExpiry);
+      return `Expired ${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago`;
+    } else {
+      return `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}`;
+    }
   }
 
   back() {
