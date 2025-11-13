@@ -94,7 +94,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-// ✅ Update food item (qty, etc.) - auto-update status to "consumed" if qty decreased
+// ✅ Update food item (qty, etc.) - split consumed quantity into new item, keep remainder in inventory
 router.put('/:id', async (req, res) => {
   try {
     const { qty } = req.body;
@@ -105,19 +105,43 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Food not found' });
     }
     
-    // Prepare update object
-    const updateData = { ...req.body };
-    
-    // ✅ If qty is being decreased (used/consumed), update status to "consumed"
-    if (qty !== undefined && qty < currentFood.qty && currentFood.status !== 'consumed') {
-      updateData.status = 'consumed';
-      console.log(`🔄 Auto-updating food ${currentFood.name} status to "consumed" (qty: ${currentFood.qty} → ${qty})`);
+    // If qty is being decreased (used/consumed), split the item
+    if (qty !== undefined && qty < currentFood.qty && currentFood.status === 'inventory') {
+      const consumedQty = currentFood.qty - qty;
+      
+      // Create a new consumed item with the consumed quantity
+      const consumedFood = new Food({
+        name: currentFood.name,
+        qty: consumedQty,
+        expiry: currentFood.expiry,
+        category: currentFood.category,
+        storage: currentFood.storage,
+        notes: currentFood.notes,
+        status: 'consumed',
+        owner: currentFood.owner
+      });
+      
+      await consumedFood.save();
+      console.log(`✅ Created consumed item: ${currentFood.name} (qty: ${consumedQty})`);
+      
+      // Update the original item with remaining quantity, keep status as "inventory"
+      const updateData = { ...req.body, status: 'inventory' };
+      const updatedFood = await Food.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      );
+      
+      console.log(`✅ Updated original item: ${currentFood.name} (qty: ${qty}, status: inventory)`);
+      return res.json(updatedFood);
     }
     
+    // If qty is not decreased or status is not inventory, just update normally
+    const updateData = { ...req.body };
     const updatedFood = await Food.findByIdAndUpdate(
       req.params.id,
       updateData,
-      { new: true }  // Return updated document
+      { new: true }
     );
     
     res.json(updatedFood);
