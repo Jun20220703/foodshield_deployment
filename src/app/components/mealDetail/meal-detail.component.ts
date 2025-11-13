@@ -405,91 +405,87 @@ export class MealDetailComponent implements OnInit {
         console.log('📋 Non-marked food quantities:', Array.from(nonMarkedFoodQuantities.entries()));
         console.log('📋 Non-marked food expiry info:', Array.from(nonMarkedFoodExpiry.entries()).map(([name, info]) => `${name}: ${info.days} days`));
 
-        // Update ingredients list - check non-marked foods for items not in marked foods
+        // Update ingredients list - check non-marked foods for ALL items (even if found in marked foods)
         const updatedIngredientsList = this.ingredientsList.map(ingredient => {
-          // Only check non-marked if not found in marked foods
-          if (ingredient.markedQuantity === 0) {
-            let nonMarkedQty = 0;
-            const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
+          // Check non-marked foods for ALL ingredients (not just those not in marked foods)
+          // This allows showing both marked and non-marked quantities if both exist
+          let nonMarkedQty = 0;
+          const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
 
-            // Step 1: Try direct normalized match
-            if (nonMarkedFoodQuantities.has(normalizedIngredient)) {
-              nonMarkedQty = nonMarkedFoodQuantities.get(normalizedIngredient)!;
-              const originalName = nonMarkedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
-              console.log(`   ✅ NON-MARKED MATCH: "${ingredient.name}" = "${originalName}" (qty: ${nonMarkedQty})`);
-            } else {
-              // Step 2: Try ingredientMatches method
-              let foundMatch = false;
+          // Step 1: Try direct normalized match
+          if (nonMarkedFoodQuantities.has(normalizedIngredient)) {
+            nonMarkedQty = nonMarkedFoodQuantities.get(normalizedIngredient)!;
+            const originalName = nonMarkedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
+            console.log(`   ✅ NON-MARKED MATCH: "${ingredient.name}" = "${originalName}" (qty: ${nonMarkedQty})`);
+          } else {
+            // Step 2: Try ingredientMatches method
+            let foundMatch = false;
+            for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
+              const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+              
+              if (this.ingredientMatches(ingredient.name, originalName)) {
+                nonMarkedQty = qty;
+                console.log(`   ✅ NON-MARKED MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                foundMatch = true;
+                break;
+              }
+            }
+            
+            // Step 3: Try singular/plural matching
+            if (!foundMatch) {
               for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
-                const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                const singularNormalized = normalizedName.replace(/s$/, '');
+                const singularIngredient = normalizedIngredient.replace(/s$/, '');
                 
-                if (this.ingredientMatches(ingredient.name, originalName)) {
+                if (singularNormalized === normalizedIngredient || 
+                    normalizedName === singularIngredient || 
+                    singularNormalized === singularIngredient) {
                   nonMarkedQty = qty;
-                  console.log(`   ✅ NON-MARKED MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                  const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                  console.log(`   ✅ NON-MARKED SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
                   foundMatch = true;
                   break;
                 }
               }
-              
-              // Step 3: Try singular/plural matching
-              if (!foundMatch) {
-                for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
-                  const singularNormalized = normalizedName.replace(/s$/, '');
-                  const singularIngredient = normalizedIngredient.replace(/s$/, '');
-                  
-                  if (singularNormalized === normalizedIngredient || 
-                      normalizedName === singularIngredient || 
-                      singularNormalized === singularIngredient) {
-                    nonMarkedQty = qty;
-                    const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
-                    console.log(`   ✅ NON-MARKED SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
-                    foundMatch = true;
-                    break;
-                  }
-                }
-              }
             }
+          }
 
-            // Get expiry info if found in non-marked foods
-            let daysUntilExpiry: number | undefined = ingredient.daysUntilExpiry;
-            let expiryLocation: 'marked' | 'non-marked' | 'both' | undefined = ingredient.expiryLocation;
-            
-            if (nonMarkedQty > 0 && nonMarkedFoodExpiry.has(normalizedIngredient)) {
-              const expiryInfo = nonMarkedFoodExpiry.get(normalizedIngredient)!;
-              // If already has expiry from marked, compare and use the earliest
-              if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
-                daysUntilExpiry = expiryInfo.days;
-                expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
-                console.log(`   📅 Expiry info for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
-              } else if (ingredient.markedQuantity > 0) {
-                expiryLocation = 'both';
-                console.log(`   📅 Expiry info (both) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
-              }
-            } else if (nonMarkedQty > 0) {
-              // Try flexible matching for expiry
-              for (const [normalizedName, expiryInfo] of nonMarkedFoodExpiry.entries()) {
-                const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
-                if (this.ingredientMatches(ingredient.name, originalName)) {
-                  if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
-                    daysUntilExpiry = expiryInfo.days;
-                    expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
-                    console.log(`   📅 Expiry info (flexible match) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
-                    break;
-                  }
+          // Get expiry info if found in non-marked foods
+          let daysUntilExpiry: number | undefined = ingredient.daysUntilExpiry;
+          let expiryLocation: 'marked' | 'non-marked' | 'both' | undefined = ingredient.expiryLocation;
+          
+          if (nonMarkedQty > 0 && nonMarkedFoodExpiry.has(normalizedIngredient)) {
+            const expiryInfo = nonMarkedFoodExpiry.get(normalizedIngredient)!;
+            // If already has expiry from marked, compare and use the earliest
+            if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
+              daysUntilExpiry = expiryInfo.days;
+              expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
+              console.log(`   📅 Expiry info for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+            } else if (ingredient.markedQuantity > 0) {
+              expiryLocation = 'both';
+              console.log(`   📅 Expiry info (both) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+            }
+          } else if (nonMarkedQty > 0) {
+            // Try flexible matching for expiry
+            for (const [normalizedName, expiryInfo] of nonMarkedFoodExpiry.entries()) {
+              const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+              if (this.ingredientMatches(ingredient.name, originalName)) {
+                if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
+                  daysUntilExpiry = expiryInfo.days;
+                  expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
+                  console.log(`   📅 Expiry info (flexible match) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+                  break;
                 }
               }
             }
-            
-            return { 
-              ...ingredient, 
-              nonMarkedQuantity: nonMarkedQty,
-              daysUntilExpiry,
-              expiryLocation
-            };
           }
           
-          // If already found in marked foods, keep nonMarkedQuantity as 0 but preserve expiry info
-          return { ...ingredient };
+          return { 
+            ...ingredient, 
+            nonMarkedQuantity: nonMarkedQty,
+            daysUntilExpiry,
+            expiryLocation
+          };
         });
 
         // Create completely new array to trigger change detection
@@ -688,9 +684,36 @@ export class MealDetailComponent implements OnInit {
 
     try {
       // Convert ingredients list to string format (same as add-custom-meal)
+      // Format: "Name Qty [marked], Name Qty [non-marked]" or "Name Qty [marked|non-marked]"
       const ingredientsString = this.ingredientsList.map(ing => {
-        const inventoryType = ing.markedQuantity > 0 ? 'marked' : 'non-marked';
-        return `${ing.name} ${ing.quantity} [${inventoryType}]`;
+        const parts: string[] = [];
+        const requiredQty = ing.quantity;
+        const availableMarked = ing.markedQuantity || 0;
+        const availableNonMarked = ing.nonMarkedQuantity || 0;
+        
+        // Calculate how much to take from marked and non-marked
+        let remainingQty = requiredQty;
+        if (availableMarked > 0) {
+          const qtyFromMarked = Math.min(availableMarked, remainingQty);
+          if (qtyFromMarked > 0) {
+            parts.push(`${ing.name} ${qtyFromMarked} [marked]`);
+            remainingQty -= qtyFromMarked;
+          }
+        }
+        if (remainingQty > 0 && availableNonMarked > 0) {
+          const qtyFromNonMarked = Math.min(availableNonMarked, remainingQty);
+          if (qtyFromNonMarked > 0) {
+            parts.push(`${ing.name} ${qtyFromNonMarked} [non-marked]`);
+          }
+        }
+        
+        // If neither marked nor non-marked available, use original format
+        if (parts.length === 0) {
+          const inventoryType = availableMarked > 0 ? 'marked' : 'non-marked';
+          parts.push(`${ing.name} ${ing.quantity} [${inventoryType}]`);
+        }
+        
+        return parts.join(', ');
       }).join(', ');
 
       // Create meal plan data
@@ -709,15 +732,8 @@ export class MealDetailComponent implements OnInit {
       const savedMeal = await firstValueFrom(this.customMealService.createCustomMeal(mealData));
       console.log('✅ Meal plan created successfully:', savedMeal);
 
-      // Convert ingredientsList to format expected by reduceIngredientQuantities
-      const ingredientsForReduction = this.ingredientsList.map(ing => ({
-        name: ing.name,
-        quantity: String(ing.quantity),
-        inventoryType: (ing.markedQuantity > 0 ? 'marked' : 'non-marked') as 'marked' | 'non-marked'
-      }));
-
-      // Reduce ingredient quantities
-      await this.reduceIngredientQuantities(ingredientsForReduction);
+      // Reduce ingredient quantities (marked first, then non-marked for remaining)
+      await this.reduceIngredientQuantities(this.ingredientsList);
 
       alert('Meal plan created successfully!');
       this.closePlanModal();
@@ -734,7 +750,7 @@ export class MealDetailComponent implements OnInit {
     }
   }
 
-  async reduceIngredientQuantities(ingredients: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }>): Promise<void> {
+  async reduceIngredientQuantities(ingredients: IngredientInfo[]): Promise<void> {
     console.log('🔄 Starting reduceIngredientQuantities with ingredients:', ingredients);
     
     const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
@@ -761,48 +777,40 @@ export class MealDetailComponent implements OnInit {
     for (const ingredient of ingredients) {
       console.log(`🔍 Processing ingredient:`, ingredient);
       
-      if (!ingredient.name.trim() || !ingredient.quantity.trim()) {
+      if (!ingredient.name || !ingredient.quantity) {
         console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
         continue;
       }
 
-      // Extract numeric value from quantity string
-      const quantityStr = ingredient.quantity.trim();
-      const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
-      if (!quantityMatch) {
-        console.warn(`⚠️ Could not parse quantity from: "${quantityStr}"`);
-        continue;
-      }
-      const quantityToReduce = parseFloat(quantityMatch[1]);
+      const quantityToReduce = ingredient.quantity;
       if (isNaN(quantityToReduce) || quantityToReduce <= 0) {
         console.warn(`⚠️ Invalid quantity: ${quantityToReduce}`);
         continue;
       }
 
-      const inventoryType = ingredient.inventoryType || 'marked';
       const ingredientNameNormalized = ingredient.name.trim().toLowerCase();
+      const availableMarkedQty = ingredient.markedQuantity || 0;
+      const availableNonMarkedQty = ingredient.nonMarkedQuantity || 0;
       
-      console.log(`📋 Processing: "${ingredient.name}" (normalized: "${ingredientNameNormalized}"), quantity: ${quantityToReduce}, type: ${inventoryType}`);
+      console.log(`📋 Processing: "${ingredient.name}" (normalized: "${ingredientNameNormalized}"), required: ${quantityToReduce}, marked: ${availableMarkedQty}, non-marked: ${availableNonMarkedQty}`);
 
-      if (inventoryType === 'marked') {
-        // Find matching marked food - normalize both names for comparison
+      // Step 1: Reduce from marked foods first (if available)
+      let remainingQty = quantityToReduce;
+      
+      if (availableMarkedQty > 0) {
+        // Find matching marked food
         const markedFood = markedFoods.find(mf => {
           const foodNameNormalized = (mf.name || '').toLowerCase().trim();
           return foodNameNormalized === ingredientNameNormalized;
         });
         
-        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
-        console.log(`🔍 Available marked foods:`, markedFoods.map(mf => ({ 
-          name: mf.name, 
-          normalized: (mf.name || '').toLowerCase().trim(),
-          qty: mf.qty 
-        })));
-        
         if (markedFood && markedFood._id) {
-          const newQty = Math.max(0, (markedFood.qty || 0) - quantityToReduce);
-          console.log(`📉 Reducing marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          const qtyFromMarked = Math.min(availableMarkedQty, remainingQty);
+          const newMarkedQty = Math.max(0, (markedFood.qty || 0) - qtyFromMarked);
           
-          if (newQty === 0) {
+          console.log(`📉 Reducing marked food "${ingredient.name}": ${markedFood.qty} -> ${newMarkedQty} (reducing ${qtyFromMarked})`);
+          
+          if (newMarkedQty === 0) {
             // Delete if quantity becomes 0
             updatePromises.push(
               firstValueFrom(this.browseService.deleteMarkedFood(markedFood._id))
@@ -814,7 +822,7 @@ export class MealDetailComponent implements OnInit {
             );
           } else {
             updatePromises.push(
-              firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
+              firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newMarkedQty))
                 .then(() => console.log(`✅ Successfully reduced marked food "${ingredient.name}"`))
                 .catch((err: any) => {
                   console.error(`❌ Failed to reduce marked food "${ingredient.name}":`, err);
@@ -822,13 +830,16 @@ export class MealDetailComponent implements OnInit {
                 })
             );
           }
+          
+          remainingQty -= qtyFromMarked;
+          console.log(`📊 Remaining quantity to reduce: ${remainingQty}`);
         } else {
           console.warn(`⚠️ Marked food not found: ${ingredient.name}`);
-          console.warn(`⚠️ Available marked foods:`, markedFoods.map(mf => mf.name));
         }
-      } else {
-        // Find matching non-marked food (current inventory) - normalize both names for comparison
-        // Also filter by owner and status to ensure we only update the current user's inventory items
+      }
+
+      // Step 2: Reduce remaining quantity from non-marked foods (if still needed)
+      if (remainingQty > 0 && availableNonMarkedQty > 0) {
         const food = allFoods.find(f => {
           const foodNameNormalized = (f.name || '').toLowerCase().trim();
           const nameMatches = foodNameNormalized === ingredientNameNormalized;
@@ -837,20 +848,13 @@ export class MealDetailComponent implements OnInit {
           return nameMatches && ownerMatches && statusMatches;
         });
         
-        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
-        console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
-          name: f.name, 
-          normalized: (f.name || '').toLowerCase().trim(),
-          owner: f.owner,
-          status: f.status,
-          qty: f.qty 
-        })));
-        
         if (food && food._id) {
-          const newQty = Math.max(0, (food.qty || 0) - quantityToReduce);
-          console.log(`📉 Reducing non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          const qtyFromNonMarked = Math.min(availableNonMarkedQty, remainingQty);
+          const newNonMarkedQty = Math.max(0, (food.qty || 0) - qtyFromNonMarked);
           
-          if (newQty === 0) {
+          console.log(`📉 Reducing non-marked food "${ingredient.name}": ${food.qty} -> ${newNonMarkedQty} (reducing ${qtyFromNonMarked})`);
+          
+          if (newNonMarkedQty === 0) {
             // Delete if quantity becomes 0
             updatePromises.push(
               firstValueFrom(this.browseService.deleteFood(food._id))
@@ -862,7 +866,7 @@ export class MealDetailComponent implements OnInit {
             );
           } else {
             updatePromises.push(
-              firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
+              firstValueFrom(this.browseService.updateFoodQty(food._id, newNonMarkedQty))
                 .then(() => console.log(`✅ Successfully reduced non-marked food "${ingredient.name}"`))
                 .catch((err: any) => {
                   console.error(`❌ Failed to reduce non-marked food "${ingredient.name}":`, err);
@@ -870,10 +874,17 @@ export class MealDetailComponent implements OnInit {
                 })
             );
           }
+          
+          remainingQty -= qtyFromNonMarked;
+          console.log(`📊 Remaining quantity after non-marked reduction: ${remainingQty}`);
         } else {
           console.warn(`⚠️ Non-marked food not found: ${ingredient.name}`);
-          console.warn(`⚠️ Available non-marked foods:`, allFoods.map(f => ({ name: f.name, owner: f.owner, status: f.status })));
         }
+      }
+
+      // Check if we still have remaining quantity (shouldn't happen if validation passed)
+      if (remainingQty > 0) {
+        console.warn(`⚠️ Warning: Could not fully reduce quantity for "${ingredient.name}". Remaining: ${remainingQty}`);
       }
     }
 

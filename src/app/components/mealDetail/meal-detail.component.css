@@ -212,6 +212,10 @@
   color: #007bff; /* Blue for items in Non-Marked Foods */
 }
 
+.ingredient-marked.has-both {
+  color: #4a7c59; /* Dark green for items in both Marked and Non-Marked Foods */
+}
+
 .ingredient-marked.no-marked {
   color: #6c757d; /* Gray for items not in Marked/Non-Marked Foods */
 }
@@ -226,6 +230,11 @@
   border-left: 3px solid #007bff;
 }
 
+.ingredient-item.has-both {
+  background-color: #e8f5e9; /* Light green-blue background for items in both Marked and Non-Marked Foods */
+  border-left: 3px solid #4a7c59;
+}
+
 .ingredient-item.no-marked {
   background-color: #f8f9fa; /* Light gray background for items not in Marked/Non-Marked Foods */
 }
@@ -237,6 +246,8 @@
 .ingredient-item.has-marked.expiring-soon,
 .ingredient-item.expiring-soon.has-non-marked,
 .ingredient-item.has-non-marked.expiring-soon,
+.ingredient-item.expiring-soon.has-both,
+.ingredient-item.has-both.expiring-soon,
 .ingredient-item.expiring-soon.no-marked,
 .ingredient-item.no-marked.expiring-soon {
   background-color: #ffe6e6 !important; /* Light red background for expiring items - ALWAYS override */
