@@ -203,12 +203,23 @@ exports.getDaily = async (req, res) => {
       console.log("🔍 Debug - Today's expired samples:", expiredSamples);
     }
 
-    // ====== ✅ TOP 3 EXPIRED FOODS (ALL TIME, sorted by qty) ======
+    // ====== ✅ TOP 3 EXPIRED FOODS (TODAY, sorted by qty) ======
     const topExpiredQuery = {
       ...(ownerId && { owner: ownerId }),
-      status: "expired"
+      status: "expired",
+      $or: [
+        {
+          updatedAt: { $gte: startUTC, $lte: endUTC }
+        },
+        {
+          expiry: { 
+            $gte: startUTC, 
+            $lte: endUTC 
+          }
+        }
+      ]
     };
-    console.log("🔍 Top Expired Query (ALL TIME):", JSON.stringify(topExpiredQuery, null, 2));
+    console.log("🔍 Top Expired Query (TODAY):", JSON.stringify(topExpiredQuery, null, 2));
     
     let topExpired = [];
     try {
@@ -236,12 +247,13 @@ exports.getDaily = async (req, res) => {
       topExpired = [];
     }
 
-    // ====== ✅ TOP 3 CONSUMED FOODS (ALL TIME, sorted by qty) ======
+    // ====== ✅ TOP 3 CONSUMED FOODS (TODAY, sorted by qty) ======
     const topConsumedQuery = {
       ...(ownerId && { owner: ownerId }),
-      status: "consumed"
+      status: "consumed",
+      createdAt: { $gte: startUTC, $lte: endUTC }
     };
-    console.log("🔍 Top Consumed Query (ALL TIME):", JSON.stringify(topConsumedQuery, null, 2));
+    console.log("🔍 Top Consumed Query (TODAY):", JSON.stringify(topConsumedQuery, null, 2));
     
     let topConsumed = [];
     try {
@@ -269,12 +281,13 @@ exports.getDaily = async (req, res) => {
       topConsumed = [];
     }
 
-    // ====== ✅ TOP 3 DONATED FOODS (ALL TIME, sorted by qty) ======
+    // ====== ✅ TOP 3 DONATED FOODS (TODAY, sorted by qty) ======
     // Note: DonationList has foodId reference, need to lookup Food to get name
     const topDonatedQuery = {
-      ...(ownerId && { owner: ownerId })
+      ...(ownerId && { owner: ownerId }),
+      createdAt: { $gte: startUTC, $lte: endUTC }
     };
-    console.log("🔍 Top Donated Query (ALL TIME):", JSON.stringify(topDonatedQuery, null, 2));
+    console.log("🔍 Top Donated Query (TODAY):", JSON.stringify(topDonatedQuery, null, 2));
     
     let topDonated = [];
     try {
@@ -435,15 +448,30 @@ exports.getMonthly = async (req, res) => {
     const expiredCount = expiredResult[0]?.total ?? 0;
     console.log("📊 Monthly expired count:", expiredCount);
 
-    // ====== ✅ TOP 3 EXPIRED FOODS (ALL TIME, sorted by qty) ======
+    // ====== ✅ TOP 3 EXPIRED FOODS (THIS MONTH, sorted by qty) ======
     const topExpiredQuery = {
       ...(ownerId && { owner: ownerId }),
-      status: "expired"
+      status: "expired",
+      $or: [
+        {
+          updatedAt: { $gte: startUTC, $lte: endUTC }
+        },
+        {
+          expiry: { 
+            $gte: startUTC, 
+            $lte: endUTC 
+          }
+        }
+      ]
     };
+    
+    console.log("🔍 Monthly Top Expired Query:", JSON.stringify(topExpiredQuery, null, 2));
     
     let topExpired = [];
     try {
       const totalExpired = await Food.countDocuments(topExpiredQuery);
+      console.log("🔍 Total expired items in monthly range:", totalExpired);
+      
       if (totalExpired > 0) {
         topExpired = await Food.aggregate([
           { $match: topExpiredQuery },
@@ -456,21 +484,41 @@ exports.getMonthly = async (req, res) => {
           { $project: { name: "$_id", count: 1, _id: 0 } }
         ]);
         console.log("📊 Monthly - Top 3 expired foods:", JSON.stringify(topExpired, null, 2));
+      } else {
+        console.log("⚠️ No expired foods found in monthly range");
       }
     } catch (err) {
       console.error("🔥 Error in monthly topExpired aggregation:", err);
       topExpired = [];
     }
 
-    // ====== ✅ TOP 3 CONSUMED FOODS (ALL TIME, sorted by qty) ======
+    // ====== ✅ TOP 3 CONSUMED FOODS (THIS MONTH, sorted by qty) ======
     const topConsumedQuery = {
       ...(ownerId && { owner: ownerId }),
-      status: "consumed"
+      status: "consumed",
+      createdAt: { $gte: startUTC, $lte: endUTC }
     };
+    
+    console.log("🔍 Monthly Top Consumed Query:", JSON.stringify(topConsumedQuery, null, 2));
+    console.log("🔍 Monthly date range for top consumed - startUTC:", startUTC, "endUTC:", endUTC);
     
     let topConsumed = [];
     try {
+      // Debug: Check all consumed items first
+      if (ownerId) {
+        const allConsumed = await Food.find({
+          ...(ownerId && { owner: ownerId }),
+          status: "consumed"
+        }).limit(5).select('name qty createdAt').sort({ createdAt: -1 });
+        console.log("🔍 Debug - All consumed items (last 5):", allConsumed);
+        
+        const consumedInRange = await Food.find(topConsumedQuery).limit(5).select('name qty createdAt');
+        console.log("🔍 Debug - Consumed items in monthly range:", consumedInRange);
+      }
+      
       const totalConsumed = await Food.countDocuments(topConsumedQuery);
+      console.log("🔍 Total consumed items in monthly range:", totalConsumed);
+      
       if (totalConsumed > 0) {
         topConsumed = await Food.aggregate([
           { $match: topConsumedQuery },
@@ -483,20 +531,27 @@ exports.getMonthly = async (req, res) => {
           { $project: { name: "$_id", count: 1, _id: 0 } }
         ]);
         console.log("📊 Monthly - Top 3 consumed foods:", JSON.stringify(topConsumed, null, 2));
+      } else {
+        console.log("⚠️ No consumed foods found in monthly range");
       }
     } catch (err) {
       console.error("🔥 Error in monthly topConsumed aggregation:", err);
       topConsumed = [];
     }
 
-    // ====== ✅ TOP 3 DONATED FOODS (ALL TIME, sorted by qty) ======
+    // ====== ✅ TOP 3 DONATED FOODS (THIS MONTH, sorted by qty) ======
     const topDonatedQuery = {
-      ...(ownerId && { owner: ownerId })
+      ...(ownerId && { owner: ownerId }),
+      createdAt: { $gte: startUTC, $lte: endUTC }
     };
+    
+    console.log("🔍 Monthly Top Donated Query:", JSON.stringify(topDonatedQuery, null, 2));
     
     let topDonated = [];
     try {
       const totalDonations = await DonationList.countDocuments(topDonatedQuery);
+      console.log("🔍 Total donations in monthly range:", totalDonations);
+      
       if (totalDonations > 0) {
         topDonated = await DonationList.aggregate([
           { $match: topDonatedQuery },
@@ -518,6 +573,8 @@ exports.getMonthly = async (req, res) => {
           { $project: { name: "$_id", count: 1, _id: 0 } }
         ]);
         console.log("📊 Monthly - Top 3 donated foods:", JSON.stringify(topDonated, null, 2));
+      } else {
+        console.log("⚠️ No donations found in monthly range");
       }
     } catch (err) {
       console.error("🔥 Error in monthly topDonated aggregation:", err);

@@ -38,6 +38,8 @@ export class AnalyticsService {
     const token = localStorage.getItem('token') ?? '';
     const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
 
-    return this.http.get<AnalyticsData>(`${this.apiUrl}/daily`, { headers });
+    const endpoint = range === 'month' ? 'monthly' : 'daily';
+    console.log(`📊 Fetching ${range} analytics from endpoint: ${endpoint}`);
+    return this.http.get<AnalyticsData>(`${this.apiUrl}/${endpoint}`, { headers });
   }
 }
