@@ -1651,7 +1651,64 @@ export class PlanWeeklyMealComponent implements OnInit {
                 })
             );
           } else {
-            console.warn(`⚠️ Food "${ingredient.name}" not found in either marked or non-marked foods. Cannot restore.`);
+            // Neither marked nor non-marked food exists - create new non-marked food first, then marked food
+            console.log(`🔄 Food "${ingredient.name}" not found in either marked or non-marked foods. Creating new food entry...`);
+            
+            // Create a new non-marked food with default values
+            const defaultExpiry = new Date();
+            defaultExpiry.setDate(defaultExpiry.getDate() + 7); // Default: 7 days from now
+            
+            const newFoodData = {
+              name: ingredient.name, // Use original name (not normalized)
+              qty: ingredient.quantity,
+              category: 'Other', // Default category
+              storage: 'Fridge', // Default storage
+              expiry: defaultExpiry, // Date object for FoodService
+              notes: 'Restored from meal plan deletion',
+              owner: userId // Add owner field
+            };
+            
+            // First create non-marked food, then create marked food entry
+            updatePromises.push(
+              firstValueFrom(this.foodService.addFood(newFoodData))
+                .then((createdFood) => {
+                  console.log(`✅ Successfully created non-marked food "${ingredient.name}"`);
+                  
+                  // Now create marked food entry
+                  // Convert expiry Date to string for MarkedFood
+                  let expiryString = '';
+                  if (createdFood.expiry) {
+                    if (createdFood.expiry instanceof Date) {
+                      expiryString = createdFood.expiry.toISOString();
+                    } else if (typeof createdFood.expiry === 'string') {
+                      expiryString = createdFood.expiry;
+                    } else {
+                      expiryString = defaultExpiry.toISOString();
+                    }
+                  } else {
+                    expiryString = defaultExpiry.toISOString();
+                  }
+                  
+                  const newMarkedFoodData = {
+                    foodId: createdFood._id!,
+                    name: createdFood.name,
+                    qty: ingredient.quantity,
+                    category: createdFood.category || 'Other',
+                    storage: createdFood.storage || 'Fridge',
+                    expiry: expiryString, // String for MarkedFood
+                    notes: createdFood.notes || 'Restored from meal plan deletion'
+                  };
+                  
+                  return firstValueFrom(this.browseService.markFood(newMarkedFoodData));
+                })
+                .then(() => {
+                  console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`);
+                })
+                .catch((err: any) => {
+                  console.error(`❌ Failed to create food entry for "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
           }
         }
       } else {
@@ -1680,8 +1737,33 @@ export class PlanWeeklyMealComponent implements OnInit {
               })
           );
         } else {
-          console.warn(`⚠️ Non-marked food not found for restoration: ${ingredient.name}`);
-          console.warn(`⚠️ Available non-marked foods:`, allFoods.map(f => f.name));
+          // Non-marked food doesn't exist - create new non-marked food
+          console.log(`🔄 Non-marked food "${ingredient.name}" not found. Creating new food entry...`);
+          
+          // Create a new non-marked food with default values
+          const defaultExpiry = new Date();
+          defaultExpiry.setDate(defaultExpiry.getDate() + 7); // Default: 7 days from now
+          
+          const newFoodData = {
+            name: ingredient.name, // Use original name (not normalized)
+            qty: ingredient.quantity,
+            category: 'Other', // Default category
+            storage: 'Fridge', // Default storage
+            expiry: defaultExpiry, // Date object for FoodService
+            notes: 'Restored from meal plan deletion',
+            owner: userId // Add owner field
+          };
+          
+          updatePromises.push(
+            firstValueFrom(this.foodService.addFood(newFoodData))
+              .then(() => {
+                console.log(`✅ Successfully created non-marked food "${ingredient.name}"`);
+              })
+              .catch((err: any) => {
+                console.error(`❌ Failed to create non-marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
         }
       }
     }

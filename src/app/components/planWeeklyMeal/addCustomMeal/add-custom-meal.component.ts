@@ -33,8 +33,8 @@ export class AddCustomMealComponent implements OnInit {
   kcal: string = '';
   
   // Ingredients with quantities
-  ingredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }> = [];
-  originalIngredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }> = []; // Store original ingredients for edit mode
+  ingredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked'; maxQuantity?: number }> = [];
+  originalIngredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked'; maxQuantity?: number }> = []; // Store original ingredients for edit mode
   
   selectedDate: string = '';
   selectedMealType: string = '';
@@ -354,26 +354,26 @@ export class AddCustomMealComponent implements OnInit {
 
         // Convert to InventoryItem format
         const inventoryItems = allFoods.map((food: Food) => {
-          let expiryStr = '';
-          if (food.expiry) {
-            const expiryDate = new Date(food.expiry);
-            const day = String(expiryDate.getDate()).padStart(2, '0');
-            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-            const year = expiryDate.getFullYear();
-            expiryStr = `${day}/${month}/${year}`;
-          }
+            let expiryStr = '';
+            if (food.expiry) {
+              const expiryDate = new Date(food.expiry);
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
 
-          return {
+            return {
             foodId: food._id || '',
-            name: food.name,
-            quantity: food.qty || 0,
-            category: food.category || 'Other',
+              name: food.name,
+              quantity: food.qty || 0,
+              category: food.category || 'Other',
             marked: false,
             markedQuantity: 0,
-            expiry: expiryStr
-          };
-        });
-
+              expiry: expiryStr
+            };
+          });
+        
         this.inventory = inventoryItems;
         console.log('📦 Current Inventory loaded:', this.inventory.length, 'items');
 
@@ -631,7 +631,7 @@ export class AddCustomMealComponent implements OnInit {
           }).catch((err: any) => {
             console.error('❌ Error reducing ingredient quantities:', err);
             alert('Meal created but failed to update ingredient quantities. Please check your inventory.');
-            this.router.navigate(['/planWeeklyMeal']);
+    this.router.navigate(['/planWeeklyMeal']);
           });
         },
         error: (err) => {
@@ -868,18 +868,23 @@ export class AddCustomMealComponent implements OnInit {
 
   selectIngredient(item: InventoryItem) {
     const quantity = this.selectedIngredientQuantity[item.name] || item.quantity || 1;
-    const quantityStr = quantity > 0 ? String(quantity) : '';
+    // Ensure quantity doesn't exceed available quantity
+    const maxQty = item.quantity || 0;
+    const finalQuantity = Math.min(quantity, maxQty);
+    const quantityStr = finalQuantity > 0 ? String(finalQuantity) : '';
     
     // Add to ingredientList at the end (bottom of the list)
     const newIngredient = {
       name: item.name,
       quantity: quantityStr,
-      inventoryType: this.inventoryType // Store the inventory type when selecting
+      inventoryType: this.inventoryType, // Store the inventory type when selecting
+      maxQuantity: maxQty // Store max quantity from database
     };
     
     console.log('🔍 Adding ingredient:', newIngredient);
     console.log('🔍 Selected item:', item);
     console.log('🔍 Current inventoryType:', this.inventoryType);
+    console.log('🔍 Max quantity from DB:', maxQty);
     console.log('🔍 Current ingredientList before add:', this.ingredientList);
     
     // Add to the end of the list (bottom)
@@ -890,6 +895,78 @@ export class AddCustomMealComponent implements OnInit {
     // Close modal after selection
     this.closeIngredientModal();
     this.cdr.detectChanges();
+  }
+  
+  // Validate and update ingredient quantity
+  onIngredientQuantityChange(ingredient: { name: string; quantity: string; maxQuantity?: number }, index: number, event?: any) {
+    if (!ingredient.maxQuantity) {
+      return; // No max quantity set, skip validation
+    }
+    
+    // Get the input value directly from event if available
+    let inputValue = ingredient.quantity;
+    if (event && event.target) {
+      inputValue = event.target.value;
+    }
+    
+    // Extract numeric value from quantity string
+    const quantityStr = inputValue.trim();
+    const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
+    
+    if (!quantityMatch) {
+      // Invalid format, reset to 1
+      ingredient.quantity = '1';
+      if (event && event.target) {
+        event.target.value = '1';
+      }
+      return;
+    }
+    
+    const enteredQty = parseFloat(quantityMatch[1]);
+    if (isNaN(enteredQty) || enteredQty <= 0) {
+      ingredient.quantity = '1';
+      if (event && event.target) {
+        event.target.value = '1';
+      }
+      return;
+    }
+    
+    // Ensure quantity doesn't exceed max
+    if (enteredQty > ingredient.maxQuantity) {
+      alert(`Maximum quantity available is ${ingredient.maxQuantity}. Please enter a value less than or equal to ${ingredient.maxQuantity}.`);
+      ingredient.quantity = String(ingredient.maxQuantity);
+      if (event && event.target) {
+        event.target.value = String(ingredient.maxQuantity);
+      }
+      this.cdr.detectChanges();
+    } else {
+      // Valid quantity, update the ingredient
+      ingredient.quantity = quantityStr;
+    }
+  }
+  
+  // Validate on input event (real-time validation)
+  onIngredientQuantityInput(ingredient: { name: string; quantity: string; maxQuantity?: number }, index: number, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const value = input.value;
+    
+    if (!ingredient.maxQuantity) {
+      return;
+    }
+    
+    // Extract numeric value
+    const quantityMatch = value.match(/^(\d+(?:\.\d+)?)/);
+    if (!quantityMatch) {
+      return; // Let user type, will validate on blur
+    }
+    
+    const enteredQty = parseFloat(quantityMatch[1]);
+    if (!isNaN(enteredQty) && enteredQty > ingredient.maxQuantity) {
+      // Prevent entering values above max
+      input.value = String(ingredient.maxQuantity);
+      ingredient.quantity = String(ingredient.maxQuantity);
+      this.cdr.detectChanges();
+    }
   }
 
   updateIngredientQuantity(itemName: string, quantity: number) {
