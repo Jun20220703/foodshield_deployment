@@ -187,7 +187,8 @@
                 <div 
                   class="inventory-item ingredient-selectable" 
                   *ngFor="let item of paginatedInventory; let i = index"
-                  [class.fade-in]="!isLoadingInventory">
+                  [class.fade-in]="!isLoadingInventory"
+                  [class.expiring-soon]="getDaysUntilExpiry(item.expiry) <= 7 && getDaysUntilExpiry(item.expiry) >= 0">
             <div class="item-name">{{ item.name }}</div>
             <div class="item-quantity">
               <input 

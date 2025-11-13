@@ -1279,5 +1279,32 @@ export class AddCustomMealComponent implements OnInit {
       console.warn('⚠️ No update promises to execute - no ingredients matched');
     }
   }
+
+  getDaysUntilExpiry(expiry: string): number {
+    if (!expiry) return 999; // No expiry date means far future
+    
+    try {
+      // Parse expiry date (DD/MM/YYYY format)
+      const expiryParts = expiry.split('/');
+      if (expiryParts.length !== 3) return 999;
+      
+      const expiryDate = new Date(
+        parseInt(expiryParts[2]), 
+        parseInt(expiryParts[1]) - 1, 
+        parseInt(expiryParts[0])
+      );
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch (error) {
+      return 999; // Error parsing date, return large number
+    }
+  }
 }
 
