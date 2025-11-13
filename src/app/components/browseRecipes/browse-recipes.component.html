@@ -4,23 +4,23 @@
   
   <!-- Main Content -->
   <div class="main-content">
-    <h1 class="page-title">Browse Recipes</h1>
+    <h1 class="page-title">Browse Meals</h1>
     
-    <!-- Suggested Recipes Section -->
+    <!-- Suggested Meals Section -->
     <div class="recipes-section">
-      <h2 class="section-title">Suggested Recipes</h2>
+      <h2 class="section-title">Suggested Meals</h2>
       <div class="recipes-carousel">
         <button class="carousel-arrow left" (click)="previousSuggested()">‹</button>
         <div class="recipes-list">
           <div 
             class="recipe-card" 
-            *ngFor="let recipe of suggestedRecipes; let i = index"
+            *ngFor="let meal of suggestedMeals; let i = index"
             [class.active]="i === currentSuggestedIndex"
-            (click)="selectRecipe(recipe)">
+            (click)="selectMeal(meal)">
             <div class="recipe-image">
-              <img [src]="recipe.image" [alt]="recipe.name" (error)="onImageError($event)" (load)="onImageLoad($event)">
+              <img [src]="meal.image" [alt]="meal.name" (error)="onImageError($event)" (load)="onImageLoad($event)">
             </div>
-            <div class="recipe-name" (click)="selectRecipe(recipe); $event.stopPropagation()">{{ recipe.name }}</div>
+            <div class="recipe-name" (click)="selectMeal(meal); $event.stopPropagation()">{{ meal.name }}</div>
           </div>
         </div>
         <button class="carousel-arrow right" (click)="nextSuggested()">›</button>
@@ -31,21 +31,21 @@
       </div>
     </div>
 
-    <!-- More Recipes Section -->
+    <!-- Generic Meals Section -->
     <div class="recipes-section">
-      <h2 class="section-title">More Recipes</h2>
+      <h2 class="section-title">Generic Meals</h2>
       <div class="recipes-carousel">
         <button class="carousel-arrow left" (click)="previousMore()">‹</button>
         <div class="recipes-list">
           <div 
             class="recipe-card" 
-            *ngFor="let recipe of moreRecipes; let i = index"
+            *ngFor="let meal of genericMeals; let i = index"
             [class.active]="i === currentMoreIndex"
-            (click)="selectRecipe(recipe)">
+            (click)="selectMeal(meal)">
             <div class="recipe-image">
-              <img [src]="recipe.image" [alt]="recipe.name" (error)="onImageError($event)" (load)="onImageLoad($event)">
+              <img [src]="meal.image" [alt]="meal.name" (error)="onImageError($event)" (load)="onImageLoad($event)">
             </div>
-            <div class="recipe-name" (click)="selectRecipe(recipe); $event.stopPropagation()">{{ recipe.name }}</div>
+            <div class="recipe-name" (click)="selectMeal(meal); $event.stopPropagation()">{{ meal.name }}</div>
           </div>
         </div>
         <button class="carousel-arrow right" (click)="nextMore()">›</button>

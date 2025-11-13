@@ -6,7 +6,7 @@ import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService, Food } from '../../services/food.service';
 import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
 
-interface Recipe {
+interface Meal {
   id: string;
   name: string;
   image: string;
@@ -35,13 +35,13 @@ export class BrowseRecipesComponent implements OnInit {
   selectedDate: string = '';
   selectedMealType: string = '';
 
-  suggestedRecipes: Recipe[] = [
+  suggestedMeals: Meal[] = [
     { id: '1', name: 'Chicken Rice', image: 'assets/recipes/chicken-rice.jpg' },
     { id: '2', name: 'Chicken Salad', image: 'assets/recipes/chicken-salad.jpg' },
     { id: '3', name: 'Fried Rice', image: 'assets/recipes/fried-rice.jpg' }
   ];
 
-  moreRecipes: Recipe[] = [
+  genericMeals: Meal[] = [
     { id: '4', name: 'Omelette Rice', image: 'assets/recipes/omelette-rice.jpg' },
     { id: '5', name: 'Kimchi Fried Rice', image: 'assets/recipes/kimchi-fried-rice.jpg' },
     { id: '6', name: 'Carbonara Pasta', image: 'assets/recipes/carbonara-pasta.jpg' }
@@ -101,24 +101,24 @@ export class BrowseRecipesComponent implements OnInit {
   }
 
   previousSuggested() {
-    this.currentSuggestedIndex = (this.currentSuggestedIndex - 1 + this.suggestedRecipes.length) % this.suggestedRecipes.length;
+    this.currentSuggestedIndex = (this.currentSuggestedIndex - 1 + this.suggestedMeals.length) % this.suggestedMeals.length;
   }
 
   nextSuggested() {
-    this.currentSuggestedIndex = (this.currentSuggestedIndex + 1) % this.suggestedRecipes.length;
+    this.currentSuggestedIndex = (this.currentSuggestedIndex + 1) % this.suggestedMeals.length;
   }
 
   previousMore() {
-    this.currentMoreIndex = (this.currentMoreIndex - 1 + this.moreRecipes.length) % this.moreRecipes.length;
+    this.currentMoreIndex = (this.currentMoreIndex - 1 + this.genericMeals.length) % this.genericMeals.length;
   }
 
   nextMore() {
-    this.currentMoreIndex = (this.currentMoreIndex + 1) % this.moreRecipes.length;
+    this.currentMoreIndex = (this.currentMoreIndex + 1) % this.genericMeals.length;
   }
 
-  selectRecipe(recipe: Recipe) {
-    // Navigate to meal-detail page with recipe ID
-    this.router.navigate(['/meal-detail', recipe.id]);
+  selectMeal(meal: Meal) {
+    // Navigate to meal-detail page with meal ID
+    this.router.navigate(['/meal-detail', meal.id]);
   }
 
   back() {
