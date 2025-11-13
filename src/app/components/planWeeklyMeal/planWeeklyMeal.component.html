@@ -26,7 +26,7 @@
             <div class="meal-slots">
               <div class="meal-slot" *ngFor="let meal of mealTypes" 
                    (click)="selectMealSlot(day, meal)"
-                   [class.has-meal]="hasMeal(day, meal)"
+                   [class.has-meal]="day.hasMeal && day.hasMeal[meal]"
                    [class.selected]="selectedDay && selectedDay.fullDate.getTime() === day.fullDate.getTime() && selectedMealType === meal">
                 <div class="meal-indicator"></div>
                 <div class="meal-name">{{ meal }}</div>

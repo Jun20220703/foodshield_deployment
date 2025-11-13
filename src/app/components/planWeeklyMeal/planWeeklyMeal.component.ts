@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -15,6 +15,7 @@ interface DayInfo {
   isCurrentMonth: boolean; // 현재 표시 중인 달인지 여부
   isToday: boolean; // 오늘 날짜인지 여부
   isPast: boolean; // 지난 날짜인지 여부
+  hasMeal?: { [mealType: string]: boolean }; // 각 meal type별로 meal이 있는지 여부
 }
 
 interface MonthYear {
@@ -101,7 +102,8 @@ export class PlanWeeklyMealComponent implements OnInit {
     private router: Router,
     private foodService: FoodService,
     private browseService: BrowseFoodService,
-    private customMealService: CustomMealService
+    private customMealService: CustomMealService,
+    private ngZone: NgZone
   ) {}
 
   ngOnInit() {
@@ -363,13 +365,22 @@ export class PlanWeeklyMealComponent implements OnInit {
       // 지난 날짜인지 확인 (오늘 이전)
       const isPast = day.getTime() < today.getTime();
       
+      // 각 meal type별로 meal이 있는지 확인
+      const dateKey = this.getDateKey(day);
+      const hasMealMap: { [mealType: string]: boolean } = {};
+      this.mealTypes.forEach(mealType => {
+        const mealKey = `${dateKey}-${mealType}`;
+        hasMealMap[mealType] = this.mealPlans.has(mealKey);
+      });
+      
       this.weekDays.push({
         name: dayNames[day.getDay()],
         date: day.getDate(),
         fullDate: day,
         isCurrentMonth: isCurrentMonth,
         isToday: isToday,
-        isPast: isPast
+        isPast: isPast,
+        hasMeal: hasMealMap
       });
     }
     
@@ -1158,22 +1169,30 @@ export class PlanWeeklyMealComponent implements OnInit {
         // Custom meals 캐시 업데이트
         this.customMealsCache = customMeals;
         
-        // Custom meals를 mealPlans Map에 추가
-        customMeals.forEach((meal: CustomMeal) => {
-          if (meal.date && meal.mealType) {
-            const mealKey = `${meal.date}-${meal.mealType}`;
-            const mealPlan: MealPlan = {
-              dateKey: meal.date,
-              mealType: meal.mealType,
-              mealName: meal.foodName
-            };
-            this.mealPlans.set(mealKey, mealPlan);
-            console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
-          }
-        });
-        
-        // UI 업데이트
-        this.cdr.detectChanges();
+         // Custom meals를 mealPlans Map에 추가
+         customMeals.forEach((meal: CustomMeal) => {
+           if (meal.date && meal.mealType) {
+             const mealKey = `${meal.date}-${meal.mealType}`;
+             const mealPlan: MealPlan = {
+               dateKey: meal.date,
+               mealType: meal.mealType,
+               mealName: meal.foodName
+             };
+             this.mealPlans.set(mealKey, mealPlan);
+             console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
+           }
+         });
+         
+         // Re-initialize week days to update time slots after meals are loaded
+         // Use setTimeout to ensure this runs after Angular's change detection cycle
+         setTimeout(() => {
+           this.ngZone.run(() => {
+             // Force re-evaluation by re-initializing week days
+             this.initializeWeekDays();
+             this.cdr.markForCheck();
+             this.cdr.detectChanges();
+           });
+         }, 0);
       },
       error: (err) => {
         console.error('❌ Error loading custom meals:', err);
