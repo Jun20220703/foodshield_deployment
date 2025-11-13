@@ -182,7 +182,7 @@
         <div class="header-cell">Mark</div>
         <div class="header-cell">Marked Quantity</div>
         <div class="header-cell">Expiry</div>
-        <div class="header-cell">Action</div>
+        <div class="header-cell" *ngIf="inventoryType === 'marked'">Action</div>
       </div>
 
       <div class="inventory-list">
@@ -217,7 +217,7 @@
           <div class="item-expiry">
             <span class="expiry-date">{{ item.expiry }}</span>
           </div>
-          <div class="item-action">
+          <div class="item-action" *ngIf="inventoryType === 'marked'">
             <button class="remove-btn" (click)="openRemoveModal(item, $event)">
               Remove
             </button>

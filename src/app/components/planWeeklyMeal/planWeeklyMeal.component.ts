@@ -247,6 +247,8 @@ export class PlanWeeklyMealComponent implements OnInit {
         });
 
         this.inventory = Array.from(markedItemsByFoodId.values());
+        // Sort by name alphabetically
+        this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
         // Reduced logging for performance - uncomment for debugging
         // console.log('📌 Final inventory from database:', this.inventory.map(item => ({
         //   name: item.name,
@@ -275,8 +277,18 @@ export class PlanWeeklyMealComponent implements OnInit {
       next: (allFoods: Food[]) => {
         console.log('📌 Loaded Current Inventory foods:', allFoods);
 
-        // Convert to InventoryItem format
-        const inventoryItems = allFoods.map((food: Food) => {
+        // Get current user ID to filter foods
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id || '';
+
+        // Convert to InventoryItem format and filter by owner and status
+        const inventoryItems = allFoods
+          .filter((food: Food) => {
+            // Only show foods that belong to the current user
+            // and have status 'inventory' (added from manage-inventory)
+            return food.owner === userId && (!food.status || food.status === 'inventory');
+          })
+          .map((food: Food) => {
             let expiryStr = '';
             if (food.expiry) {
               const expiryDate = new Date(food.expiry);
@@ -298,6 +310,8 @@ export class PlanWeeklyMealComponent implements OnInit {
           });
         
         this.inventory = inventoryItems;
+        // Sort by name alphabetically
+        this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
         console.log('📦 Current Inventory loaded:', this.inventory.length, 'items');
 
         this.updateAvailableCategories();
@@ -1336,7 +1350,7 @@ export class PlanWeeklyMealComponent implements OnInit {
           return;
         }
         
-        this.restoreIngredientQuantities(this.selectedCustomMeal.ingredients).then(() => {
+        this.restoreIngredientQuantities(this.selectedCustomMeal.ingredients).then(async () => {
           // mealPlans에서 제거
           if (this.selectedDay && this.selectedMealType) {
             const dateKey = this.getDateKey(this.selectedDay.fullDate);
@@ -1355,11 +1369,19 @@ export class PlanWeeklyMealComponent implements OnInit {
           this.closeCustomMealDetails();
           
           // Reload inventory to reflect restored quantities
-          this.loadInventory();
+          // Wait for inventory to reload before showing alert
+          if (this.inventoryType === 'marked') {
+            await firstValueFrom(this.browseService.getMarkedFoods());
+            this.loadMarkedFoods();
+          } else {
+            await firstValueFrom(this.browseService.getFoods());
+            this.loadNonMarkedFoods();
+          }
           
           // Reload custom meals to update the meal plans display
           this.loadCustomMeals();
           
+          // Force change detection to ensure UI is updated
           this.cdr.detectChanges();
           
           alert('Meal deleted successfully!');
