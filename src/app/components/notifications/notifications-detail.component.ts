@@ -12,11 +12,12 @@ import { CommonModule } from '@angular/common';
 export class NotificationDetailComponent implements OnInit {
   notification?: Notification;
 
+
   constructor(
     private route: ActivatedRoute,
     private notificationService: NotificationService,
     private router: Router,
-    private cdr: ChangeDetectorRef // ✅ 追加
+    private cdr: ChangeDetectorRef, // ✅ 追加,
   ) {}
 
   ngOnInit(): void {
@@ -39,6 +40,7 @@ export class NotificationDetailComponent implements OnInit {
         },
         error: (err) => console.error('Error fetching notification:', err)
       });
+
     }
   }
   getEmoji(type: string): string {
@@ -59,6 +61,9 @@ export class NotificationDetailComponent implements OnInit {
 }
 
 
+goToDonationList():void{
+  this.router.navigate(['/donation-list']);
+}
   back(): void {
     this.router.navigate(['/notifications-list']);
   }

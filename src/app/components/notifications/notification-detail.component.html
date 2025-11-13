@@ -19,10 +19,11 @@
       <p class="body" [innerHTML]="notification?.message"></p>
 
       <div class="action-area">
-        <button *ngIf="notification?.type === 'inventory'" class="link-btn">
-          View related item →
-        </button>
-        <button *ngIf="notification?.type === 'donation'" class="link-btn">
+        <button 
+        *ngIf="notification?.type === 'donation'" 
+        class="link-btn"
+        (click)="goToDonationList()"
+        >
           View donation details →
         </button>
       </div>
