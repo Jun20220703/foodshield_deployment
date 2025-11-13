@@ -2,7 +2,7 @@ import { Component, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService } from '../../services/food.service';
 import { BrowseFoodService, MarkedFood, Food } from '../../services/browse-food.service';
@@ -100,13 +100,14 @@ export class PlanWeeklyMealComponent implements OnInit {
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
+    private route: ActivatedRoute,
     private foodService: FoodService,
     private browseService: BrowseFoodService,
     private customMealService: CustomMealService,
     private ngZone: NgZone
   ) {}
 
-  ngOnInit() {
+  async ngOnInit() {
     // currentDate를 주의 시작점(일요일)로 설정
     const today = new Date();
     const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -118,9 +119,61 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.targetMonth = today.getMonth();
     this.targetYear = today.getFullYear();
     
+    // Load data first, then initialize calendar
+    await Promise.all([
+      this.loadInventoryAsync(),
+      this.loadCustomMealsAsync()
+    ]);
+    
+    // Initialize calendar after data is loaded
     this.initializeWeekDays();
-    this.loadInventory();
-    this.loadCustomMeals();
+    this.cdr.detectChanges();
+
+    // Check for reload query param (when coming back from meal-detail after creating meal plan)
+    this.route.queryParams.subscribe(params => {
+      if (params['reload'] === 'true') {
+        // Reload meal plans to show newly created meal
+        this.loadCustomMealsAsync().then(() => {
+          this.initializeWeekDays();
+          this.cdr.detectChanges();
+        });
+        // Remove the reload param from URL
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: {},
+          replaceUrl: true
+        });
+      }
+    });
+  }
+
+  // Load inventory async version for Promise.all
+  async loadInventoryAsync(): Promise<void> {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping inventory load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    if (this.inventoryType === 'marked') {
+      // Load marked foods
+      await this.loadMarkedFoodsAsync();
+    } else {
+      // Load non-marked foods
+      await this.loadNonMarkedFoodsAsync();
+    }
   }
 
   loadInventory() {
@@ -148,6 +201,132 @@ export class PlanWeeklyMealComponent implements OnInit {
     } else {
       // Load non-marked foods
       this.loadNonMarkedFoods();
+    }
+  }
+
+  // Load marked foods async version for Promise.all
+  async loadMarkedFoodsAsync(): Promise<void> {
+    try {
+      const markedFoods = await firstValueFrom(this.browseService.getMarkedFoods());
+      // Store raw marked foods for faster access (avoid re-fetching)
+      this.rawMarkedFoods = markedFoods;
+      
+      // Convert marked foods to InventoryItem format
+      const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+        let expiryStr = '';
+        if (markedFood.expiry) {
+          const expiryDate = new Date(markedFood.expiry);
+          const day = String(expiryDate.getDate()).padStart(2, '0');
+          const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+          const year = expiryDate.getFullYear();
+          expiryStr = `${day}/${month}/${year}`;
+        }
+
+        // Handle foodId - it might be an object if populated, or a string
+        let foodIdStr = '';
+        const foodIdValue = (markedFood as any).foodId;
+        
+        if (typeof foodIdValue === 'string') {
+          foodIdStr = foodIdValue;
+        } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+          foodIdStr = foodIdValue._id;
+        } else if (foodIdValue) {
+          foodIdStr = String(foodIdValue);
+        }
+
+        const dbQty = markedFood.qty || 0;
+
+        return {
+          foodId: foodIdStr,
+          name: markedFood.name,
+          quantity: dbQty,
+          category: markedFood.category || 'Other',
+          marked: true,
+          markedQuantity: dbQty,
+          expiry: expiryStr,
+          markedFoodIds: markedFood._id ? [markedFood._id] : []
+        };
+      });
+      
+      // Merge marked items with same foodId
+      const markedItemsByFoodId = new Map<string, InventoryItem>();
+      markedItems.forEach(item => {
+        const foodId = item.foodId;
+        if (!foodId) {
+          return;
+        }
+        
+        const existing = markedItemsByFoodId.get(foodId);
+        if (existing) {
+          const newQuantity = existing.quantity + item.quantity;
+          const newMarkedQuantity = existing.markedQuantity + item.markedQuantity;
+          
+          existing.quantity = newQuantity;
+          existing.markedQuantity = newMarkedQuantity;
+          if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+            existing.markedFoodIds = (existing.markedFoodIds || []).concat(item.markedFoodIds);
+          }
+        } else {
+          markedItemsByFoodId.set(foodId, { ...item });
+        }
+      });
+
+      this.inventory = Array.from(markedItemsByFoodId.values());
+      // Sort by name alphabetically
+      this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+      this.updateAvailableCategories();
+      this.applyFilters();
+    } catch (err) {
+      console.error('❌ Error loading marked foods:', err);
+      this.inventory = [];
+      this.filteredInventory = [];
+    }
+  }
+
+  // Load non-marked foods async version for Promise.all
+  async loadNonMarkedFoodsAsync(): Promise<void> {
+    try {
+      const allFoods = await firstValueFrom(this.browseService.getFoods());
+      
+      // Get current user ID to filter foods
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = user.id || '';
+
+      // Convert to InventoryItem format and filter by owner and status
+      const inventoryItems = allFoods
+        .filter((food: Food) => {
+          return food.owner === userId && (!food.status || food.status === 'inventory');
+        })
+        .map((food: Food) => {
+          let expiryStr = '';
+          if (food.expiry) {
+            const expiryDate = new Date(food.expiry);
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const year = expiryDate.getFullYear();
+            expiryStr = `${day}/${month}/${year}`;
+          }
+
+          return {
+            foodId: food._id || '',
+            name: food.name,
+            quantity: food.qty || 0,
+            category: food.category || 'Other',
+            marked: false,
+            markedQuantity: 0,
+            expiry: expiryStr
+          };
+        });
+
+      this.inventory = inventoryItems;
+      // Sort by name alphabetically
+      this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+      this.updateAvailableCategories();
+      this.applyFilters();
+    } catch (err) {
+      console.error('❌ Error loading non-marked foods:', err);
+      this.inventory = [];
+      this.filteredInventory = [];
     }
   }
 
@@ -1147,7 +1326,47 @@ export class PlanWeeklyMealComponent implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
-  // Custom meals 로드
+  // Custom meals 로드 (async version for Promise.all)
+  async loadCustomMealsAsync(): Promise<void> {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping custom meals load.');
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      return;
+    }
+
+    try {
+      const customMeals = await firstValueFrom(this.customMealService.getCustomMeals(userId));
+      console.log('📅 Custom meals loaded:', customMeals.length);
+      
+      // Custom meals 캐시 업데이트
+      this.customMealsCache = customMeals;
+      
+      // Custom meals를 mealPlans Map에 추가
+      customMeals.forEach((meal: CustomMeal) => {
+        if (meal.date && meal.mealType) {
+          const mealKey = `${meal.date}-${meal.mealType}`;
+          const mealPlan: MealPlan = {
+            dateKey: meal.date,
+            mealType: meal.mealType,
+            mealName: meal.foodName
+          };
+          this.mealPlans.set(mealKey, mealPlan);
+          console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
+        }
+      });
+    } catch (err) {
+      console.error('❌ Error loading custom meals:', err);
+    }
+  }
+
+  // Custom meals 로드 (original Observable version for backward compatibility)
   loadCustomMeals() {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
       console.warn('⚠️ localStorage not available (SSR mode). Skipping custom meals load.');
@@ -1184,15 +1403,11 @@ export class PlanWeeklyMealComponent implements OnInit {
          });
          
          // Re-initialize week days to update time slots after meals are loaded
-         // Use setTimeout to ensure this runs after Angular's change detection cycle
-         setTimeout(() => {
-           this.ngZone.run(() => {
-             // Force re-evaluation by re-initializing week days
-             this.initializeWeekDays();
-             this.cdr.markForCheck();
-             this.cdr.detectChanges();
-           });
-         }, 0);
+         this.ngZone.run(() => {
+           this.initializeWeekDays();
+           this.cdr.markForCheck();
+           this.cdr.detectChanges();
+         });
       },
       error: (err) => {
         console.error('❌ Error loading custom meals:', err);

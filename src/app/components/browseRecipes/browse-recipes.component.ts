@@ -80,6 +80,7 @@ export class BrowseRecipesComponent implements OnInit {
   inventory: InventoryItem[] = [];
   filteredInventory: InventoryItem[] = [];
   nonMarkedFoods: InventoryItem[] = []; // Store non-marked foods for expiry checking
+  inventoryType: 'marked' | 'non-marked' = 'marked';
   
   // Pagination
   itemsPerPage: number = 5;
@@ -161,10 +162,22 @@ export class BrowseRecipesComponent implements OnInit {
       index = this.genericMeals.findIndex(m => m.id === meal.id);
     }
     
-    // Navigate to meal-detail page with meal ID and section/index info
-    this.router.navigate(['/meal-detail', meal.id], {
-      queryParams: { section: section, index: index }
-    });
+    // Get date and mealType from query params (if coming from planWeeklyMeal)
+    this.route.queryParams.subscribe(queryParams => {
+      const date = queryParams['date'];
+      const mealType = queryParams['mealType'];
+      
+      // Navigate to meal-detail page with meal ID, section/index, and date/mealType info
+      const navQueryParams: any = { section: section, index: index };
+      if (date && mealType) {
+        navQueryParams['date'] = date;
+        navQueryParams['mealType'] = mealType;
+      }
+      
+      this.router.navigate(['/meal-detail', meal.id], {
+        queryParams: navQueryParams
+      });
+    }).unsubscribe();
   }
 
   back() {
@@ -190,6 +203,17 @@ export class BrowseRecipesComponent implements OnInit {
       return;
     }
 
+    // Load marked or non-marked foods based on inventoryType
+    if (this.inventoryType === 'marked') {
+      // Load marked foods
+      this.loadMarkedFoods();
+    } else {
+      // Load non-marked foods
+      this.loadNonMarkedFoods();
+    }
+  }
+
+  loadMarkedFoods() {
     // Load only marked foods
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
@@ -258,8 +282,13 @@ export class BrowseRecipesComponent implements OnInit {
 
         this.inventory = Array.from(markedItemsByFoodId.values());
         
-        // Load non-marked foods for expiry checking
-        this.loadNonMarkedFoods();
+        // Sort inventory alphabetically by name (same as planWeeklyMeal)
+        this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+        
+        // Load non-marked foods for expiry checking (only if inventoryType is 'marked')
+        if (this.inventoryType === 'marked') {
+          this.loadNonMarkedFoods();
+        }
         
         this.updateAvailableCategories();
         this.applyFilters();
@@ -315,7 +344,18 @@ export class BrowseRecipesComponent implements OnInit {
             };
           });
         
-        this.nonMarkedFoods = inventoryItems;
+        // If inventoryType is 'non-marked', set inventory to non-marked foods
+        if (this.inventoryType === 'non-marked') {
+          this.inventory = inventoryItems;
+          // Sort inventory alphabetically by name (same as planWeeklyMeal)
+          this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+          this.updateAvailableCategories();
+          this.applyFilters();
+          this.cdr.detectChanges();
+        } else {
+          // Store for expiry checking only
+          this.nonMarkedFoods = inventoryItems;
+        }
         
         // Filter suggested meals after loading both marked and non-marked foods
         this.filterSuggestedMeals();
@@ -327,6 +367,15 @@ export class BrowseRecipesComponent implements OnInit {
         this.filterSuggestedMeals();
       }
     });
+  }
+
+  onInventoryTypeChange() {
+    // Reset filters and reload inventory
+    this.searchTerm = '';
+    this.selectedCategories.clear();
+    this.expiryFilterDays = null;
+    this.currentPage = 1;
+    this.loadInventory();
   }
 
   getDaysUntilExpiry(expiry: string): number {

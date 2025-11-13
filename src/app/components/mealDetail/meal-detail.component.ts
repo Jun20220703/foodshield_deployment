@@ -85,6 +85,14 @@ export class MealDetailComponent implements OnInit {
       this.recipeId = params['id'];
       this.loadRecipe();
     });
+
+    // Get date and mealType from query parameters (if coming from planWeeklyMeal)
+    this.route.queryParams.subscribe(queryParams => {
+      if (queryParams['date'] && queryParams['mealType']) {
+        this.selectedDate = queryParams['date'];
+        this.selectedMealType = queryParams['mealType'];
+      }
+    });
   }
 
   loadRecipe() {
@@ -630,23 +638,37 @@ export class MealDetailComponent implements OnInit {
       return;
     }
 
-    // All ingredients have sufficient quantity, show date and meal type selection modal
-    this.showPlanModal = true;
-    // Set default date to today
-    const today = new Date();
-    this.selectedDate = today.toISOString().split('T')[0];
-    this.selectedMealType = 'Breakfast';
+    // If date and mealType are already set (from query params), create meal plan directly
+    if (this.selectedDate && this.selectedMealType) {
+      await this.confirmPlanMeal();
+    } else {
+      // Otherwise, show date and meal type selection modal
+      this.showPlanModal = true;
+      // Set default date to today
+      const today = new Date();
+      this.selectedDate = today.toISOString().split('T')[0];
+      this.selectedMealType = 'Breakfast';
+    }
   }
 
   closePlanModal() {
     this.showPlanModal = false;
-    this.selectedDate = '';
-    this.selectedMealType = '';
+    // Don't clear selectedDate and selectedMealType if they came from query params
+    // They will be preserved for the next planMeal() call
   }
 
   async confirmPlanMeal() {
     if (!this.recipe || !this.selectedDate || !this.selectedMealType) {
       alert('Please select date and meal type.');
+      return;
+    }
+
+    // Get user ID from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      alert('User ID not found. Please log in again.');
       return;
     }
 
@@ -667,7 +689,8 @@ export class MealDetailComponent implements OnInit {
         kcal: this.recipe.kcal || '',
         photo: null,
         date: this.selectedDate,
-        mealType: this.selectedMealType
+        mealType: this.selectedMealType,
+        owner: userId
       };
 
       // Create meal plan
@@ -686,8 +709,10 @@ export class MealDetailComponent implements OnInit {
 
       alert('Meal plan created successfully!');
       this.closePlanModal();
-      // Navigate to planWeeklyMeal page
-      this.router.navigate(['/planWeeklyMeal']);
+      // Navigate to planWeeklyMeal page with reload flag
+      this.router.navigate(['/planWeeklyMeal'], {
+        queryParams: { reload: 'true' }
+      });
     } catch (error: any) {
       console.error('❌ Error creating meal plan:', error);
       const errorMessage = error.error?.message || error.message || 'Unknown error';
