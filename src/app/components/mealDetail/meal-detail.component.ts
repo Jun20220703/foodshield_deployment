@@ -69,7 +69,19 @@ export class MealDetailComponent implements OnInit {
   }
 
   back() {
-    this.router.navigate(['/browse-recipes']);
+    // Get section and index from query params to restore carousel position
+    this.route.queryParams.subscribe(params => {
+      const section = params['section'];
+      const index = params['index'];
+      
+      if (section && index !== undefined) {
+        this.router.navigate(['/browse-recipes'], {
+          queryParams: { section: section, index: index }
+        });
+      } else {
+        this.router.navigate(['/browse-recipes']);
+      }
+    }).unsubscribe();
   }
 
   planMeal() {

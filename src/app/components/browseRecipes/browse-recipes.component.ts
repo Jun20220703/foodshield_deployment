@@ -101,6 +101,18 @@ export class BrowseRecipesComponent implements OnInit {
     this.route.queryParams.subscribe(params => {
       this.selectedDate = params['date'] || '';
       this.selectedMealType = params['mealType'] || '';
+      
+      // Restore carousel position if coming back from meal-detail
+      const section = params['section'];
+      const index = params['index'];
+      if (section && index !== undefined) {
+        const parsedIndex = parseInt(index, 10);
+        if (section === 'suggested' && !isNaN(parsedIndex) && parsedIndex >= 0 && parsedIndex < this.suggestedMeals.length) {
+          this.currentSuggestedIndex = parsedIndex;
+        } else if (section === 'generic' && !isNaN(parsedIndex) && parsedIndex >= 0 && parsedIndex < this.genericMeals.length) {
+          this.currentMoreIndex = parsedIndex;
+        }
+      }
     });
     
     // Load inventory from database
@@ -124,8 +136,19 @@ export class BrowseRecipesComponent implements OnInit {
   }
 
   selectMeal(meal: Meal) {
-    // Navigate to meal-detail page with meal ID
-    this.router.navigate(['/meal-detail', meal.id]);
+    // Find which section the meal belongs to and its index
+    let section: 'suggested' | 'generic' = 'suggested';
+    let index = this.suggestedMeals.findIndex(m => m.id === meal.id);
+    
+    if (index === -1) {
+      section = 'generic';
+      index = this.genericMeals.findIndex(m => m.id === meal.id);
+    }
+    
+    // Navigate to meal-detail page with meal ID and section/index info
+    this.router.navigate(['/meal-detail', meal.id], {
+      queryParams: { section: section, index: index }
+    });
   }
 
   back() {
