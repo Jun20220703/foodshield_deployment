@@ -1541,21 +1541,44 @@
   background: #fff5e6;
   border-radius: 20px;
   font-size: 0.9rem;
+  gap: 8px;
 }
 
 .ingredient-name {
   color: #1a1a1a;
   font-weight: 500;
+  flex: 1;
 }
 
-.ingredient-qty {
-  background: #ffb84d;
-  color: #1a1a1a;
+.ingredient-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 12px;
   border-radius: 15px;
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
+  background: #ffb84d;
+  color: #1a1a1a;
+}
+
+.ingredient-badge.has-marked {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.ingredient-badge.has-non-marked {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.ingredient-qty {
+  font-weight: 600;
+}
+
+.ingredient-status {
+  font-weight: 500;
 }
 
 .no-ingredients {

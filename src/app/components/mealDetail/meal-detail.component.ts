@@ -638,8 +638,20 @@ export class MealDetailComponent implements OnInit {
       return;
     }
 
-    // If date and mealType are already set (from query params), create meal plan directly
-    if (this.selectedDate && this.selectedMealType) {
+    // Check query params directly (in case they weren't set in ngOnInit yet)
+    const snapshot = this.route.snapshot;
+    const dateFromParams = snapshot.queryParams['date'];
+    const mealTypeFromParams = snapshot.queryParams['mealType'];
+    
+    // Use query params if available, otherwise use component properties
+    const date = dateFromParams || this.selectedDate;
+    const mealType = mealTypeFromParams || this.selectedMealType;
+
+    // If date and mealType are available (from query params or component), create meal plan directly
+    if (date && mealType) {
+      // Set the values to component properties
+      this.selectedDate = date;
+      this.selectedMealType = mealType;
       await this.confirmPlanMeal();
     } else {
       // Otherwise, show date and meal type selection modal
@@ -779,6 +791,13 @@ export class MealDetailComponent implements OnInit {
           return foodNameNormalized === ingredientNameNormalized;
         });
         
+        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
+        console.log(`🔍 Available marked foods:`, markedFoods.map(mf => ({ 
+          name: mf.name, 
+          normalized: (mf.name || '').toLowerCase().trim(),
+          qty: mf.qty 
+        })));
+        
         if (markedFood && markedFood._id) {
           const newQty = Math.max(0, (markedFood.qty || 0) - quantityToReduce);
           console.log(`📉 Reducing marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
@@ -805,13 +824,27 @@ export class MealDetailComponent implements OnInit {
           }
         } else {
           console.warn(`⚠️ Marked food not found: ${ingredient.name}`);
+          console.warn(`⚠️ Available marked foods:`, markedFoods.map(mf => mf.name));
         }
       } else {
-        // Find matching non-marked food
+        // Find matching non-marked food (current inventory) - normalize both names for comparison
+        // Also filter by owner and status to ensure we only update the current user's inventory items
         const food = allFoods.find(f => {
           const foodNameNormalized = (f.name || '').toLowerCase().trim();
-          return foodNameNormalized === ingredientNameNormalized;
+          const nameMatches = foodNameNormalized === ingredientNameNormalized;
+          const ownerMatches = f.owner === userId;
+          const statusMatches = !f.status || f.status === 'inventory';
+          return nameMatches && ownerMatches && statusMatches;
         });
+        
+        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
+        console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
+          name: f.name, 
+          normalized: (f.name || '').toLowerCase().trim(),
+          owner: f.owner,
+          status: f.status,
+          qty: f.qty 
+        })));
         
         if (food && food._id) {
           const newQty = Math.max(0, (food.qty || 0) - quantityToReduce);
@@ -839,6 +872,7 @@ export class MealDetailComponent implements OnInit {
           }
         } else {
           console.warn(`⚠️ Non-marked food not found: ${ingredient.name}`);
+          console.warn(`⚠️ Available non-marked foods:`, allFoods.map(f => ({ name: f.name, owner: f.owner, status: f.status })));
         }
       }
     }

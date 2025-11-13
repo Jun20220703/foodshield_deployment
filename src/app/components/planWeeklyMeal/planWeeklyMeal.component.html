@@ -103,7 +103,14 @@
               <div class="ingredients-container">
                 <div class="ingredient-item" *ngFor="let ingredient of parseIngredients(selectedCustomMeal.ingredients)">
                   <span class="ingredient-name">{{ ingredient.name }}</span>
-                  <span class="ingredient-qty" *ngIf="ingredient.qty">{{ ingredient.qty }}</span>
+                  <span class="ingredient-badge" 
+                        [class.has-marked]="ingredient.inventoryType === 'marked'"
+                        [class.has-non-marked]="ingredient.inventoryType === 'non-marked'">
+                    <span class="ingredient-qty" *ngIf="ingredient.qty">{{ ingredient.qty }}</span>
+                    <span class="ingredient-status" *ngIf="ingredient.inventoryType">
+                      [{{ ingredient.inventoryType }}]
+                    </span>
+                  </span>
                 </div>
                 <div *ngIf="parseIngredients(selectedCustomMeal.ingredients).length === 0" class="no-ingredients">
                   No ingredients listed
@@ -134,8 +141,12 @@
               </svg>
             </button>
             <!-- 오늘이거나 미래 날짜인 경우 Edit/Delete 버튼 표시 -->
+            <!-- Suggested Meals/Generic Meals에서 생성된 meal plan은 Edit 불가 -->
             <ng-container *ngIf="!isSelectedMealPastDate()">
-              <button class="btn-edit" (click)="editCustomMeal()">Edit</button>
+              <button 
+                *ngIf="!isMealFromBrowseRecipes(selectedCustomMeal)" 
+                class="btn-edit" 
+                (click)="editCustomMeal()">Edit</button>
               <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
             </ng-container>
           </div>

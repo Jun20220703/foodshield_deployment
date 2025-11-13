@@ -1520,23 +1520,83 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   // Ingredients를 파싱하여 배열로 반환 (예: "Tomato Sauce 150g\nSpaghetti 100g" -> [{name: "Tomato Sauce", qty: "150g"}, ...])
-  parseIngredients(ingredients: string): Array<{name: string, qty: string}> {
+  parseIngredients(ingredients: string): Array<{name: string, qty: string, inventoryType?: string}> {
     if (!ingredients || !ingredients.trim()) {
       return [];
     }
     
+    // 먼저 쉼표로 분리 시도 (meal-detail에서 저장한 형식: "재료명 수량 [marked], 재료명 수량 [non-marked]")
+    const commaSeparated = ingredients.split(',').map(item => item.trim()).filter(item => item);
+    
+    if (commaSeparated.length > 1) {
+      // 쉼표로 분리된 경우 (meal-detail에서 저장한 형식)
+      return commaSeparated.map(item => {
+        // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱
+        const match = item.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+\[(marked|non-marked)\]$/);
+        if (match) {
+          return {
+            name: match[1].trim(),
+            qty: match[2],
+            inventoryType: match[3]
+          };
+        }
+        // "재료명 수량" 형식 (inventoryType 없음)
+        const simpleMatch = item.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
+        if (simpleMatch) {
+          return {
+            name: simpleMatch[1].trim(),
+            qty: simpleMatch[2],
+            inventoryType: undefined
+          };
+        }
+        // 파싱 실패 시 전체를 이름으로
+        return { name: item.trim(), qty: '', inventoryType: undefined };
+      });
+    }
+    
+    // 줄바꿈으로 분리된 경우 (add-custom-meal 형식: "재료명 수량 [marked|non-marked]")
     const lines = ingredients.split('\n').filter(line => line.trim());
     return lines.map(line => {
-      // "재료명 수량" 형식으로 파싱
-      const parts = line.trim().split(/\s+(?=\d|tbsp|tsp|g|kg|ml|l|cup|cups)/);
-      if (parts.length >= 2) {
+      const trimmedLine = line.trim();
+      
+      // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱
+      const match = trimmedLine.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)\s+\[(marked|non-marked)\]$/);
+      if (match) {
         return {
-          name: parts.slice(0, -1).join(' '),
-          qty: parts[parts.length - 1]
+          name: match[1].trim(),
+          qty: match[2],
+          inventoryType: match[3]
         };
       }
-      return { name: line.trim(), qty: '' };
+      
+      // "재료명 수량" 형식 (inventoryType 없음)
+      const simpleMatch = trimmedLine.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)$/);
+      if (simpleMatch) {
+        return {
+          name: simpleMatch[1].trim(),
+          qty: simpleMatch[2],
+          inventoryType: undefined
+        };
+      }
+      
+      // 파싱 실패 시 전체를 이름으로
+      return { name: trimmedLine, qty: '', inventoryType: undefined };
     });
+  }
+
+  // Check if meal is from Suggested Meals or Generic Meals (not editable)
+  isMealFromBrowseRecipes(meal: CustomMeal): boolean {
+    if (!meal || !meal.ingredients) {
+      return false;
+    }
+    
+    // meal-detail에서 생성된 meal plan은 ingredients가 쉼표로 구분되어 있음
+    // "재료명 수량 [marked], 재료명 수량 [non-marked]" 형식
+    const commaSeparated = meal.ingredients.split(',').map(item => item.trim()).filter(item => item);
+    
+    // 쉼표로 구분된 항목이 2개 이상이면 meal-detail에서 생성된 것으로 간주
+    // (add-custom-meal은 줄바꿈으로 구분)
+    return commaSeparated.length > 1;
   }
 
   // Custom meal 삭제
@@ -1767,7 +1827,8 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   // Parse ingredients string and restore quantities to marked/non-marked foods
-  // Format: "IngredientName Quantity [marked|non-marked]"
+  // Format: "IngredientName Quantity [marked|non-marked]" (줄바꿈으로 구분) 또는
+  //         "IngredientName Quantity [marked], IngredientName Quantity [non-marked]" (쉼표로 구분)
   async restoreIngredientQuantities(ingredientsStr: string): Promise<void> {
     console.log('🔄 Starting restoreIngredientQuantities with:', ingredientsStr);
     
@@ -1781,9 +1842,20 @@ export class PlanWeeklyMealComponent implements OnInit {
       throw new Error('User ID not found');
     }
 
-    // Parse ingredients
-    const lines = ingredientsStr.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-    console.log('📝 Parsed lines:', lines);
+    // Parse ingredients - 먼저 쉼표로 분리 시도 (meal-detail 형식)
+    let lines: string[] = [];
+    const commaSeparated = ingredientsStr.split(',').map(item => item.trim()).filter(item => item);
+    
+    if (commaSeparated.length > 1) {
+      // 쉼표로 구분된 경우 (meal-detail 형식)
+      lines = commaSeparated;
+      console.log('📝 Parsed as comma-separated format:', lines);
+    } else {
+      // 줄바꿈으로 구분된 경우 (add-custom-meal 형식)
+      lines = ingredientsStr.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      console.log('📝 Parsed as newline-separated format:', lines);
+    }
+    
     const ingredients: Array<{ name: string; quantity: number; inventoryType: 'marked' | 'non-marked' }> = [];
 
     for (const line of lines) {
@@ -1969,15 +2041,21 @@ export class PlanWeeklyMealComponent implements OnInit {
         }
       } else {
         // Find matching non-marked food (current inventory) - normalize both names for comparison
+        // Also filter by owner and status to ensure we only update the current user's inventory items
         const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
         const food = allFoods.find(f => {
           const foodNameNormalized = (f.name || '').toLowerCase().trim();
-          return foodNameNormalized === ingredientNameNormalized;
+          const nameMatches = foodNameNormalized === ingredientNameNormalized;
+          const ownerMatches = f.owner === userId;
+          const statusMatches = !f.status || f.status === 'inventory';
+          return nameMatches && ownerMatches && statusMatches;
         });
         console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
         console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
           name: f.name, 
           normalized: (f.name || '').toLowerCase().trim(),
+          owner: f.owner,
+          status: f.status,
           qty: f.qty 
         })));
         
