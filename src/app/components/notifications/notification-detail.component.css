@@ -105,6 +105,11 @@
   transform: translateY(-1px);
 }
 
+.body strong {
+  font-weight: 1000;
+  color: #df7833; /* 少し強調した色 */
+}
+
 /* Fade-in Animation */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

@@ -87,7 +87,7 @@ router.post('/check-expiry', async (req, res) => {
             userId,
             type: 'expiry',
             title: 'Food Expiring Soon',
-            message: `Your "${food.name}" will expire on ${formattedDate}. Please use or donate it soon.`,
+            message: `Your <strong>${food.name}</strong> will expire on ${formattedDate}. Please use or donate it soon.`,
             meta: { foodId: food._id },
             read: false
           });
@@ -107,7 +107,7 @@ router.post('/check-expiry', async (req, res) => {
             userId,
             type: 'expired',
             title: 'Food Expired',
-            message: `Your "${food.name}" has expired on ${formattedDate}. Please discard or handle it safely.`,
+            message: `Your <strong>${food.name}</strong> has expired on ${formattedDate}. Please discard or handle it safely.`,
             meta: { foodId: food._id },
             read: false
           });
@@ -127,7 +127,7 @@ router.post('/check-expiry', async (req, res) => {
             userId,
             type: 'low_quantity',
             title: 'Low Quantity Alert',
-            message: `Your "${food.name}" is running low. Consider restocking soon.`,
+            message: `Your <strong>${food.name}</strong> is running low. Consider restocking soon.`,
             meta: { foodId: food._id },
             read: false
           });

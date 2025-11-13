@@ -16,7 +16,7 @@
         {{ notification?.createdAt | date: 'dd MMMM yyyy, h:mm a' }}
       </p>
 
-      <p class="body">{{ notification?.message }}</p>
+      <p class="body" [innerHTML]="notification?.message"></p>
 
       <div class="action-area">
         <button *ngIf="notification?.type === 'inventory'" class="link-btn">
