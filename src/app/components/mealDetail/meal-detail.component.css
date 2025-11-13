@@ -168,6 +168,59 @@
   font-family: 'Inter', sans-serif;
 }
 
+.ingredients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ingredient-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.ingredient-item:last-child {
+  border-bottom: none;
+}
+
+.ingredient-name {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.ingredient-quantity {
+  color: #4a7c59;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.ingredient-marked {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.ingredient-marked.has-marked {
+  color: #28a745; /* Green for items in Marked Foods */
+}
+
+.ingredient-marked.no-marked {
+  color: #6c757d; /* Gray for items not in Marked Foods */
+}
+
+.ingredient-item.has-marked {
+  background-color: #f0f9f4; /* Light green background for items in Marked Foods */
+  border-left: 3px solid #28a745;
+}
+
+.ingredient-item.no-marked {
+  background-color: #f8f9fa; /* Light gray background for items not in Marked Foods */
+}
+
 .recipe-not-found {
   background: white;
   border-radius: 20px;

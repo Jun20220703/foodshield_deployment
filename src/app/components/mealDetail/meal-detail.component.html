@@ -39,7 +39,25 @@
             <!-- Ingredients -->
             <div class="recipe-ingredients" *ngIf="recipe.ingredients">
               <h2>Ingredients</h2>
-              <p>{{ recipe.ingredients }}</p>
+              <div class="ingredients-list" *ngIf="ingredientsList.length > 0">
+                <div class="ingredient-item" *ngFor="let ingredient of ingredientsList; trackBy: trackByIngredientName" 
+                     [class.has-marked]="ingredient.markedQuantity > 0"
+                     [class.no-marked]="ingredient.markedQuantity === 0">
+                  <span class="ingredient-name">{{ ingredient.name }}</span>
+                  <span class="ingredient-quantity">× {{ ingredient.quantity }}</span>
+                  <span class="ingredient-marked" 
+                        [class.has-marked]="ingredient.markedQuantity > 0"
+                        [class.no-marked]="ingredient.markedQuantity === 0">
+                    <span *ngIf="ingredient.markedQuantity > 0">
+                      (Marked: {{ ingredient.markedQuantity }})
+                    </span>
+                    <span *ngIf="ingredient.markedQuantity === 0">
+                      (Not in Marked Foods)
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <p *ngIf="ingredientsList.length === 0">{{ recipe.ingredients }}</p>
             </div>
 
             <!-- Additional recipe details can be added here -->
