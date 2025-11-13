@@ -203,53 +203,20 @@ exports.getDaily = async (req, res) => {
       console.log("🔍 Debug - Today's expired samples:", expiredSamples);
     }
 
-    // ====== ✅ TOP 3 EXPIRED FOODS (all time, sorted by qty) ======
-    // Query for foods with status "expired" OR foods that have passed their expiry date
-    const now = new Date();
+    // ====== ✅ TOP 3 EXPIRED FOODS (ALL TIME, sorted by qty) ======
     const topExpiredQuery = {
       ...(ownerId && { owner: ownerId }),
-      $or: [
-        { status: "expired" }, // Foods explicitly marked as expired
-        { 
-          expiry: { $lt: now }, // Foods past their expiry date (regardless of status)
-          status: { $ne: "consumed" } // Exclude already consumed foods
-        }
-      ]
+      status: "expired"
     };
-    console.log("🔍 Top Expired Query:", JSON.stringify(topExpiredQuery, null, 2));
-    console.log("🔍 Current time for expiry check:", now.toISOString());
-    
-    // Debug: Check total expired foods for this user
-    const totalExpired = await Food.countDocuments(topExpiredQuery);
-    console.log("🔍 Total expired/past-expiry foods for this user:", totalExpired);
-    
-    // Debug: Check all foods for this user (regardless of status)
-    if (ownerId) {
-      const allUserFoods = await Food.countDocuments({ owner: ownerId });
-      console.log("🔍 Total foods for this user (all statuses):", allUserFoods);
-      
-      // Check foods past expiry date
-      const pastExpiryQuery = {
-        owner: ownerId,
-        expiry: { $lt: now }
-      };
-      const pastExpiryCount = await Food.countDocuments(pastExpiryQuery);
-      console.log("🔍 Foods past expiry date for this user:", pastExpiryCount);
-      
-      // Get sample of foods past expiry
-      const samplePastExpiry = await Food.find(pastExpiryQuery)
-        .limit(5)
-        .select('name qty status expiry owner')
-        .lean();
-      console.log("🔍 Sample foods past expiry:", JSON.stringify(samplePastExpiry, null, 2));
-    }
+    console.log("🔍 Top Expired Query (ALL TIME):", JSON.stringify(topExpiredQuery, null, 2));
     
     let topExpired = [];
     try {
-      if (totalExpired === 0) {
-        console.log("⚠️ No expired foods found, returning empty array");
-        topExpired = [];
-      } else {
+      // Debug: Check total expired foods first
+      const totalExpired = await Food.countDocuments(topExpiredQuery);
+      console.log("🔍 Total expired foods for user (all time):", totalExpired);
+      
+      if (totalExpired > 0) {
         topExpired = await Food.aggregate([
           { $match: topExpiredQuery },
           { $group: { 
@@ -261,15 +228,93 @@ exports.getDaily = async (req, res) => {
           { $project: { name: "$_id", count: 1, _id: 0 } }
         ]);
         console.log("📊 Top 3 expired foods aggregation result:", JSON.stringify(topExpired, null, 2));
+      } else {
+        console.log("⚠️ No expired foods found, returning empty array");
       }
     } catch (err) {
       console.error("🔥 Error in topExpired aggregation:", err);
       topExpired = [];
     }
 
-    // Ensure array is always an array
+    // ====== ✅ TOP 3 CONSUMED FOODS (ALL TIME, sorted by qty) ======
+    const topConsumedQuery = {
+      ...(ownerId && { owner: ownerId }),
+      status: "consumed"
+    };
+    console.log("🔍 Top Consumed Query (ALL TIME):", JSON.stringify(topConsumedQuery, null, 2));
+    
+    let topConsumed = [];
+    try {
+      // Debug: Check total consumed foods first
+      const totalConsumed = await Food.countDocuments(topConsumedQuery);
+      console.log("🔍 Total consumed foods for user (all time):", totalConsumed);
+      
+      if (totalConsumed > 0) {
+        topConsumed = await Food.aggregate([
+          { $match: topConsumedQuery },
+          { $group: { 
+            _id: "$name", 
+            count: { $sum: { $ifNull: ["$qty", 0] } } 
+          } },
+          { $sort: { count: -1 } }, // Sort by count descending (highest first)
+          { $limit: 3 }, // Get top 3
+          { $project: { name: "$_id", count: 1, _id: 0 } }
+        ]);
+        console.log("📊 Top 3 consumed foods aggregation result:", JSON.stringify(topConsumed, null, 2));
+      } else {
+        console.log("⚠️ No consumed foods found, returning empty array");
+      }
+    } catch (err) {
+      console.error("🔥 Error in topConsumed aggregation:", err);
+      topConsumed = [];
+    }
+
+    // ====== ✅ TOP 3 DONATED FOODS (ALL TIME, sorted by qty) ======
+    // Note: DonationList has foodId reference, need to lookup Food to get name
+    const topDonatedQuery = {
+      ...(ownerId && { owner: ownerId })
+    };
+    console.log("🔍 Top Donated Query (ALL TIME):", JSON.stringify(topDonatedQuery, null, 2));
+    
+    let topDonated = [];
+    try {
+      // Debug: Check total donations first
+      const totalDonations = await DonationList.countDocuments(topDonatedQuery);
+      console.log("🔍 Total donations for user (all time):", totalDonations);
+      
+      if (totalDonations > 0) {
+        topDonated = await DonationList.aggregate([
+          { $match: topDonatedQuery },
+          { 
+            $lookup: {
+              from: 'foods', // Collection name in MongoDB (usually lowercase plural)
+              localField: 'foodId',
+              foreignField: '_id',
+              as: 'food'
+            }
+          },
+          { $unwind: { path: '$food', preserveNullAndEmptyArrays: false } }, // Only include documents with matching food
+          { $group: { 
+            _id: "$food.name", // Group by food name from the looked-up Food document
+            count: { $sum: { $ifNull: ["$qty", 0] } } // Sum the qty from DonationList
+          } },
+          { $sort: { count: -1 } }, // Sort by count descending (highest first)
+          { $limit: 3 }, // Get top 3
+          { $project: { name: "$_id", count: 1, _id: 0 } }
+        ]);
+        console.log("📊 Top 3 donated foods aggregation result:", JSON.stringify(topDonated, null, 2));
+      } else {
+        console.log("⚠️ No donations found, returning empty array");
+      }
+    } catch (err) {
+      console.error("🔥 Error in topDonated aggregation:", err);
+      topDonated = [];
+    }
+
+    // Ensure all arrays are always arrays (never null/undefined)
     const safeTopExpired = Array.isArray(topExpired) ? topExpired : [];
-    console.log("📊 Safe top expired (final):", JSON.stringify(safeTopExpired, null, 2));
+    const safeTopConsumed = Array.isArray(topConsumed) ? topConsumed : [];
+    const safeTopDonated = Array.isArray(topDonated) ? topDonated : [];
 
     const result = {
       header: {
@@ -282,15 +327,228 @@ exports.getDaily = async (req, res) => {
         values: [consumedCount, donationCount, expiredCount]
       },
       topExpired: safeTopExpired,
-      topDonated: [], // For future use
-      topConsumed: [] // For future use
+      topConsumed: safeTopConsumed,
+      topDonated: safeTopDonated
     };
     
-    console.log("✅ Final result:", result);
+    console.log("✅ Final result:", JSON.stringify(result, null, 2));
     return res.json(result);
 
   } catch (err) {
     console.error("🔥 analytics/daily error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+exports.getMonthly = async (req, res) => {
+  try {
+    // ✅ Normalize ownerId early
+    let ownerId = null;
+    if (req.user?.userId && mongoose.Types.ObjectId.isValid(req.user.userId)) {
+      ownerId = new mongoose.Types.ObjectId(req.user.userId);
+    }
+    console.log("📌 Monthly Analytics request - ownerId:", ownerId);
+
+    // ✅ Malaysia time (+8) "this month" range
+    // Get current UTC time
+    const now = new Date();
+    const MYT_OFFSET_MS = 8 * 60 * 60 * 1000; // +8 hours in milliseconds
+    
+    // Get current time in Malaysia timezone (UTC + 8)
+    const nowMYT = new Date(now.getTime() + MYT_OFFSET_MS);
+    
+    // Get start of this month in MYT (00:00:00 MYT on 1st day)
+    const startMYT = new Date(nowMYT.getFullYear(), nowMYT.getMonth(), 1);
+    startMYT.setUTCHours(0, 0, 0, 0);
+    
+    // Get end of this month in MYT (23:59:59.999 MYT on last day)
+    const endMYT = new Date(nowMYT.getFullYear(), nowMYT.getMonth() + 1, 0);
+    endMYT.setUTCHours(23, 59, 59, 999);
+    
+    // Convert MYT times back to UTC for MongoDB query
+    const startUTC = new Date(startMYT.getTime() - MYT_OFFSET_MS);
+    const endUTC = new Date(endMYT.getTime() - MYT_OFFSET_MS);
+
+    console.log("📅 Monthly date range - startUTC:", startUTC, "endUTC:", endUTC);
+
+    // ✅ Auto-update foods that expire this month to "expired" status
+    if (ownerId) {
+      const updatedCount = await autoUpdateExpiredFoods(ownerId, startUTC, endUTC);
+      if (updatedCount > 0) {
+        console.log(`✅ Auto-updated ${updatedCount} food items to expired status`);
+      }
+    }
+
+    // ====== ✅ MONTHLY DONATION (donationList.createdAt is this month) ======
+    const donationMatch = {
+      ...(ownerId && { owner: ownerId }),
+      createdAt: { $gte: startUTC, $lte: endUTC }
+    };
+    
+    const donationThisMonth = await DonationList.aggregate([
+      { $match: donationMatch },
+      {
+        $group: {
+          _id: null,
+          totalQty: { $sum: "$qty" }
+        }
+      }
+    ]);
+
+    const donationCount = donationThisMonth[0]?.totalQty ?? 0;
+    console.log("📊 Monthly donation count:", donationCount);
+
+    // ====== ✅ MONTHLY CONSUMED (status changed to consumed this month) ======
+    const consumedMatch = {
+      ...(ownerId && { owner: ownerId }),
+      status: "consumed",
+      updatedAt: { $gte: startUTC, $lte: endUTC }
+    };
+    
+    const consumedCount = await Food.countDocuments(consumedMatch);
+    console.log("📊 Monthly consumed count:", consumedCount);
+
+    // ====== ✅ MONTHLY EXPIRED (expiry date is this month OR status changed to expired this month) ======
+    const expiredThisMonthQuery = {
+      ...(ownerId && { owner: ownerId }),
+      $or: [
+        {
+          status: "expired",
+          updatedAt: { $gte: startUTC, $lte: endUTC }
+        },
+        {
+          expiry: { 
+            $gte: startUTC, 
+            $lte: endUTC 
+          },
+          status: "expired"
+        }
+      ]
+    };
+    
+    const expiredResult = await Food.aggregate([
+      { $match: expiredThisMonthQuery },
+      { $group: { _id: "$_id" } },
+      { $count: "total" }
+    ]);
+    
+    const expiredCount = expiredResult[0]?.total ?? 0;
+    console.log("📊 Monthly expired count:", expiredCount);
+
+    // ====== ✅ TOP 3 EXPIRED FOODS (ALL TIME, sorted by qty) ======
+    const topExpiredQuery = {
+      ...(ownerId && { owner: ownerId }),
+      status: "expired"
+    };
+    
+    let topExpired = [];
+    try {
+      const totalExpired = await Food.countDocuments(topExpiredQuery);
+      if (totalExpired > 0) {
+        topExpired = await Food.aggregate([
+          { $match: topExpiredQuery },
+          { $group: { 
+            _id: "$name", 
+            count: { $sum: { $ifNull: ["$qty", 0] } } 
+          } },
+          { $sort: { count: -1 } },
+          { $limit: 3 },
+          { $project: { name: "$_id", count: 1, _id: 0 } }
+        ]);
+        console.log("📊 Monthly - Top 3 expired foods:", JSON.stringify(topExpired, null, 2));
+      }
+    } catch (err) {
+      console.error("🔥 Error in monthly topExpired aggregation:", err);
+      topExpired = [];
+    }
+
+    // ====== ✅ TOP 3 CONSUMED FOODS (ALL TIME, sorted by qty) ======
+    const topConsumedQuery = {
+      ...(ownerId && { owner: ownerId }),
+      status: "consumed"
+    };
+    
+    let topConsumed = [];
+    try {
+      const totalConsumed = await Food.countDocuments(topConsumedQuery);
+      if (totalConsumed > 0) {
+        topConsumed = await Food.aggregate([
+          { $match: topConsumedQuery },
+          { $group: { 
+            _id: "$name", 
+            count: { $sum: { $ifNull: ["$qty", 0] } } 
+          } },
+          { $sort: { count: -1 } },
+          { $limit: 3 },
+          { $project: { name: "$_id", count: 1, _id: 0 } }
+        ]);
+        console.log("📊 Monthly - Top 3 consumed foods:", JSON.stringify(topConsumed, null, 2));
+      }
+    } catch (err) {
+      console.error("🔥 Error in monthly topConsumed aggregation:", err);
+      topConsumed = [];
+    }
+
+    // ====== ✅ TOP 3 DONATED FOODS (ALL TIME, sorted by qty) ======
+    const topDonatedQuery = {
+      ...(ownerId && { owner: ownerId })
+    };
+    
+    let topDonated = [];
+    try {
+      const totalDonations = await DonationList.countDocuments(topDonatedQuery);
+      if (totalDonations > 0) {
+        topDonated = await DonationList.aggregate([
+          { $match: topDonatedQuery },
+          { 
+            $lookup: {
+              from: 'foods',
+              localField: 'foodId',
+              foreignField: '_id',
+              as: 'food'
+            }
+          },
+          { $unwind: { path: '$food', preserveNullAndEmptyArrays: false } },
+          { $group: { 
+            _id: "$food.name",
+            count: { $sum: { $ifNull: ["$qty", 0] } }
+          } },
+          { $sort: { count: -1 } },
+          { $limit: 3 },
+          { $project: { name: "$_id", count: 1, _id: 0 } }
+        ]);
+        console.log("📊 Monthly - Top 3 donated foods:", JSON.stringify(topDonated, null, 2));
+      }
+    } catch (err) {
+      console.error("🔥 Error in monthly topDonated aggregation:", err);
+      topDonated = [];
+    }
+
+    // Ensure all arrays are always arrays (never null/undefined)
+    const safeTopExpired = Array.isArray(topExpired) ? topExpired : [];
+    const safeTopConsumed = Array.isArray(topConsumed) ? topConsumed : [];
+    const safeTopDonated = Array.isArray(topDonated) ? topDonated : [];
+
+    const result = {
+      header: {
+        consumed: consumedCount,
+        donation: donationCount,
+        expired: expiredCount
+      },
+      pie: {
+        labels: ["Consumed", "Donation", "Expired"],
+        values: [consumedCount, donationCount, expiredCount]
+      },
+      topExpired: safeTopExpired,
+      topConsumed: safeTopConsumed,
+      topDonated: safeTopDonated
+    };
+    
+    console.log("✅ Monthly final result:", JSON.stringify(result, null, 2));
+    return res.json(result);
+
+  } catch (err) {
+    console.error("🔥 analytics/monthly error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
