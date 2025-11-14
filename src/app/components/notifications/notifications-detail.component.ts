@@ -49,8 +49,8 @@ export class NotificationDetailComponent implements OnInit {
       return '⏰'; // 期限間近
     case 'expired':
       return '⚠️'; // 期限切れ
-    case 'inventory':
-      return '📦'; // 在庫関連
+    case 'meal_today':
+      return '🍽️'; // 在庫関連
     case 'low_quantity':
       return '🔔'; // 残りわずか
     case 'donation':
@@ -64,6 +64,10 @@ export class NotificationDetailComponent implements OnInit {
 goToDonationList():void{
   this.router.navigate(['/donation-list']);
 }
+goToMealDetail() {
+  this.router.navigate(['/meal-detail']);
+}
+
   back(): void {
     this.router.navigate(['/notifications-list']);
   }

@@ -134,7 +134,49 @@ router.post('/check-expiry', async (req, res) => {
           sentCount++;
         }
       }
+
     }
+    // -------------------------
+  // 🟢 4️⃣ 今日のカスタムミール通知（food ループの外）
+  // -------------------------
+  const CustomMeal = require('../models/CustomMeal');
+
+  const todayString = new Date().toISOString().substring(0, 10);
+
+  // 🔥 CustomMeal のクエリは「owner」で検索
+  const todayMeals = await CustomMeal.find({
+    owner: userId,
+    date: todayString
+  });
+
+  console.log("🟢 Today meals:", todayMeals);
+
+  for (const meal of todayMeals) {
+
+    // 🔥 Notification 側は「userId」で検索
+    const existingMealNotification = await Notification.findOne({
+      userId,
+      type: 'meal_today',
+      'meta.mealId': meal._id,
+    });
+
+    console.log("🟡 Found existing notification:", existingMealNotification);
+
+    if (!existingMealNotification) {
+      await sendNotification({
+        userId,
+        type: 'meal_today',
+        title: 'Your Meal for Today',
+        message: `Your planned meal <strong>${meal.foodName}</strong> is scheduled for today.`,
+        meta: { mealId: meal._id },
+        read: false
+      });
+
+      console.log("🟢 Meal notification sent:", meal.foodName);
+      sentCount++;
+    }
+  }
+
   
     res.json({ message: `Checked ${foods.length} foods, sent ${sentCount} new notifications.` });
   } catch (err) {
@@ -142,6 +184,8 @@ router.post('/check-expiry', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
 
 
 //detail表示 GET /api/notifications/:id　
