@@ -1,0 +1,228 @@
+/* ========= PAGE WRAPPER ========= */
+.analytics-page {
+  padding: 20px;
+  background: #f5f6f7;
+}
+
+/* ========= KPI CARDS ========= */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.kpi {
+  width: 300px;
+  height: 250px;
+  border-radius: 20px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0px 2px 8px rgba(0,0,0,0.07);
+  text-align: center;
+  font-family: 'Nunito', sans-serif;
+}
+
+.kpi-title {
+  font-weight: normal;
+  font-size: 30px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.kpi-value {
+  font-size: 56px;
+  font-weight: bold;
+  margin-top: 20px;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Handwritten style colors based on design */
+.kpi-consumed {
+  background: #d7e8d5;
+}
+
+.kpi-consumed .kpi-title,
+.kpi-consumed .kpi-value {
+  color: #1b5e20;
+}
+
+.kpi-donation {
+  background: #ffe9b3;
+}
+
+.kpi-donation .kpi-title,
+.kpi-donation .kpi-value {
+  color: #e65100;
+}
+
+.kpi-expired {
+  background: #f8c6c6;
+}
+
+.kpi-expired .kpi-title,
+.kpi-expired .kpi-value {
+  color: #b71c1c;
+}
+
+/* ========= CHARTS LAYOUT ========= */
+.charts-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+/* ========= PANEL BOX ========= */
+.panel {
+  position: relative;
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.08);
+  min-height: 360px;
+  overflow: hidden;
+}
+
+.panel-body {
+  padding: 16px;
+}
+
+.chart-wrap {
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+}
+
+/* ========= PIE CHART TOGGLE BUTTONS ========= */
+.toggle-stack {
+  position: absolute;
+  left: -16px;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toggle-stack .pill {
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: #e6e6e6;
+  color: #333;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.toggle-stack .pill.active {
+  background: #ffffff;
+}
+
+.toggle-stack .pill.disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ========= BAR PANEL ========= */
+.bar-panel {
+  background: #ffd9d9;
+}
+
+/* Tags above bar chart */
+.status-tags {
+  display: flex;
+  gap: 8px;
+  padding: 12px 12px 0 12px;
+}
+
+/* Base tag style */
+.tag {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0.6;
+  transition: 0.2s ease;
+}
+
+.tag.active {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+/* Tag color presets */
+.tag:nth-child(1) { background: #ffd5d5; color: #e63939; }  /* expired */
+.tag:nth-child(2) { background: #ffecb5; color: #b8860b; }  /* donated */
+.tag:nth-child(3) { background: #d8ffe4; color: #2b8c4a; }  /* consumed */
+
+/* Panel modes */
+.bar-panel.expired-mode { background: #ffdede; }
+.bar-panel.donated-mode { background: #fff5cc; }
+.bar-panel.consumed-mode { background: #e3ffe9; }
+
+.tag-expired {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.tag-donated {
+  background: #fff3cd;
+  color: #a67c00;
+}
+
+.tag-consumed {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* Bar title + text */
+.bar-headings {
+  padding: 8px 16px 0 16px;
+}
+
+.bar-subtitle {
+  font-weight: 800;
+  opacity: 0.8;
+}
+
+.bar-topname {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #d73434;
+  margin-top: 2px;
+}
+
+/* ========= LOADING ========= */
+.loading {
+  padding: 40px;
+  text-align: center;
+}
+
+/* ========= NO DATA MESSAGE ========= */
+.no-data-message {
+  padding: 20px 20px;
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-line; /* Preserve line breaks from \n */
+}
+
+/* ========= RESPONSIVE ========= */
+@media (max-width: 1100px) {
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Push content to the right so it doesn't overlap the sidebar */
+.content.analytics-page {
+  margin-left: 350px;   /* <-- change this value to match your real sidebar width */
+  padding: 20px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}

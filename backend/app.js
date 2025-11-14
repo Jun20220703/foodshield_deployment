@@ -9,6 +9,9 @@ const browseFood = require('./routes/browseFood');   // 只读浏览
 const userRoutes = require('./routes/users');        // 用户相关
 const donationRoutes = require('./routes/donationRoutes');
 const DonationList = require('./models/DonationList');
+const analyticsRoute = require('./routes/analyticsRoute');  // ✅ Add this
+
+
 const markedFoodRoutes = require('./routes/markedFoodRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const customMealRoutes = require('./routes/customMealRoutes');
@@ -52,6 +55,10 @@ app.use('/api/users', userRoutes);       // 用户路由
 app.use('/api/foods', foodRoutes);       // 增删改查
 app.use('/api/browse', browseFood);      // 浏览
 app.use('/api/donations', donationRoutes);
+app.use("/api/analytics", require("./routes/analyticsRoute"));  // ✅ Add this line
+
+
+
 app.use('/api/marked-foods', markedFoodRoutes);
 app.use('/api/custom-meals', customMealRoutes);
 
@@ -172,6 +179,62 @@ app.get('/api/donations', async (req, res) => {
 });
 app.options('/api/foods/:id/status', cors());
 
+// ✅ Update food item (qty, etc.) - split consumed quantity into new item, keep remainder in inventory
+app.put('/api/foods/:id', async (req, res) => {
+  try {
+    const { qty } = req.body;
+    
+    // Get current food item to compare qty
+    const currentFood = await Food.findById(req.params.id);
+    if (!currentFood) {
+      return res.status(404).json({ message: 'Food not found' });
+    }
+    
+    // If qty is being decreased (used/consumed), split the item
+    if (qty !== undefined && qty < currentFood.qty && currentFood.status === 'inventory') {
+      const consumedQty = currentFood.qty - qty;
+      
+      // Create a new consumed item with the consumed quantity
+      const consumedFood = new Food({
+        name: currentFood.name,
+        qty: consumedQty,
+        expiry: currentFood.expiry,
+        category: currentFood.category,
+        storage: currentFood.storage,
+        notes: currentFood.notes,
+        status: 'consumed',
+        owner: currentFood.owner
+      });
+      
+      await consumedFood.save();
+      console.log(`✅ Created consumed item: ${currentFood.name} (qty: ${consumedQty})`);
+      
+      // Update the original item with remaining quantity, keep status as "inventory"
+      const updateData = { ...req.body, status: 'inventory' };
+      const updatedFood = await Food.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      );
+      
+      console.log(`✅ Updated original item: ${currentFood.name} (qty: ${qty}, status: inventory)`);
+      return res.json(updatedFood);
+    }
+    
+    // If qty is not decreased or status is not inventory, just update normally
+    const updateData = { ...req.body };
+    const updatedFood = await Food.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+    
+    res.json(updatedFood);
+  } catch (error) {
+    console.error('Error updating food:', error);
+    res.status(500).json({ message: 'Server error while updating food', error });
+  }
+});
 // Note: Food update route is handled in foodRoutes.js (router.put('/:id', ...))
 // This route was removed to avoid conflicts - all fields are now updated properly
 
