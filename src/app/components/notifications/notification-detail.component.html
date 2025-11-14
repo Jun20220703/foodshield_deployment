@@ -7,9 +7,7 @@
     </button>
 
     <div *ngIf="notification" class="card">
-      <h2 class="header">
-        [{{ notification.type | titlecase }}] {{ notification.title }}
-      </h2>
+      
       <div class="header-row">
         <span class="icon">{{ getEmoji(notification?.type || '') }}</span>
         <h2 class="title">{{ notification?.title }}</h2>
