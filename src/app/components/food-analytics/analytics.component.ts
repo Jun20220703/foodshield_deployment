@@ -153,8 +153,12 @@ export class AnalyticsComponent implements OnInit {
       x: { ticks: { autoSkip: false } },
       y: {
         beginAtZero: true,
-        ticks: { stepSize: 1 }
+        ticks: {
+          stepSize: 1,
+          callback: (value) => Number.isInteger(value) ? value : ''
         }
+      }
+
 
     }
   };

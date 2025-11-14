@@ -96,6 +96,18 @@
   place-items: center;
 }
 
+/* Make pie chart smaller */
+.pie-panel .chart-wrap {
+  min-height: 250px;
+}
+
+.pie-panel .chart-wrap canvas {
+  max-width: 300px;
+  max-height: 300px;
+  width: auto !important;
+  height: auto !important;
+}
+
 /* ========= PIE CHART TOGGLE BUTTONS ========= */
 .toggle-stack {
   position: absolute;

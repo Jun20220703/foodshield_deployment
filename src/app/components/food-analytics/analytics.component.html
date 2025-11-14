@@ -56,7 +56,7 @@
             <canvas baseChart
               [data]="pieData()"
               [options]="pieOptions"
-              chartType="pie">
+              [type]="'pie'">
             </canvas>
           </div>
         </div>
@@ -107,7 +107,7 @@
               baseChart
               [data]="currentBarData()"
               [options]="barOptions"
-              chartType="bar">
+              [type]="'bar'">
             </canvas>
             <ng-template #noBarDataTpl>
               <div class="no-data-message">{{ getNoDataMessage() }}</div>
