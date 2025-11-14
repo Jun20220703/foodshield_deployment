@@ -158,7 +158,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -186,7 +186,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -290,7 +290,7 @@ export class PlanWeeklyMealComponent implements OnInit {
       
       // Get current user ID to filter foods
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = user.id || '';
+      const userId = user.id || user._id || '';
 
       // Convert to InventoryItem format and filter by owner and status
       const inventoryItems = allFoods
@@ -999,7 +999,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     // First, get the original food item to restore quantity
     // Use getFoods and filter by foodId instead of getFoodById for better compatibility
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       alert('User ID not found');
@@ -1334,7 +1334,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -1374,7 +1374,7 @@ export class PlanWeeklyMealComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -1462,7 +1462,7 @@ export class PlanWeeklyMealComponent implements OnInit {
   // Custom meal 상세 정보를 API에서 로드 (fallback)
   loadCustomMealDetailsFromAPI(dateKey: string, mealType: string) {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -1837,7 +1837,8 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
-    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
     if (!userId) {
       throw new Error('User ID not found');
     }
