@@ -10,36 +10,170 @@
     <h2 class="section-title">Calendar View</h2>
     <div class="calendar-container">
       <div class="month-header">
-        <button class="nav-arrow" (click)="previousWeek()">‹</button>
+        <button class="nav-arrow" (click)="previousMonth($event)">‹</button>
         <span class="month-name">{{ currentMonth }}</span>
-        <button class="nav-arrow" (click)="nextWeek()">›</button>
+        <button class="nav-arrow" (click)="nextMonth($event)">›</button>
       </div>
       
       <div class="week-days">
-        <button class="week-nav-arrow left" (click)="previousDay()" title="Previous day">‹</button>
+        <button class="week-nav-arrow left" (click)="previousDay($event)" title="Previous day">‹</button>
         <div class="day-column" *ngFor="let day of weekDays">
-          <div class="day-card">
+          <div class="day-card" [class.past-day]="day.isPast">
             <div class="day-header">
               <div class="day-name">{{ day.name }}</div>
-              <div class="day-number">{{ day.date }}</div>
+              <div class="day-number" [class.today]="day.isToday">{{ day.date }}</div>
             </div>
             <div class="meal-slots">
-              <div class="meal-slot" *ngFor="let meal of mealTypes">
+              <div class="meal-slot" *ngFor="let meal of mealTypes" 
+                   (click)="selectMealSlot(day, meal)"
+                   [class.has-meal]="day.hasMeal && day.hasMeal[meal]"
+                   [class.selected]="selectedDay && selectedDay.fullDate.getTime() === day.fullDate.getTime() && selectedMealType === meal">
                 <div class="meal-indicator"></div>
                 <div class="meal-name">{{ meal }}</div>
               </div>
             </div>
           </div>
         </div>
-        <button class="week-nav-arrow right" (click)="nextDay()" title="Next day">›</button>
+        <button class="week-nav-arrow right" (click)="nextDay($event)" title="Next day">›</button>
+      </div>
+      
+      <!-- Meal Options inside calendar container -->
+      <div class="meal-options-section" *ngIf="showMealOptions">
+        <div class="meal-options-header">
+          <h3>No meals added...</h3>
+        </div>
+        <div class="meal-options-content">
+          <div class="meal-option-card add-own" 
+               [class.disabled]="isPastDateSelected()"
+               (click)="!isPastDateSelected() && addOwnMeal($event)">
+            <div class="option-question">Do you want to add your own meal?</div>
+            <button class="option-button" 
+                    type="button" 
+                    [disabled]="isPastDateSelected()"
+                    (click)="addOwnMeal($event); $event.stopPropagation()">Add</button>
+          </div>
+          <div class="meal-option-card browse" 
+               [class.disabled]="isPastDateSelected()"
+               (click)="!isPastDateSelected() && browseRecipes($event)">
+            <div class="option-question">Do you want to browse more recipes?</div>
+            <button class="option-button" 
+                    type="button" 
+                    [disabled]="isPastDateSelected()"
+                    (click)="browseRecipes($event); $event.stopPropagation()">Browse</button>
+          </div>
+        </div>
+        <div class="close-options-wrapper">
+          <button class="close-options-button" (click)="closeMealOptions()" title="Close options">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 15L12 9L6 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Custom Meal Details Section -->
+      <div class="custom-meal-details-section" *ngIf="showCustomMealDetails && selectedCustomMeal">
+        <h2 class="planned-meal-title">Planned Meal</h2>
+        <div class="custom-meal-card">
+          <div class="custom-meal-content">
+            <!-- Left: Food Photo, Name, Kcal -->
+            <div class="meal-info-left">
+              <div class="meal-photo-container">
+                <img *ngIf="selectedCustomMeal.photo" [src]="selectedCustomMeal.photo" alt="Food photo" class="meal-photo">
+                <div *ngIf="!selectedCustomMeal.photo" class="meal-photo-placeholder">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12V2M5 12C5 13.1046 5.89543 14 7 14C8.10457 14 9 13.1046 9 12V2M5 12V20M9 12V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M15 2V20M15 12C15 13.1046 15.8954 14 17 14C18.1046 14 19 13.1046 19 12C19 10.8954 18.1046 10 17 10C15.8954 10 15 10.8954 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="meal-field-group">
+                <label class="meal-field-label">Food Name</label>
+                <div class="meal-field-value">{{ selectedCustomMeal.foodName }}</div>
+              </div>
+              <div class="meal-field-group">
+                <label class="meal-field-label">Kcal</label>
+                <div class="meal-field-value">{{ selectedCustomMeal.kcal || 'N/A' }} Kcal</div>
+              </div>
+            </div>
+
+            <!-- Middle: Ingredients -->
+            <div class="meal-info-middle">
+              <label class="meal-section-label">Ingredients</label>
+              <div class="ingredients-container">
+                <div class="ingredient-item" *ngFor="let ingredient of parseIngredients(selectedCustomMeal.ingredients)">
+                  <span class="ingredient-name">{{ ingredient.name }}</span>
+                  <div class="ingredient-middle">
+                    <span class="ingredient-badge" 
+                          [class.has-marked]="ingredient.inventoryType === 'marked'"
+                          [class.has-non-marked]="ingredient.inventoryType === 'non-marked'">
+                      <span class="ingredient-status" *ngIf="ingredient.inventoryType">
+                        [{{ ingredient.inventoryType }}]
+                      </span>
+                    </span>
+                    <span class="ingredient-category" *ngIf="ingredient.category">
+                      [{{ ingredient.category }}]
+                    </span>
+                  </div>
+                  <span class="ingredient-qty" *ngIf="ingredient.qty">{{ ingredient.qty }}</span>
+                </div>
+                <div *ngIf="parseIngredients(selectedCustomMeal.ingredients).length === 0" class="no-ingredients">
+                  No ingredients listed
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: How to Cook -->
+            <div class="meal-info-right">
+              <label class="meal-section-label">Remark</label>
+              <div class="cooking-instructions">
+                <div class="instruction-line" *ngFor="let line of selectedCustomMeal.remark.split('\n')">
+                  {{ line }}
+                </div>
+                <div *ngIf="!selectedCustomMeal.remark || !selectedCustomMeal.remark.trim()" class="no-instructions">
+                  No remark provided
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="meal-action-buttons">
+            <!-- 지난 날짜인 경우 위쪽 화살표 버튼만 표시 -->
+            <button *ngIf="isSelectedMealPastDate()" class="btn-scroll-up" (click)="closeCustomMealDetails()">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5V19M12 5L5 12M12 5L19 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <!-- 오늘이거나 미래 날짜인 경우 Edit/Delete 버튼 표시 -->
+            <!-- Suggested Meals/Generic Meals에서 생성된 meal plan은 Edit 불가 -->
+            <ng-container *ngIf="!isSelectedMealPastDate()">
+              <button 
+                *ngIf="!isMealFromBrowseRecipes(selectedCustomMeal)" 
+                class="btn-edit" 
+                (click)="editCustomMeal()">Edit</button>
+              <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
+            </ng-container>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Current Inventory Section -->
+  <!-- Marked Foods Section -->
   <div class="inventory-section">
     <div class="inventory-header">
-      <h2 class="section-title">Current inventory</h2>
+      <div class="inventory-title-row">
+        <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
+        <select 
+          class="inventory-type-dropdown" 
+          [(ngModel)]="inventoryType" 
+          (change)="onInventoryTypeChange()"
+          title="Select inventory type">
+          <option value="marked">Marked Foods</option>
+          <option value="non-marked">Non-Marked Foods</option>
+        </select>
+      </div>
       <div class="search-filter-bar">
         <input 
           type="text" 
@@ -62,14 +196,17 @@
         <div class="header-cell">Quantity</div>
         <div class="header-cell">Category</div>
         <div class="header-cell">Mark</div>
+        <div class="header-cell">Marked Quantity</div>
         <div class="header-cell">Expiry</div>
+        <div class="header-cell" *ngIf="inventoryType === 'marked'">Action</div>
       </div>
 
       <div class="inventory-list">
         <div 
           class="inventory-item" 
-          *ngFor="let item of filteredInventory; let i = index"
+          *ngFor="let item of paginatedInventory; let i = index"
           [class.selected]="selectedItemIndex === i"
+          [class.expiring-soon]="getDaysUntilExpiry(item.expiry) <= 7 && getDaysUntilExpiry(item.expiry) >= 0"
           (click)="selectItem(i)">
           <div class="item-name">{{ item.name }}</div>
           <div class="item-quantity">
@@ -87,13 +224,132 @@
               Marked
             </span>
           </div>
+          <div class="item-marked-quantity">
+            <span *ngIf="item.markedQuantity > 0" class="marked-quantity-badge">
+              {{ item.markedQuantity }}
+            </span>
+            <span *ngIf="item.markedQuantity === 0" class="no-marked-quantity">-</span>
+          </div>
           <div class="item-expiry">
             <span class="expiry-date">{{ item.expiry }}</span>
           </div>
+          <div class="item-action" *ngIf="inventoryType === 'marked'">
+            <button class="remove-btn" (click)="openRemoveModal(item, $event)">
+              Remove
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div class="pagination-container" *ngIf="totalPages > 1">
+        <div class="pagination-buttons">
+          <button 
+            *ngFor="let page of getPagesArray()" 
+            class="page-button"
+            [class.active]="currentPage === page"
+            (click)="goToPage(page)">
+            {{ page }}
+          </button>
         </div>
       </div>
       </div>
     </div>
   </div>
+
+  <!-- Filter Drawer -->
+  <div class="filter-drawer" [class.open]="showFilter">
+    <div class="filter-header">
+      <h2>Filters</h2>
+      <button class="close-btn" (click)="toggleFilter()">×</button>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="filter-section">
+      <h3>Category</h3>
+      
+      <!-- All -->
+      <label>
+        <input
+          type="checkbox"
+          name="cat_all"
+          [checked]="selectedCategories.size === availableCategories.length"
+          (change)="onCategoryAllToggle($any($event.target).checked)" />
+        All
+      </label>
+
+      <!-- Individual Categories -->
+      <label *ngFor="let cat of availableCategories">
+        <input
+          type="checkbox"
+          name="cat_{{cat}}"
+          [checked]="selectedCategories.has(cat)"
+          (change)="onCategoryToggle(cat, $any($event.target).checked)" />
+        {{ cat }}
+      </label>
+    </div>
+
+    <!-- Expiry Filter -->
+    <div class="filter-section">
+      <h3>Expired in</h3>
+
+      <div class="expired-input-group">
+        <input
+          type="number"
+          [(ngModel)]="expiryFilterDays"
+          placeholder="Enter days"
+          min="0" />
+        <span>day(s)</span>
+      </div>
+
+      <button class="apply-btn" (click)="applyExpiryFilter()">Apply</button>
+      <button class="reset-btn" (click)="resetExpiryFilter()">Reset</button>
+    </div>
+
+    <!-- Reset All Filters -->
+    <div class="filter-section">
+      <button class="reset-all-btn" (click)="resetFilters()">Reset All Filters</button>
+    </div>
+  </div>
+
+  <!-- Remove Modal -->
+  <div class="modal-overlay" *ngIf="showRemoveModal" (click)="closeRemoveModal()">
+    <div class="modal-content remove-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Remove Marked Food</h2>
+        <button class="close-btn" (click)="closeRemoveModal()">×</button>
+      </div>
+      <div class="modal-body" *ngIf="removeItem">
+        <p>How many <strong>{{ removeItem.name }}</strong> would you like to remove?</p>
+        <p class="info-text">Currently marked: <strong>{{ removeItem.markedQuantity }}</strong></p>
+        <div class="quantity-input-group">
+          <label>Quantity to remove:</label>
+          <input 
+            type="number" 
+            [(ngModel)]="removeQuantity" 
+            [min]="1" 
+            [max]="removeItem.markedQuantity"
+            class="quantity-input" />
+        </div>
+        <p class="info-text">After removal: <strong>{{ removeItem.markedQuantity - removeQuantity }}</strong> will remain marked</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" (click)="closeRemoveModal()" [disabled]="isRemoving">Cancel</button>
+        <button class="btn-confirm-remove" (click)="confirmRemove()" [disabled]="isRemoving">
+          <span *ngIf="!isRemoving">Remove</span>
+          <span *ngIf="isRemoving">Removing...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Toast Message -->
+  <div class="success-toast" *ngIf="showSuccessMessage">
+    <div class="toast-content">
+      <span class="toast-icon">✅</span>
+      <span class="toast-message">{{ successMessage }}</span>
+    </div>
+  </div>
+
 </div>
 

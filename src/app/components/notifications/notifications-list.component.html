@@ -1,0 +1,35 @@
+<div class="layout">
+  <app-sidebar></app-sidebar>
+  <main class="content">
+    <h1 class="title">Notification</h1>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button (click)="setTab('all')" [class.active]="activeTab === 'all'">All</button>
+      <button (click)="setTab('unread')" [class.active]="activeTab === 'unread'">
+        Unread ({{ unread.length }})
+      </button>
+      <button (click)="setTab('read')" [class.active]="activeTab === 'read'">
+        Read ({{ read.length }})
+      </button>
+    </div>
+
+    <!-- Empty message -->
+    <div *ngIf="displayed().length === 0" class="empty">
+      {{ activeTab === 'unread' ? 'No new notifications' : 'No notifications found' }}
+    </div>
+
+    <!-- Notification list -->
+    <div
+      *ngFor="let n of displayed()"
+      class="row"
+      [class.unread]="!n.read"
+      (click)="openDetail(n)"
+      tabindex="0"
+    >
+      <div class="col type">{{ badge(n.type) }}</div>
+      <div class="col title">{{ getEmoji(n.type) }} {{ n.title }}</div>
+      <div class="col date">{{ n.createdAt | date: 'dd MMM yyyy' }}</div>
+    </div>
+  </main>
+</div>

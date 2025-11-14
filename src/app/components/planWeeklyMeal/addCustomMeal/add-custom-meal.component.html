@@ -1,0 +1,297 @@
+<div class="page-layout">
+  <!-- Sidebar -->
+  <app-sidebar></app-sidebar>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="content-wrapper">
+      <!-- Left: Meal Form -->
+      <div class="meal-form-container">
+        <h1 class="page-title">{{ isEditMode ? 'Edit Custom Meal' : 'Add Custom meals' }}</h1>
+        
+        <form class="meal-form" (ngSubmit)="createMeal()">
+        <!-- Food Photo (Optional) -->
+        <div class="form-group">
+          <label class="form-label">Food Photo (Optional)</label>
+          <div class="photo-upload-area">
+            <input 
+              type="file" 
+              id="photo-upload" 
+              accept="image/*" 
+              (change)="onPhotoChange($event)"
+              style="display: none;">
+            
+            <div *ngIf="!foodPhoto" class="photo-placeholder" (click)="triggerPhotoUpload()">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Fork -->
+                <path d="M5 12V2M5 12C5 13.1046 5.89543 14 7 14C8.10457 14 9 13.1046 9 12V2M5 12V20M9 12V20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Knife -->
+                <path d="M15 2V20M15 12C15 13.1046 15.8954 14 17 14C18.1046 14 19 13.1046 19 12C19 10.8954 18.1046 10 17 10C15.8954 10 15 10.8954 15 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            
+            <div *ngIf="foodPhoto" class="photo-preview">
+              <img [src]="foodPhoto" alt="Food photo">
+              <button type="button" class="remove-photo-btn" (click)="removePhoto()">×</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Food Name -->
+        <div class="form-group">
+          <label class="form-label">Food Name</label>
+          <input 
+            type="text" 
+            class="form-input" 
+            [(ngModel)]="foodName" 
+            name="foodName"
+            placeholder="Enter food name"
+            required>
+        </div>
+
+        <!-- Ingredients -->
+        <div class="form-group">
+          <label class="form-label">Ingredients</label>
+          <div class="ingredients-list">
+            <div 
+              class="ingredient-item" 
+              *ngFor="let ingredient of ingredientList; let i = index">
+              <div class="ingredient-name-wrapper">
+                <span class="inventory-type-badge" 
+                      [class.marked]="(ingredient.inventoryType || 'marked') === 'marked'" 
+                      [class.non-marked]="ingredient.inventoryType === 'non-marked'">
+                  {{ (ingredient.inventoryType || 'marked') === 'marked' ? 'Marked' : 'Non-Marked' }}
+                </span>
+                <input 
+                  type="text" 
+                  class="ingredient-name-input" 
+                  [(ngModel)]="ingredient.name"
+                  [name]="'ingredientName' + i"
+                  placeholder="Click to select from inventory"
+                  (click)="openIngredientModal()"
+                  readonly
+                  required>
+              </div>
+              <input 
+                type="number" 
+                class="ingredient-quantity-input" 
+                [(ngModel)]="ingredient.quantity"
+                [name]="'ingredientQuantity' + i"
+                [max]="ingredient.maxQuantity || 999999"
+                [min]="1"
+                (input)="onIngredientQuantityInput(ingredient, i, $event)"
+                (ngModelChange)="onIngredientQuantityChange(ingredient, i, $event)"
+                (blur)="onIngredientQuantityChange(ingredient, i, $event)"
+                placeholder="Quantity"
+                required>
+              <button 
+                type="button" 
+                class="remove-ingredient-btn" 
+                (click)="removeIngredient(i)">
+                ×
+              </button>
+            </div>
+            <button 
+              type="button" 
+              class="add-ingredient-btn" 
+              (click)="openIngredientModal()">
+              + Add Ingredient from Inventory
+            </button>
+          </div>
+        </div>
+
+        <!-- How to Cook -->
+        <div class="form-group">
+          <label class="form-label">Remark(Optional)</label>
+          <textarea 
+            class="form-textarea" 
+            [(ngModel)]="remark" 
+            name="remark"
+            placeholder="Enter remark (optional)"
+            rows="6"></textarea>
+        </div>
+
+        <!-- Kcal -->
+        <div class="form-group">
+          <label class="form-label">Kcal(Optional)</label>
+          <input 
+            type="text" 
+            class="form-input" 
+            [(ngModel)]="kcal" 
+            name="kcal"
+            placeholder="Enter calories">
+        </div>
+
+        <!-- Buttons -->
+        <div class="form-actions">
+          <button type="button" class="btn-back" (click)="back()">Back</button>
+          <button type="submit" class="btn-create">{{ isEditMode ? 'Update' : 'Create' }}</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Ingredient Selection Modal -->
+    <div class="ingredient-modal-overlay" *ngIf="showIngredientModal" (click)="closeIngredientModal()">
+      <div class="ingredient-modal-content" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2 class="modal-title">Select Ingredients ({{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }})</h2>
+            <button class="modal-close-btn" (click)="closeIngredientModal()">×</button>
+          </div>
+        
+        <div class="inventory-section">
+        <div class="inventory-header">
+          <div class="inventory-title-row">
+            <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
+            <select 
+              class="inventory-type-dropdown" 
+              [ngModel]="inventoryType" 
+              (ngModelChange)="inventoryType = $event; onInventoryTypeChange()"
+              title="Select inventory type">
+              <option value="marked">Marked Foods</option>
+              <option value="non-marked">Non-Marked Foods</option>
+            </select>
+          </div>
+          <div class="search-filter-bar">
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Food item Name"
+            [(ngModel)]="searchTerm"
+            (input)="onSearchInput($event)"
+            (keyup)="onSearchInput($event)">
+          <button class="search-btn" (click)="filterInventory()">
+            <span class="search-icon">🔍</span>
+          </button>
+          <button class="filter-btn" (click)="toggleFilter()">
+            <span class="filter-icon">☰</span>
+          </button>
+        </div>
+        </div>
+
+        <div class="inventory-container">
+        <div class="table-headers">
+          <div class="header-cell">Name</div>
+          <div class="header-cell">Quantity</div>
+          <div class="header-cell">Category</div>
+          <div class="header-cell">Expiry</div>
+          <div class="header-cell">Action</div>
+        </div>
+
+              <div class="inventory-list" [class.loading]="isLoadingInventory">
+                <!-- Loading overlay -->
+                <div class="loading-overlay" *ngIf="isLoadingInventory">
+                  <div class="loading-spinner"></div>
+                  <p class="loading-text">Loading...</p>
+                </div>
+                <!-- Inventory items -->
+                <div 
+                  class="inventory-item ingredient-selectable" 
+                  *ngFor="let item of paginatedInventory; let i = index"
+                  [class.fade-in]="!isLoadingInventory"
+                  [class.expiring-soon]="getDaysUntilExpiry(item.expiry) <= 7 && getDaysUntilExpiry(item.expiry) >= 0">
+            <div class="item-name">{{ item.name }}</div>
+            <div class="item-quantity">
+              <input 
+                type="number" 
+                class="quantity-input"
+                [value]="selectedIngredientQuantity[item.name] || item.quantity || 1"
+                (input)="updateIngredientQuantity(item.name, +$any($event.target).value)"
+                min="1"
+                [max]="item.quantity">
+              <span class="quantity-label">/ {{ item.quantity }}</span>
+            </div>
+            <div class="item-category">
+              <span class="category-badge" [class]="'category-' + item.category.toLowerCase()">
+                <span class="category-icon">{{ getCategoryIcon(item.category) }}</span>
+                {{ item.category }}
+              </span>
+            </div>
+            <div class="item-expiry">
+              <span class="expiry-date">{{ item.expiry }}</span>
+            </div>
+            <div class="item-action">
+              <button 
+                class="select-ingredient-btn"
+                (click)="selectIngredient(item)">
+                Select
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div class="pagination-container" *ngIf="totalPages > 1">
+          <div class="pagination-buttons">
+            <button 
+              *ngFor="let page of getPagesArray()" 
+              class="page-button"
+              [class.active]="currentPage === page"
+              (click)="goToPage(page)">
+              {{ page }}
+            </button>
+          </div>
+        </div>
+        </div>
+      </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Filter Drawer -->
+  <div class="filter-drawer" [class.open]="showFilter">
+    <div class="filter-header">
+      <h2>Filters</h2>
+      <button class="close-btn" (click)="toggleFilter()">×</button>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="filter-section">
+      <h3>Category</h3>
+      
+      <!-- All -->
+      <label>
+        <input
+          type="checkbox"
+          name="cat_all"
+          [checked]="selectedCategories.size === availableCategories.length"
+          (change)="onCategoryAllToggle($any($event.target).checked)" />
+        All
+      </label>
+
+      <!-- Individual Categories -->
+      <label *ngFor="let cat of availableCategories">
+        <input
+          type="checkbox"
+          name="cat_{{cat}}"
+          [checked]="selectedCategories.has(cat)"
+          (change)="onCategoryToggle(cat, $any($event.target).checked)" />
+        {{ cat }}
+      </label>
+    </div>
+
+    <!-- Expiry Filter -->
+    <div class="filter-section">
+      <h3>Expired in</h3>
+
+      <div class="expired-input-group">
+        <input
+          type="number"
+          [(ngModel)]="expiryFilterDays"
+          placeholder="Enter days"
+          min="0" />
+        <span>day(s)</span>
+      </div>
+
+      <button class="apply-btn" (click)="applyExpiryFilter()">Apply</button>
+      <button class="reset-btn" (click)="resetExpiryFilter()">Reset</button>
+    </div>
+
+    <!-- Reset All Filters -->
+    <div class="filter-section">
+      <button class="reset-all-btn" (click)="resetFilters()">Reset All Filters</button>
+    </div>
+  </div>
+</div>
+

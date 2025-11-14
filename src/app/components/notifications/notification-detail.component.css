@@ -1,0 +1,117 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  background-color: #f8f8f4;
+}
+
+
+/* ✅ メインエリアの調整 */
+.content {
+  flex: 1;
+  padding: 40px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-left: 340px;
+}
+
+/* Back Button */
+.back-btn {
+  margin-bottom: 20px;
+  font-size: 15px;
+  background: none;
+  border: none;
+  color: #225530;
+  cursor: pointer;
+  font-weight: 500;
+  transition: 0.2s;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+  color: #225530;
+}
+
+/* Main Card */
+.card {
+  width: 1000px;        /* ← 固定幅 */
+  max-width: 95%;
+  min-height: 200px;    /* ← 高さも最低これだけ確保 */
+  background: #ffffff;
+  padding: 30px;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  margin-top: 10px;
+  animation: fadeIn 0.3s ease;
+}
+
+
+/* Header Row with Icon + Title */
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 12px;
+}
+
+.icon {
+  font-size: 36px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Date */
+.date {
+  color: #777;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* Message Body */
+.body {
+  font-size: 17px;
+  line-height: 1.8;
+  color: #2f3b4c;
+  padding-left: 20px;
+  border-left: 4px solid #a2b8d4;
+  font-style: italic;
+  opacity: 0.95;
+}
+
+
+/* Buttons at bottom */
+.action-area {
+  margin-top: 20px;
+}
+
+.link-btn {
+  background: #225530;
+  color: white;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  transition: 0.2s;
+}
+
+.link-btn:hover {
+  background: #225530;
+  transform: translateY(-1px);
+}
+
+.body strong {
+  font-weight: 1000;
+  color: #df7833; /* 少し強調した色 */
+}
+
+/* Fade-in Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

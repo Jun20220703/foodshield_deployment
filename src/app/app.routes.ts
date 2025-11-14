@@ -10,8 +10,13 @@ import { AddFoodItemComponent } from './components/addFoodItem/add-food-item.com
 import { DonationListComponent } from './components/donationList/donation-list.component';
 import { VerificationComponent } from './components/verification/verification.component';
 import { EditFoodComponent } from './components/editFood/edit-food.component';
+import { AddCustomMealComponent } from './components/planWeeklyMeal/addCustomMeal/add-custom-meal.component';
+import { BrowseRecipesComponent } from './components/browseRecipes/browse-recipes.component';
 import { EditDonationComponent } from './components/editDonation/edit-donation.component';
 
+import { NotificationsListComponent } from './components/notifications/notifications-list.component';
+import { MealDetailComponent } from './components/mealDetail/meal-detail.component';
+import { NotificationDetailComponent } from './components/notifications/notifications-detail.component';
 export const routes: Routes = [
   { path: 'home', component: HomePageComponent },
   { path: 'inventory', component: InventoryComponent },
@@ -33,5 +38,16 @@ export const routes: Routes = [
       .then(m => m.AnalyticsComponent)
   },
 
+  { path: 'manage-inventory', component: ManageFoodInventory},
+  { path: 'add-food', component: AddFoodItemComponent},
+  { path: 'add-custom-meal', component: AddCustomMealComponent},
+  { path: 'browse-recipes', component: BrowseRecipesComponent},
+  { path: 'meal-detail/:id', component: MealDetailComponent},
+  { path: 'donation-list', component: DonationListComponent},
+  { path: 'verification', component: VerificationComponent},
+  { path: 'edit-food/:id', component: EditFoodComponent},
+  { path: 'edit-donation/:id', component:EditDonationComponent},
+  { path: 'notifications-list', component:NotificationsListComponent},
+  { path: 'notifications/:id', component: NotificationDetailComponent},
   { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];

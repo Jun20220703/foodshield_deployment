@@ -1,0 +1,44 @@
+<div class="layout">
+  <app-sidebar></app-sidebar>
+
+  <main class="content">
+    <button class="back-btn" (click)="back()">
+      ← Back to Notifications
+    </button>
+
+    <div *ngIf="notification" class="card">
+      
+      <div class="header-row">
+        <span class="icon">{{ getEmoji(notification?.type || '') }}</span>
+        <h2 class="title">{{ notification?.title }}</h2>
+      </div>
+
+      <p class="date">
+        {{ notification.createdAt | date: 'dd MMMM yyyy, h:mm a' }}
+      </p>
+      <hr />
+
+      
+
+      <p class="body" [innerHTML]="notification?.message"></p>
+
+      <div class="action-area">
+        <button 
+        *ngIf="notification?.type === 'donation'" 
+        class="link-btn"
+        (click)="goToDonationList()"
+        >
+          View donation details →
+        </button>
+
+        <button 
+        *ngIf="notification?.type === 'meal_today'" 
+        class="link-btn"
+        (click)="goToMealDetail()">
+          View Meal Detail →
+        </button>
+
+      </div>
+    </div>
+  </main>
+</div>

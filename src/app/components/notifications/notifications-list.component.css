@@ -1,0 +1,147 @@
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+  background: #f6f6f4;
+
+}
+
+.content {
+  padding: 32px 28px;
+  margin-left:100px;
+
+}
+
+.title {
+  font-size: 28px;
+  margin-bottom: 12px;
+  font-family: 'Nunito', sans-serif;
+  color: #2e3d2e;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tabs button {
+  background: #fff;
+  border: 1px solid #9caf9a;
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #2b3a2d;
+}
+
+.tabs button.active {
+  background: #3f6644;
+  color: #fff;
+}
+
+/* 通知1行のカード */
+.row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;  /* type | title | date */
+  align-items: center;
+
+  background: #ffffff;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  border-left: 4px solid transparent; /* 未読時に色をつける */
+}
+
+/* 未読のハイライト */
+.row.unread {
+  background-color: #f6f9ff;
+  border-left: 4px solid #225530; /* ブルー強調線 */
+}
+
+/* hoverアニメーション */
+.row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+}
+
+/* 3つのcol */
+.col {
+  padding: 0 6px;
+  font-size: 0.9rem;
+}
+
+/* 種類（type）を細く・軽く */
+.col.type {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.85rem;
+}
+
+/* タイトルを強調 */
+.col.title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #333;
+
+  /* タイトルが長すぎても1行に収める */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 日付を右側に軽く表示 */
+.col.date {
+  color: #888;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* Tabs（そのままでもOKだけどスマートに） */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tabs button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.tabs button.active {
+  background: #225530;
+  color: white;
+}
+
+.tabs button:hover {
+  background: #e6e6e6;
+}
+/* 既読はタイトルを細くする */
+.row:not(.unread) .title {
+  font-weight: 400; /* 通常の太さ */
+  color: #555;
+}
+
+
+.empty {
+  text-align: center;
+  padding: 16px;
+  background: #fff;
+  border: 1px dashed #c1c8bf;
+  border-radius: 10px;
+  color: #808a7e;
+  margin-top: 16px;
+}

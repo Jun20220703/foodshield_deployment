@@ -43,11 +43,19 @@ export class AddFoodItemComponent {
 
   const rawData = this.foodForm.value;
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userId = user.id || user._id; // Support both user.id and user._id
+  
+  if (!userId) {
+    alert('User ID not found. Please log in again.');
+    return;
+  }
+
   const foodData = {
     ...rawData,
     qty: Number(rawData.qty),
     expiry: new Date(rawData.expiry),
-    owner: user.id   // user.id を正しく参照
+    owner: userId,
+    status: 'inventory' // Ensure status is set to 'inventory' for new items
   };
 
   console.log('submitting (converted):', foodData);
@@ -59,7 +67,14 @@ export class AddFoodItemComponent {
     },
     error: (err) => {
       console.error('❌ Error saving food:', err);
-      alert('Failed to save item. Check backend connection.');
+      const errorMessage = err.error?.message || err.message || 'Unknown error';
+      console.error('Error details:', {
+        status: err.status,
+        statusText: err.statusText,
+        message: errorMessage,
+        body: err.error
+      });
+      alert(`Failed to save item: ${errorMessage}`);
     }
   });
 }
