@@ -12,11 +12,12 @@ import { CommonModule } from '@angular/common';
 export class NotificationDetailComponent implements OnInit {
   notification?: Notification;
 
+
   constructor(
     private route: ActivatedRoute,
     private notificationService: NotificationService,
     private router: Router,
-    private cdr: ChangeDetectorRef // ✅ 追加
+    private cdr: ChangeDetectorRef, // ✅ 追加,
   ) {}
 
   ngOnInit(): void {
@@ -39,9 +40,30 @@ export class NotificationDetailComponent implements OnInit {
         },
         error: (err) => console.error('Error fetching notification:', err)
       });
+
     }
   }
+  getEmoji(type: string): string {
+  switch (type) {
+    case 'expiry':
+      return '⏰'; // 期限間近
+    case 'expired':
+      return '⚠️'; // 期限切れ
+    case 'inventory':
+      return '📦'; // 在庫関連
+    case 'low_quantity':
+      return '🔔'; // 残りわずか
+    case 'donation':
+      return '❤️'; // 寄付
+    default:
+      return '📢'; // その他
+  }
+}
 
+
+goToDonationList():void{
+  this.router.navigate(['/donation-list']);
+}
   back(): void {
     this.router.navigate(['/notifications-list']);
   }

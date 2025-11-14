@@ -25,11 +25,15 @@ export class NotificationsListComponent implements OnInit {
     const userId = localStorage.getItem('userId'); // ← ログイン時に保存されている前提
   if (userId) {
     this.notificationService.checkExpiry(userId).subscribe({
-      next: (res) => console.log('🟢 Expiry check result:', res),
+      next: (res) => {
+        console.log('🟢 Expiry check result:', res);
+        this.loadNotifications();
+      },
       error: (err) => console.error('❌ Error checking expiry:', err),
     });
-  }
+  } else {
     this.loadNotifications();
+  }
     this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
@@ -98,4 +102,22 @@ export class NotificationsListComponent implements OnInit {
   get read(): Notification[] {
     return this.notifications.filter((n) => n.read);
   }
+
+   getEmoji(type: string): string {
+  switch (type) {
+    case 'expiry':
+      return '⏰'; // 期限間近
+    case 'expired':
+      return '⚠️'; // 期限切れ
+    case 'inventory':
+      return '📦'; // 在庫関連
+    case 'low_quantity':
+      return '🔔'; // 残りわずか
+    case 'donation':
+      return '❤️'; // 寄付
+    default:
+      return '📢'; // その他
+  }
+}
+
 }
