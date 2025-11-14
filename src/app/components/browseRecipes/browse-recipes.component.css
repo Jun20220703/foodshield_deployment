@@ -358,6 +358,20 @@
   border-left: 4px solid #4a7c59;
 }
 
+.inventory-item.expiring-soon {
+  background: #ffffcc; /* Light yellow background for expiring items (same as planWeeklyMeal) */
+  border-left: 4px solid #ffeb3b; /* Yellow border (same as planWeeklyMeal) */
+}
+
+.inventory-item.expiring-soon:hover {
+  background: #ffff99; /* Darker yellow on hover (same as planWeeklyMeal) */
+}
+
+.inventory-item.expiring-soon.selected {
+  background: #ffffcc; /* Keep yellow even when selected */
+  border-left: 4px solid #ffeb3b;
+}
+
 .item-name {
   font-weight: 600;
   color: #1a1a1a;

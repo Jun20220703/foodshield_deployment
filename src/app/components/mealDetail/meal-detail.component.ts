@@ -372,7 +372,7 @@ export class MealDetailComponent implements OnInit {
         
         // Get current user ID to filter foods
         const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user.id || '';
+        const userId = user.id || user._id || '';
 
         // Filter non-marked foods (status 'inventory' and owner matches)
         const nonMarkedFoods = allFoods.filter((food: Food) => {
@@ -673,7 +673,7 @@ export class MealDetailComponent implements OnInit {
 
     // Get user ID from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       alert('User ID not found. Please log in again.');
@@ -753,7 +753,8 @@ export class MealDetailComponent implements OnInit {
   async reduceIngredientQuantities(ingredients: IngredientInfo[]): Promise<void> {
     console.log('🔄 Starting reduceIngredientQuantities with ingredients:', ingredients);
     
-    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
     if (!userId) {
       throw new Error('User ID not found');
     }

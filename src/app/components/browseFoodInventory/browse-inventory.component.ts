@@ -100,10 +100,33 @@ export class InventoryComponent implements OnInit {
 
   /** 从 API 获取数据 */
   loadFoods() {
+    // Get current user ID to filter foods
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping foods load.');
+      this.rawFoods = [];
+      this.refreshView();
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.rawFoods = [];
+      this.refreshView();
+      return;
+    }
+
     this.browseService.getFoods().subscribe((data: Food[]) => {
       console.log('📦 API 返回数据:', data);
 
-      this.rawFoods = data.map((food) => ({
+      // Filter by owner to ensure only current user's foods are shown
+      const filteredData = data.filter((food: Food) => {
+        return food.owner === userId;
+      });
+
+      this.rawFoods = filteredData.map((food) => ({
         ...food,
         qty: Number(food.qty ?? 0),
       }));

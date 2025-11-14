@@ -22,6 +22,7 @@ interface InventoryItem {
   markedQuantity: number; // Amount that is marked
   expiry: string;
   markedFoodIds?: string[]; // Array of MarkedFood _id values for this foodId
+  daysUntilExpiry?: number; // Days until expiry (for highlighting)
 }
 
 @Component({
@@ -194,7 +195,7 @@ export class BrowseRecipesComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -214,14 +215,38 @@ export class BrowseRecipesComponent implements OnInit {
   }
 
   loadMarkedFoods() {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping marked foods load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    // Get current user ID to filter foods
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
     // Load only marked foods
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
+        // Filter by owner to ensure only current user's marked foods are shown
+        const filteredMarkedFoods = markedFoods.filter((markedFood: MarkedFood) => {
+          return markedFood.owner === userId;
+        });
+
         // Store raw marked foods for faster access
-        this.rawMarkedFoods = markedFoods;
+        this.rawMarkedFoods = filteredMarkedFoods;
         
         // Convert marked foods to InventoryItem format
-        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+        const markedItems = filteredMarkedFoods.map((markedFood: MarkedFood) => {
           let expiryStr = '';
           if (markedFood.expiry) {
             const expiryDate = new Date(markedFood.expiry);
@@ -244,6 +269,7 @@ export class BrowseRecipesComponent implements OnInit {
           }
 
           const dbQty = markedFood.qty || 0;
+          const daysUntilExpiry = expiryStr ? this.getDaysUntilExpiry(expiryStr) : undefined;
 
           return {
             foodId: foodIdStr,
@@ -253,7 +279,8 @@ export class BrowseRecipesComponent implements OnInit {
             marked: true,
             markedQuantity: dbQty,
             expiry: expiryStr,
-            markedFoodIds: markedFood._id ? [markedFood._id] : []
+            markedFoodIds: markedFood._id ? [markedFood._id] : [],
+            daysUntilExpiry: daysUntilExpiry
           };
         });
 
@@ -274,6 +301,12 @@ export class BrowseRecipesComponent implements OnInit {
             existing.markedQuantity = newMarkedQuantity;
             if (item.markedFoodIds && item.markedFoodIds.length > 0) {
               existing.markedFoodIds = (existing.markedFoodIds || []).concat(item.markedFoodIds);
+            }
+            // Use the earliest expiry (smallest daysUntilExpiry) when merging
+            if (item.daysUntilExpiry !== undefined) {
+              if (existing.daysUntilExpiry === undefined || item.daysUntilExpiry < existing.daysUntilExpiry) {
+                existing.daysUntilExpiry = item.daysUntilExpiry;
+              }
             }
           } else {
             markedItemsByFoodId.set(foodId, { ...item });
@@ -311,7 +344,7 @@ export class BrowseRecipesComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       return;
@@ -333,6 +366,8 @@ export class BrowseRecipesComponent implements OnInit {
               expiryStr = `${day}/${month}/${year}`;
             }
 
+            const daysUntilExpiry = expiryStr ? this.getDaysUntilExpiry(expiryStr) : undefined;
+
             return {
               foodId: food._id || '',
               name: food.name,
@@ -340,7 +375,8 @@ export class BrowseRecipesComponent implements OnInit {
               category: food.category || 'Other',
               marked: false,
               markedQuantity: 0,
-              expiry: expiryStr
+              expiry: expiryStr,
+              daysUntilExpiry: daysUntilExpiry
             };
           });
         
@@ -827,7 +863,7 @@ export class BrowseRecipesComponent implements OnInit {
     const remainingMarkedQty = item.markedQuantity - removeQty;
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       alert('User ID not found');
