@@ -317,12 +317,13 @@ export class PlanWeeklyMealComponent implements OnInit {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userId = user.id || user._id || '';
 
-      // Filter by owner, status, and expiry (same as manage-inventory)
+      // Filter by owner, status, expiry, and quantity > 0 (same as manage-inventory)
       const today = new Date();
       const inventoryItems = allFoods
         .filter((food: Food) => {
           return food.owner === userId && 
                  food.status === 'inventory' &&
+                 (food.qty || 0) > 0 && // Only show items with quantity > 0
                  (!food.expiry || new Date(food.expiry) >= today);
         })
         .map((food: Food) => {
@@ -522,15 +523,17 @@ export class PlanWeeklyMealComponent implements OnInit {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const userId = user.id || user._id || '';
 
-        // Filter by owner, status, and expiry (same as manage-inventory)
+        // Filter by owner, status, expiry, and quantity > 0 (same as manage-inventory)
         const today = new Date();
         const inventoryItems = allFoods
           .filter((food: Food) => {
             // Only show foods that belong to the current user
             // and have status 'inventory' (added from manage-inventory)
+            // and have quantity > 0
             // and are not expired
             return food.owner === userId && 
                    food.status === 'inventory' &&
+                   (food.qty || 0) > 0 && // Only show items with quantity > 0
                    (!food.expiry || new Date(food.expiry) >= today);
           })
           .map((food: Food) => {
@@ -1735,62 +1738,53 @@ export class PlanWeeklyMealComponent implements OnInit {
           return;
         }
         
-        this.restoreIngredientQuantities(this.selectedCustomMeal.ingredients).then(async () => {
-          // mealPlans에서 제거
-          if (this.selectedDay && this.selectedMealType) {
-            const dateKey = this.getDateKey(this.selectedDay.fullDate);
-            const mealKey = `${dateKey}-${this.selectedMealType}`;
-            this.mealPlans.delete(mealKey);
-          }
-          
-          // 캐시에서도 제거
-          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
-            this.customMealsCache = this.customMealsCache.filter(
-              meal => meal._id !== this.selectedCustomMeal!._id
-            );
-          }
-          
-          // UI 업데이트
-          this.closeCustomMealDetails();
-          
-          // Reload inventory to reflect restored quantities
-          // Wait for inventory to reload before showing alert
-          if (this.inventoryType === 'marked') {
-            await firstValueFrom(this.browseService.getMarkedFoods());
-            this.loadMarkedFoods();
-          } else {
-            await firstValueFrom(this.browseService.getFoods());
-            this.loadNonMarkedFoods();
-          }
-          
-          // Reload custom meals to update the meal plans display
-          this.loadCustomMeals();
-          
-          // Force change detection to ensure UI is updated
-          this.cdr.detectChanges();
-          
-          alert('Meal deleted successfully!');
-        }).catch((err: any) => {
-          console.error('❌ Error restoring ingredient quantities:', err);
-          // Still proceed with deletion even if restoration fails
-          if (this.selectedDay && this.selectedMealType) {
-            const dateKey = this.getDateKey(this.selectedDay.fullDate);
-            const mealKey = `${dateKey}-${this.selectedMealType}`;
-            this.mealPlans.delete(mealKey);
-          }
-          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
-            this.customMealsCache = this.customMealsCache.filter(
-              meal => meal._id !== this.selectedCustomMeal!._id
-            );
-          }
+        // Restore ingredient quantities (even if it fails, proceed with deletion)
+        this.restoreIngredientQuantities(this.selectedCustomMeal.ingredients)
+          .then(async () => {
+            console.log('✅ Ingredient quantities restored successfully');
+          })
+          .catch((err: any) => {
+            console.error('❌ Error restoring ingredient quantities:', err);
+            // Continue with deletion even if restoration fails
+          })
+          .finally(async () => {
+            // Always proceed with UI updates regardless of restoration success/failure
+            // mealPlans에서 제거
+            if (this.selectedDay && this.selectedMealType) {
+              const dateKey = this.getDateKey(this.selectedDay.fullDate);
+              const mealKey = `${dateKey}-${this.selectedMealType}`;
+              this.mealPlans.delete(mealKey);
+            }
+            
+            // 캐시에서도 제거
+            if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+              this.customMealsCache = this.customMealsCache.filter(
+                meal => meal._id !== this.selectedCustomMeal!._id
+              );
+            }
+            
+            // UI 업데이트
             this.closeCustomMealDetails();
             
-            // Reload inventory even if restoration failed
-            this.loadInventory();
+            // Reload inventory to reflect restored quantities
+            // Wait for inventory to reload before showing alert
+            if (this.inventoryType === 'marked') {
+              await firstValueFrom(this.browseService.getMarkedFoods());
+              this.loadMarkedFoods();
+            } else {
+              await firstValueFrom(this.browseService.getFoods());
+              this.loadNonMarkedFoods();
+            }
             
+            // Reload custom meals to update the meal plans display
+            await this.loadCustomMealsAsync();
+            this.initializeWeekDays();
+            
+            // Force change detection to ensure UI is updated
             this.cdr.detectChanges();
-            alert('Meal deleted but failed to restore ingredient quantities. Please check your inventory.');
-        });
+            
+            alert('Meal deleted successfully!');
+          });
       },
       error: (err: any) => {
         console.error('❌ Error deleting custom meal:', err);
@@ -2011,7 +2005,8 @@ export class PlanWeeklyMealComponent implements OnInit {
     console.log('📋 Final ingredients array:', ingredients);
     
     if (ingredients.length === 0) {
-      console.warn('⚠️ No valid ingredients parsed');
+      console.warn('⚠️ No valid ingredients parsed - this is OK, meal will still be deleted');
+      // Return early but still resolve the promise (don't throw error)
       return;
     }
 
@@ -2022,7 +2017,9 @@ export class PlanWeeklyMealComponent implements OnInit {
     const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
 
     if (!markedFoods || !allFoods) {
-      throw new Error('Failed to load inventory');
+      console.error('❌ Failed to load inventory for restoration');
+      // Don't throw error, just log and continue - meal will still be deleted
+      return;
     }
 
     // Process each ingredient

@@ -393,12 +393,14 @@ export class AddCustomMealComponent implements OnInit {
         const validFoods = allFoods.filter((food: Food) => {
           // Only show foods that belong to the current user
           // and have status 'inventory' (not 'donation' or 'expired')
+          // and have quantity > 0
           // and are not expired
           const isOwner = food.owner === userId;
           const isInventory = food.status === 'inventory';
+          const hasQuantity = (food.qty || 0) > 0; // Only show items with quantity > 0
           const isNotExpired = !food.expiry || new Date(food.expiry) >= today;
           
-          return isOwner && isInventory && isNotExpired;
+          return isOwner && isInventory && hasQuantity && isNotExpired;
         });
 
         console.log(`📦 Filtered foods: ${validFoods.length} valid items (excluded ${allFoods.length - validFoods.length} expired/donated items)`);

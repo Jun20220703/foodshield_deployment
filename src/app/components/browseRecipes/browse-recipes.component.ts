@@ -354,7 +354,9 @@ export class BrowseRecipesComponent implements OnInit {
       next: (allFoods: Food[]) => {
         const inventoryItems = allFoods
           .filter((food: Food) => {
-            return food.owner === userId && (!food.status || food.status === 'inventory');
+            return food.owner === userId && 
+                   (!food.status || food.status === 'inventory') &&
+                   (food.qty || 0) > 0; // Only show items with quantity > 0
           })
           .map((food: Food) => {
             let expiryStr = '';
