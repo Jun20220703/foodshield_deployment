@@ -326,26 +326,26 @@ export class PlanWeeklyMealComponent implements OnInit {
                  (!food.expiry || new Date(food.expiry) >= today);
         })
         .map((food: Food) => {
-          let expiryStr = '';
-          if (food.expiry) {
-            const expiryDate = new Date(food.expiry);
-            const day = String(expiryDate.getDate()).padStart(2, '0');
-            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-            const year = expiryDate.getFullYear();
-            expiryStr = `${day}/${month}/${year}`;
-          }
+            let expiryStr = '';
+            if (food.expiry) {
+              const expiryDate = new Date(food.expiry);
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
 
-          return {
+            return {
             foodId: food._id || '',
-            name: food.name,
-            quantity: food.qty || 0,
-            category: food.category || 'Other',
+              name: food.name,
+              quantity: food.qty || 0,
+              category: food.category || 'Other',
             marked: false,
             markedQuantity: 0,
-            expiry: expiryStr
-          };
-        });
-
+              expiry: expiryStr
+            };
+          });
+        
       this.inventory = inventoryItems;
       // Sort by name alphabetically
       this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
@@ -1584,18 +1584,28 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   // Ingredients를 파싱하여 배열로 반환 (예: "Tomato Sauce 150g\nSpaghetti 100g" -> [{name: "Tomato Sauce", qty: "150g"}, ...])
-  parseIngredients(ingredients: string): Array<{name: string, qty: string, inventoryType?: string}> {
+  parseIngredients(ingredients: string): Array<{name: string, qty: string, inventoryType?: string, category?: string}> {
     if (!ingredients || !ingredients.trim()) {
       return [];
     }
     
-    // 먼저 쉼표로 분리 시도 (meal-detail에서 저장한 형식: "재료명 수량 [marked], 재료명 수량 [non-marked]")
+    // 먼저 쉼표로 분리 시도 (meal-detail에서 저장한 형식: "재료명 수량 [marked] [category], 재료명 수량 [non-marked] [category]")
     const commaSeparated = ingredients.split(',').map(item => item.trim()).filter(item => item);
     
     if (commaSeparated.length > 1) {
       // 쉼표로 분리된 경우 (meal-detail에서 저장한 형식)
       return commaSeparated.map(item => {
-        // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱
+        // "재료명 수량 [marked] [category]" 또는 "재료명 수량 [non-marked] [category]" 형식 파싱
+        const matchWithCategory = item.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+\[(marked|non-marked)\]\s+\[([^\]]+)\]$/);
+        if (matchWithCategory) {
+          return {
+            name: matchWithCategory[1].trim(),
+            qty: matchWithCategory[2],
+            inventoryType: matchWithCategory[3],
+            category: matchWithCategory[4].trim()
+          };
+        }
+        // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱 (category 없음)
         const match = item.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+\[(marked|non-marked)\]$/);
         if (match) {
           return {
@@ -1618,33 +1628,50 @@ export class PlanWeeklyMealComponent implements OnInit {
       });
     }
     
-    // 줄바꿈으로 분리된 경우 (add-custom-meal 형식: "재료명 수량 [marked|non-marked]")
+    // 줄바꿈으로 분리된 경우 (add-custom-meal 형식: "재료명 수량 [marked|non-marked] [category]")
     const lines = ingredients.split('\n').filter(line => line.trim());
     return lines.map(line => {
       const trimmedLine = line.trim();
       
-      // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱
-      const match = trimmedLine.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)\s+\[(marked|non-marked)\]$/);
+      // Extract inventory type: [marked] or [non-marked] (comes first)
+      const typeMatch = trimmedLine.match(/\s+\[(marked|non-marked)\]\s*/);
+      const inventoryType = typeMatch ? (typeMatch[1] as 'marked' | 'non-marked') : undefined;
+      let lineAfterType = typeMatch ? trimmedLine.substring((typeMatch.index || 0) + typeMatch[0].length).trim() : trimmedLine;
+      
+      // Extract category: [category] (optional, comes after [marked] or [non-marked])
+      let category: string | undefined = undefined;
+      const categoryMatch = lineAfterType.match(/^\s*\[([^\]]+)\]\s*$/);
+      if (categoryMatch) {
+        category = categoryMatch[1].trim();
+      }
+      
+      // Get the line without type and category for parsing name and quantity
+      const lineWithoutType = typeMatch ? trimmedLine.substring(0, typeMatch.index).trim() : trimmedLine;
+      
+      // "재료명 수량 [marked] [category]" 또는 "재료명 수량 [non-marked] [category]" 형식 파싱
+      const match = lineWithoutType.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)$/);
       if (match) {
         return {
           name: match[1].trim(),
           qty: match[2],
-          inventoryType: match[3]
+          inventoryType: inventoryType,
+          category: category
         };
       }
       
       // "재료명 수량" 형식 (inventoryType 없음)
-      const simpleMatch = trimmedLine.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)$/);
+      const simpleMatch = lineWithoutType.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)$/);
       if (simpleMatch) {
         return {
           name: simpleMatch[1].trim(),
           qty: simpleMatch[2],
-          inventoryType: undefined
+          inventoryType: undefined,
+          category: category
         };
       }
       
       // 파싱 실패 시 전체를 이름으로
-      return { name: trimmedLine, qty: '', inventoryType: undefined };
+      return { name: trimmedLine, qty: '', inventoryType: undefined, category: category };
     });
   }
 
@@ -1921,34 +1948,46 @@ export class PlanWeeklyMealComponent implements OnInit {
       console.log('📝 Parsed as newline-separated format:', lines);
     }
     
-    const ingredients: Array<{ name: string; quantity: number; inventoryType: 'marked' | 'non-marked' }> = [];
+    const ingredients: Array<{ originalName: string; normalizedName: string; quantity: number; inventoryType: 'marked' | 'non-marked'; category?: string }> = [];
 
     for (const line of lines) {
       console.log('🔍 Processing line:', line);
       
-      // Extract inventory type: [marked] or [non-marked]
-      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*$/);
+      // Extract inventory type: [marked] or [non-marked] (comes first)
+      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*/);
       const inventoryType = typeMatch ? (typeMatch[1] as 'marked' | 'non-marked') : 'marked';
+      let lineAfterType = typeMatch ? line.substring((typeMatch.index || 0) + typeMatch[0].length).trim() : line;
+      console.log('📦 Inventory type:', inventoryType, 'Line after type:', lineAfterType);
+      
+      // Extract category: [category] (optional, comes after [marked] or [non-marked])
+      let category: string | undefined = undefined;
+      const categoryMatch = lineAfterType.match(/^\s*\[([^\]]+)\]\s*$/);
+      if (categoryMatch) {
+        category = categoryMatch[1].trim();
+        console.log('📦 Extracted category:', category);
+      }
+      
+      // Get the line without type and category for parsing name and quantity
       const lineWithoutType = typeMatch ? line.substring(0, typeMatch.index).trim() : line;
-      console.log('📦 Inventory type:', inventoryType, 'Line without type:', lineWithoutType);
+      console.log('📦 Line without type:', lineWithoutType);
 
       // Extract quantity - try multiple patterns
       let quantity = 0;
-      let name = '';
+      let originalName = '';
       
       // Pattern 1: "Name 200g [marked]" or "Name 200 [marked]"
       const quantityMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*(g|kg|ml|l|tbsp|tsp|cup|cups|oz|lb|개|조각|컵|스푼|작은술|큰술)?\s*$/i);
       if (quantityMatch) {
         quantity = parseFloat(quantityMatch[1]);
-        name = lineWithoutType.substring(0, quantityMatch.index).trim();
-        console.log('✅ Pattern 1 matched - Name:', name, 'Quantity:', quantity);
+        originalName = lineWithoutType.substring(0, quantityMatch.index).trim();
+        console.log('✅ Pattern 1 matched - Name:', originalName, 'Quantity:', quantity);
       } else {
         // Pattern 2: "Name 200 [marked]" (just number)
         const numberMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*$/);
         if (numberMatch) {
           quantity = parseFloat(numberMatch[1]);
-          name = lineWithoutType.substring(0, numberMatch.index).trim();
-          console.log('✅ Pattern 2 matched - Name:', name, 'Quantity:', quantity);
+          originalName = lineWithoutType.substring(0, numberMatch.index).trim();
+          console.log('✅ Pattern 2 matched - Name:', originalName, 'Quantity:', quantity);
         } else {
           // Pattern 3: "Name [marked]" (no quantity, skip)
           console.warn('⚠️ No quantity found in line:', line);
@@ -1956,9 +1995,16 @@ export class PlanWeeklyMealComponent implements OnInit {
         }
       }
 
-      if (name && quantity > 0) {
-        ingredients.push({ name: name.toLowerCase(), quantity, inventoryType });
-        console.log('✅ Added ingredient:', { name: name.toLowerCase(), quantity, inventoryType });
+      if (originalName && quantity > 0) {
+        const normalizedName = originalName.toLowerCase().trim();
+        ingredients.push({ 
+          originalName: originalName, // Preserve original capitalization
+          normalizedName: normalizedName, // For comparison
+          quantity, 
+          inventoryType,
+          category // Store category if found
+        });
+        console.log('✅ Added ingredient:', { originalName, normalizedName, quantity, inventoryType, category });
       }
     }
 
@@ -1987,40 +2033,31 @@ export class PlanWeeklyMealComponent implements OnInit {
       
       if (ingredient.inventoryType === 'marked') {
         // Find matching marked food - normalize both names for comparison
-        const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
         const markedFood = markedFoods.find(mf => {
           const foodNameNormalized = (mf.name || '').toLowerCase().trim();
-          return foodNameNormalized === ingredientNameNormalized;
+          return foodNameNormalized === ingredient.normalizedName;
         });
-        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
-        console.log(`🔍 Available marked foods (full details):`, markedFoods);
-        console.log(`🔍 Available marked foods (names only):`, markedFoods.map(mf => ({ 
-          name: mf.name, 
-          normalized: (mf.name || '').toLowerCase().trim(),
-          qty: mf.qty,
-          _id: mf._id
-        })));
+        console.log(`🔍 Looking for marked food "${ingredient.originalName}" (normalized: "${ingredient.normalizedName}"):`, markedFood);
         
         if (markedFood && markedFood._id) {
           const newQty = (markedFood.qty || 0) + ingredient.quantity;
-          console.log(`📈 Restoring marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          console.log(`📈 Restoring marked food "${ingredient.originalName}": ${markedFood.qty} -> ${newQty}`);
           updatePromises.push(
             firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
-              .then(() => console.log(`✅ Successfully restored marked food "${ingredient.name}"`))
+              .then(() => console.log(`✅ Successfully restored marked food "${ingredient.originalName}"`))
               .catch((err: any) => {
-                console.error(`❌ Failed to restore marked food "${ingredient.name}":`, err);
+                console.error(`❌ Failed to restore marked food "${ingredient.originalName}":`, err);
                 throw err;
               })
           );
         } else {
-          console.warn(`⚠️ Marked food not found for restoration: ${ingredient.name}`);
-          console.warn(`⚠️ Available marked foods:`, markedFoods.map(mf => mf.name));
+          console.warn(`⚠️ Marked food not found for restoration: ${ingredient.originalName}`);
           
           // If marked food doesn't exist, try to find it in non-marked foods and create a marked food entry
-          console.log(`🔄 Trying to find "${ingredient.name}" in non-marked foods to create marked food entry...`);
+          console.log(`🔄 Trying to find "${ingredient.originalName}" in non-marked foods to create marked food entry...`);
           const nonMarkedFood = allFoods.find(f => {
             const foodNameNormalized = (f.name || '').toLowerCase().trim();
-            return foodNameNormalized === ingredientNameNormalized;
+            return foodNameNormalized === ingredient.normalizedName;
           });
           
           if (nonMarkedFood && nonMarkedFood._id) {
@@ -2030,32 +2067,70 @@ export class PlanWeeklyMealComponent implements OnInit {
               foodId: nonMarkedFood._id,
               name: nonMarkedFood.name,
               qty: ingredient.quantity,
-              category: nonMarkedFood.category || 'Other',
+              category: nonMarkedFood.category || ingredient.category || 'Other',
               storage: nonMarkedFood.storage || 'Fridge',
               expiry: nonMarkedFood.expiry || '',
               notes: nonMarkedFood.notes || ''
             };
             updatePromises.push(
               firstValueFrom(this.browseService.markFood(newMarkedFoodData))
-                .then(() => console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`))
+                .then(() => console.log(`✅ Successfully created marked food entry for "${ingredient.originalName}"`))
                 .catch((err: any) => {
-                  console.error(`❌ Failed to create marked food entry for "${ingredient.name}":`, err);
+                  console.error(`❌ Failed to create marked food entry for "${ingredient.originalName}":`, err);
                   throw err;
                 })
             );
           } else {
             // Neither marked nor non-marked food exists - create new non-marked food first, then marked food
-            console.log(`🔄 Food "${ingredient.name}" not found in either marked or non-marked foods. Creating new food entry...`);
+            console.log(`🔄 Food "${ingredient.originalName}" not found in either marked or non-marked foods. Creating new food entry...`);
+            
+            // Find original food for category info (4-priority search)
+            let originalFood = [...markedFoods, ...allFoods].find(f => {
+              const foodNameNormalized = (f.name || '').toLowerCase().trim();
+              const nameMatches = foodNameNormalized === ingredient.normalizedName;
+              const ownerMatches = f.owner === userId;
+              const statusMatches = !('status' in f) || !f.status || f.status === 'inventory';
+              return nameMatches && ownerMatches && (('status' in f) ? statusMatches : true);
+            });
+            
+            // Priority 2: Exact match with any owner (for category info)
+            if (!originalFood) {
+              originalFood = [...markedFoods, ...allFoods].find(f => {
+                const foodNameNormalized = (f.name || '').toLowerCase().trim();
+                return foodNameNormalized === ingredient.normalizedName;
+              });
+            }
+            
+            // Priority 3: Similar name with same owner
+            if (!originalFood) {
+              originalFood = [...markedFoods, ...allFoods].find(f => {
+                const foodNameNormalized = (f.name || '').toLowerCase().trim();
+                const nameMatches = foodNameNormalized.includes(ingredient.normalizedName) ||
+                                   ingredient.normalizedName.includes(foodNameNormalized);
+                const ownerMatches = f.owner === userId;
+                const statusMatches = !('status' in f) || !f.status || f.status === 'inventory';
+                return nameMatches && ownerMatches && (('status' in f) ? statusMatches : true);
+              });
+            }
+            
+            // Priority 4: Similar name with any owner (for category info)
+            if (!originalFood) {
+              originalFood = [...markedFoods, ...allFoods].find(f => {
+                const foodNameNormalized = (f.name || '').toLowerCase().trim();
+                return foodNameNormalized.includes(ingredient.normalizedName) ||
+                       ingredient.normalizedName.includes(foodNameNormalized);
+              });
+            }
             
             // Create a new non-marked food with default values
             const defaultExpiry = new Date();
             defaultExpiry.setDate(defaultExpiry.getDate() + 7); // Default: 7 days from now
             
             const newFoodData = {
-              name: ingredient.name, // Use original name (not normalized)
+              name: ingredient.originalName, // Use original name (preserve capitalization)
               qty: ingredient.quantity,
-              category: 'Other', // Default category
-              storage: 'Fridge', // Default storage
+              category: ingredient.category || originalFood?.category || 'Other', // Use parsed category first, then originalFood category
+              storage: originalFood?.storage || 'Fridge', // Default storage
               expiry: defaultExpiry, // Date object for FoodService
               notes: 'Restored from meal plan deletion',
               owner: userId // Add owner field
@@ -2065,7 +2140,7 @@ export class PlanWeeklyMealComponent implements OnInit {
             updatePromises.push(
               firstValueFrom(this.foodService.addFood(newFoodData))
                 .then((createdFood) => {
-                  console.log(`✅ Successfully created non-marked food "${ingredient.name}"`);
+                  console.log(`✅ Successfully created non-marked food "${ingredient.originalName}"`);
                   
                   // Now create marked food entry
                   // Convert expiry Date to string for MarkedFood
@@ -2086,7 +2161,7 @@ export class PlanWeeklyMealComponent implements OnInit {
                     foodId: createdFood._id!,
                     name: createdFood.name,
                     qty: ingredient.quantity,
-                    category: createdFood.category || 'Other',
+                    category: createdFood.category || ingredient.category || 'Other',
                     storage: createdFood.storage || 'Fridge',
                     expiry: expiryString, // String for MarkedFood
                     notes: createdFood.notes || 'Restored from meal plan deletion'
@@ -2095,10 +2170,10 @@ export class PlanWeeklyMealComponent implements OnInit {
                   return firstValueFrom(this.browseService.markFood(newMarkedFoodData));
                 })
                 .then(() => {
-                  console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`);
+                  console.log(`✅ Successfully created marked food entry for "${ingredient.originalName}"`);
                 })
                 .catch((err: any) => {
-                  console.error(`❌ Failed to create food entry for "${ingredient.name}":`, err);
+                  console.error(`❌ Failed to create food entry for "${ingredient.originalName}":`, err);
                   throw err;
                 })
             );
@@ -2107,47 +2182,77 @@ export class PlanWeeklyMealComponent implements OnInit {
       } else {
         // Find matching non-marked food (current inventory) - normalize both names for comparison
         // Also filter by owner and status to ensure we only update the current user's inventory items
-        const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
         const food = allFoods.find(f => {
           const foodNameNormalized = (f.name || '').toLowerCase().trim();
-          const nameMatches = foodNameNormalized === ingredientNameNormalized;
+          const nameMatches = foodNameNormalized === ingredient.normalizedName;
           const ownerMatches = f.owner === userId;
           const statusMatches = !f.status || f.status === 'inventory';
           return nameMatches && ownerMatches && statusMatches;
         });
-        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
-        console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
-          name: f.name, 
-          normalized: (f.name || '').toLowerCase().trim(),
-          owner: f.owner,
-          status: f.status,
-          qty: f.qty 
-        })));
+        console.log(`🔍 Looking for non-marked food "${ingredient.originalName}" (normalized: "${ingredient.normalizedName}"):`, food);
         
         if (food && food._id) {
           const newQty = (food.qty || 0) + ingredient.quantity;
-          console.log(`📈 Restoring non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          console.log(`📈 Restoring non-marked food "${ingredient.originalName}": ${food.qty} -> ${newQty}`);
           updatePromises.push(
             firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
-              .then(() => console.log(`✅ Successfully restored non-marked food "${ingredient.name}"`))
+              .then(() => console.log(`✅ Successfully restored non-marked food "${ingredient.originalName}"`))
               .catch((err: any) => {
-                console.error(`❌ Failed to restore non-marked food "${ingredient.name}":`, err);
+                console.error(`❌ Failed to restore non-marked food "${ingredient.originalName}":`, err);
                 throw err;
               })
           );
         } else {
           // Non-marked food doesn't exist - create new non-marked food
-          console.log(`🔄 Non-marked food "${ingredient.name}" not found. Creating new food entry...`);
+          console.log(`🔄 Non-marked food "${ingredient.originalName}" not found. Creating new food entry...`);
+          
+          // Find original food for category info (4-priority search)
+          let originalFood = [...markedFoods, ...allFoods].find(f => {
+            const foodNameNormalized = (f.name || '').toLowerCase().trim();
+            const nameMatches = foodNameNormalized === ingredient.normalizedName;
+            const ownerMatches = f.owner === userId;
+            const statusMatches = !('status' in f) || !f.status || f.status === 'inventory';
+            return nameMatches && ownerMatches && (('status' in f) ? statusMatches : true);
+          });
+          
+          // Priority 2: Exact match with any owner (for category info)
+          if (!originalFood) {
+            originalFood = [...markedFoods, ...allFoods].find(f => {
+              const foodNameNormalized = (f.name || '').toLowerCase().trim();
+              return foodNameNormalized === ingredient.normalizedName;
+            });
+          }
+          
+          // Priority 3: Similar name with same owner
+          if (!originalFood) {
+            originalFood = [...markedFoods, ...allFoods].find(f => {
+              const foodNameNormalized = (f.name || '').toLowerCase().trim();
+              const nameMatches = foodNameNormalized.includes(ingredient.normalizedName) ||
+                                 ingredient.normalizedName.includes(foodNameNormalized);
+              const ownerMatches = f.owner === userId;
+              const statusMatches = !('status' in f) || !f.status || f.status === 'inventory';
+              return nameMatches && ownerMatches && (('status' in f) ? statusMatches : true);
+            });
+          }
+          
+          // Priority 4: Similar name with any owner (for category info)
+          if (!originalFood) {
+            originalFood = [...markedFoods, ...allFoods].find(f => {
+              const foodNameNormalized = (f.name || '').toLowerCase().trim();
+              return foodNameNormalized.includes(ingredient.normalizedName) ||
+                     ingredient.normalizedName.includes(foodNameNormalized);
+            });
+          }
           
           // Create a new non-marked food with default values
           const defaultExpiry = new Date();
           defaultExpiry.setDate(defaultExpiry.getDate() + 7); // Default: 7 days from now
           
           const newFoodData = {
-            name: ingredient.name, // Use original name (not normalized)
+            name: ingredient.originalName, // Use original name (preserve capitalization)
             qty: ingredient.quantity,
-            category: 'Other', // Default category
-            storage: 'Fridge', // Default storage
+            category: ingredient.category || originalFood?.category || 'Other', // Use parsed category first, then originalFood category
+            storage: originalFood?.storage || 'Fridge', // Default storage
             expiry: defaultExpiry, // Date object for FoodService
             notes: 'Restored from meal plan deletion',
             owner: userId // Add owner field
@@ -2156,10 +2261,10 @@ export class PlanWeeklyMealComponent implements OnInit {
           updatePromises.push(
             firstValueFrom(this.foodService.addFood(newFoodData))
               .then(() => {
-                console.log(`✅ Successfully created non-marked food "${ingredient.name}"`);
+                console.log(`✅ Successfully created non-marked food "${ingredient.originalName}"`);
               })
               .catch((err: any) => {
-                console.error(`❌ Failed to create non-marked food "${ingredient.name}":`, err);
+                console.error(`❌ Failed to create non-marked food "${ingredient.originalName}":`, err);
                 throw err;
               })
           );

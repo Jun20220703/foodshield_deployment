@@ -23,6 +23,7 @@ interface IngredientInfo {
   nonMarkedQuantity: number;
   daysUntilExpiry?: number;
   expiryLocation?: 'marked' | 'non-marked' | 'both';
+  category?: string; // Store category for restoration
 }
 
 @Component({
@@ -199,6 +200,7 @@ export class MealDetailComponent implements OnInit {
         // Also store original names and expiry info for matching
         const markedFoodQuantities = new Map<string, number>();
         const markedFoodOriginalNames = new Map<string, string>(); // normalized -> original
+        const markedFoodCategories = new Map<string, string>(); // normalized -> category
         const markedFoodExpiry = new Map<string, { days: number; expiry: string }>(); // normalized -> expiry info
         
         markedFoods.forEach((markedFood: MarkedFood) => {
@@ -208,6 +210,10 @@ export class MealDetailComponent implements OnInit {
           // Store original name for matching
           if (!markedFoodOriginalNames.has(normalizedName)) {
             markedFoodOriginalNames.set(normalizedName, markedFood.name);
+          }
+          // Store category (use first occurrence)
+          if (markedFood.category && !markedFoodCategories.has(normalizedName)) {
+            markedFoodCategories.set(normalizedName, markedFood.category);
           }
           // Store expiry info (use the earliest expiry if multiple entries)
           if (markedFood.expiry) {
@@ -229,12 +235,21 @@ export class MealDetailComponent implements OnInit {
           let markedQty = 0;
           const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
           
+          // Get category from marked foods if available
+          let category = ingredient.category;
+          if (markedFoodCategories.has(normalizedIngredient)) {
+            category = markedFoodCategories.get(normalizedIngredient);
+          }
+          
           console.log(`\n🔍 Matching: "${ingredient.name}" (normalized: "${normalizedIngredient}")`);
           
           // Step 1: Try direct normalized match FIRST (most reliable - exact match)
           if (markedFoodQuantities.has(normalizedIngredient)) {
             markedQty = markedFoodQuantities.get(normalizedIngredient)!;
             const originalName = markedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
+            if (!category && markedFoodCategories.has(normalizedIngredient)) {
+              category = markedFoodCategories.get(normalizedIngredient);
+            }
             console.log(`   ✅ DIRECT MATCH: "${ingredient.name}" = "${originalName}" (qty: ${markedQty})`);
           } else {
             // Step 2: Try ingredientMatches method (handles singular/plural, word boundaries)
@@ -244,6 +259,9 @@ export class MealDetailComponent implements OnInit {
               
               if (this.ingredientMatches(ingredient.name, originalName)) {
                 markedQty = qty;
+                if (!category && markedFoodCategories.has(normalizedName)) {
+                  category = markedFoodCategories.get(normalizedName);
+                }
                 console.log(`   ✅ MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
                 foundMatch = true;
                 break;
@@ -261,6 +279,9 @@ export class MealDetailComponent implements OnInit {
                     singularNormalized === singularIngredient) {
                   markedQty = qty;
                   const originalName = markedFoodOriginalNames.get(normalizedName) || normalizedName;
+                  if (!category && markedFoodCategories.has(normalizedName)) {
+                    category = markedFoodCategories.get(normalizedName);
+                  }
                   console.log(`   ✅ SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
                   foundMatch = true;
                   break;
@@ -316,7 +337,8 @@ export class MealDetailComponent implements OnInit {
             markedQuantity: markedQty, 
             nonMarkedQuantity: ingredient.nonMarkedQuantity || 0,
             daysUntilExpiry: daysUntilExpiry !== undefined ? daysUntilExpiry : ingredient.daysUntilExpiry,
-            expiryLocation: expiryLocation || ingredient.expiryLocation
+            expiryLocation: expiryLocation || ingredient.expiryLocation,
+            category: category || ingredient.category // Pass category
           };
         });
         
@@ -325,18 +347,20 @@ export class MealDetailComponent implements OnInit {
           name: ing.name,
           quantity: ing.quantity,
           markedQuantity: ing.markedQuantity,
-          nonMarkedQuantity: ing.nonMarkedQuantity || 0
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0,
+          category: ing.category // Include category
         }));
         
         console.log('✅ Final ingredients with marked quantities:', 
-          newIngredientsList.map(i => `${i.name}: ${i.markedQuantity}`));
+          newIngredientsList.map(i => `${i.name}: ${i.markedQuantity}, Category: ${i.category}`));
         
         // Update ingredients list - create completely new array to trigger change detection
         this.ingredientsList = newIngredientsList.map(ing => ({
           name: ing.name,
           quantity: ing.quantity,
           markedQuantity: ing.markedQuantity,
-          nonMarkedQuantity: ing.nonMarkedQuantity || 0
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0,
+          category: ing.category // Include category
         }));
         
         console.log('🔄 Updated ingredientsList:', this.ingredientsList);
@@ -382,6 +406,7 @@ export class MealDetailComponent implements OnInit {
         // Create a map of normalized food names to total quantities and expiry info
         const nonMarkedFoodQuantities = new Map<string, number>();
         const nonMarkedFoodOriginalNames = new Map<string, string>();
+        const nonMarkedFoodCategories = new Map<string, string>(); // normalized -> category
         const nonMarkedFoodExpiry = new Map<string, { days: number; expiry: string }>(); // normalized -> expiry info
 
         nonMarkedFoods.forEach((food: Food) => {
@@ -390,6 +415,10 @@ export class MealDetailComponent implements OnInit {
           nonMarkedFoodQuantities.set(normalizedName, currentQty + (food.qty || 0));
           if (!nonMarkedFoodOriginalNames.has(normalizedName)) {
             nonMarkedFoodOriginalNames.set(normalizedName, food.name);
+          }
+          // Store category (use first occurrence)
+          if (food.category && !nonMarkedFoodCategories.has(normalizedName)) {
+            nonMarkedFoodCategories.set(normalizedName, food.category);
           }
           // Store expiry info (use the earliest expiry if multiple entries)
           if (food.expiry) {
@@ -412,10 +441,19 @@ export class MealDetailComponent implements OnInit {
           let nonMarkedQty = 0;
           const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
 
+          // Get category from non-marked foods if available
+          let category = ingredient.category;
+          if (nonMarkedFoodCategories.has(normalizedIngredient)) {
+            category = nonMarkedFoodCategories.get(normalizedIngredient);
+          }
+          
           // Step 1: Try direct normalized match
           if (nonMarkedFoodQuantities.has(normalizedIngredient)) {
             nonMarkedQty = nonMarkedFoodQuantities.get(normalizedIngredient)!;
             const originalName = nonMarkedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
+            if (!category && nonMarkedFoodCategories.has(normalizedIngredient)) {
+              category = nonMarkedFoodCategories.get(normalizedIngredient);
+            }
             console.log(`   ✅ NON-MARKED MATCH: "${ingredient.name}" = "${originalName}" (qty: ${nonMarkedQty})`);
           } else {
             // Step 2: Try ingredientMatches method
@@ -425,6 +463,9 @@ export class MealDetailComponent implements OnInit {
               
               if (this.ingredientMatches(ingredient.name, originalName)) {
                 nonMarkedQty = qty;
+                if (!category && nonMarkedFoodCategories.has(normalizedName)) {
+                  category = nonMarkedFoodCategories.get(normalizedName);
+                }
                 console.log(`   ✅ NON-MARKED MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
                 foundMatch = true;
                 break;
@@ -442,6 +483,9 @@ export class MealDetailComponent implements OnInit {
                     singularNormalized === singularIngredient) {
                   nonMarkedQty = qty;
                   const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                  if (!category && nonMarkedFoodCategories.has(normalizedName)) {
+                    category = nonMarkedFoodCategories.get(normalizedName);
+                  }
                   console.log(`   ✅ NON-MARKED SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
                   foundMatch = true;
                   break;
@@ -484,7 +528,8 @@ export class MealDetailComponent implements OnInit {
             ...ingredient, 
             nonMarkedQuantity: nonMarkedQty,
             daysUntilExpiry,
-            expiryLocation
+            expiryLocation,
+            category: category || ingredient.category // Pass category
           };
         });
 
@@ -495,11 +540,12 @@ export class MealDetailComponent implements OnInit {
           markedQuantity: ing.markedQuantity,
           nonMarkedQuantity: ing.nonMarkedQuantity || 0,
           daysUntilExpiry: ing.daysUntilExpiry,
-          expiryLocation: ing.expiryLocation
+          expiryLocation: ing.expiryLocation,
+          category: ing.category // Include category
         }));
 
         console.log('✅ Final ingredients with all quantities:', 
-          finalIngredientsList.map(i => `${i.name}: Marked=${i.markedQuantity}, Non-Marked=${i.nonMarkedQuantity}, DaysUntilExpiry=${i.daysUntilExpiry}`));
+          finalIngredientsList.map(i => `${i.name}: Marked=${i.markedQuantity}, Non-Marked=${i.nonMarkedQuantity}, DaysUntilExpiry=${i.daysUntilExpiry}, Category=${i.category}`));
         
         // Update ingredients list - create completely new array reference
         this.ingredientsList = finalIngredientsList.map(ing => ({
@@ -508,7 +554,8 @@ export class MealDetailComponent implements OnInit {
           markedQuantity: ing.markedQuantity,
           nonMarkedQuantity: ing.nonMarkedQuantity || 0,
           daysUntilExpiry: ing.daysUntilExpiry,
-          expiryLocation: ing.expiryLocation
+          expiryLocation: ing.expiryLocation,
+          category: ing.category // Include category
         }));
         
         console.log('🔄 Updated ingredientsList with non-marked:', this.ingredientsList);
@@ -690,27 +737,28 @@ export class MealDetailComponent implements OnInit {
         const requiredQty = ing.quantity;
         const availableMarked = ing.markedQuantity || 0;
         const availableNonMarked = ing.nonMarkedQuantity || 0;
+        const category = ing.category || 'Other'; // Get category, default to 'Other'
         
         // Calculate how much to take from marked and non-marked
         let remainingQty = requiredQty;
         if (availableMarked > 0) {
           const qtyFromMarked = Math.min(availableMarked, remainingQty);
           if (qtyFromMarked > 0) {
-            parts.push(`${ing.name} ${qtyFromMarked} [marked]`);
+            parts.push(`${ing.name} ${qtyFromMarked} [marked] [${category}]`);
             remainingQty -= qtyFromMarked;
           }
         }
         if (remainingQty > 0 && availableNonMarked > 0) {
           const qtyFromNonMarked = Math.min(availableNonMarked, remainingQty);
           if (qtyFromNonMarked > 0) {
-            parts.push(`${ing.name} ${qtyFromNonMarked} [non-marked]`);
+            parts.push(`${ing.name} ${qtyFromNonMarked} [non-marked] [${category}]`);
           }
         }
         
         // If neither marked nor non-marked available, use original format
         if (parts.length === 0) {
           const inventoryType = availableMarked > 0 ? 'marked' : 'non-marked';
-          parts.push(`${ing.name} ${ing.quantity} [${inventoryType}]`);
+          parts.push(`${ing.name} ${ing.quantity} [${inventoryType}] [${category}]`);
         }
         
         return parts.join(', ');

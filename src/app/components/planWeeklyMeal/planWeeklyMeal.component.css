@@ -1550,6 +1550,13 @@
   flex: 1;
 }
 
+.ingredient-middle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .ingredient-badge {
   display: inline-flex;
   align-items: center;
@@ -1561,6 +1568,13 @@
   white-space: nowrap;
   background: #ffb84d;
   color: #1a1a1a;
+}
+
+.ingredient-category {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  white-space: nowrap;
 }
 
 .ingredient-badge.has-marked {
@@ -1575,6 +1589,8 @@
 
 .ingredient-qty {
   font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
 }
 
 .ingredient-status {

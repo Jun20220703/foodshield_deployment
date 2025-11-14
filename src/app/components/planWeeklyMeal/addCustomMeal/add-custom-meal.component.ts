@@ -33,8 +33,8 @@ export class AddCustomMealComponent implements OnInit {
   kcal: string = '';
   
   // Ingredients with quantities
-  ingredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked'; maxQuantity?: number }> = [];
-  originalIngredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked'; maxQuantity?: number }> = []; // Store original ingredients for edit mode
+  ingredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked'; maxQuantity?: number; category?: string }> = [];
+  originalIngredientList: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked'; maxQuantity?: number; category?: string }> = []; // Store original ingredients for edit mode
   
   selectedDate: string = '';
   selectedMealType: string = '';
@@ -159,11 +159,21 @@ export class AddCustomMealComponent implements OnInit {
       return;
     }
     
-    // Parse each line: "Ingredient Name 200g [marked]" or "Ingredient Name [non-marked]"
+    // Parse each line: "Ingredient Name 200g [marked] [category]" or "Ingredient Name [non-marked] [category]"
     lines.forEach(line => {
-      // Extract inventory type: [marked] or [non-marked]
-      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*$/);
+      // Extract inventory type: [marked] or [non-marked] (comes first)
+      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*/);
       const inventoryType = typeMatch ? (typeMatch[1] as 'marked' | 'non-marked') : 'marked';
+      let lineAfterType = typeMatch ? line.substring((typeMatch.index || 0) + typeMatch[0].length).trim() : line;
+      
+      // Extract category: [category] (optional, comes after [marked] or [non-marked])
+      let category: string | undefined = undefined;
+      const categoryMatch = lineAfterType.match(/^\s*\[([^\]]+)\]\s*$/);
+      if (categoryMatch) {
+        category = categoryMatch[1].trim();
+      }
+      
+      // Get the line without type and category for parsing name and quantity
       const lineWithoutType = typeMatch ? line.substring(0, typeMatch.index).trim() : line;
       
       // Try to extract quantity (numbers followed by units like g, kg, ml, l, tbsp, tsp, cup, cups, oz, lb)
@@ -172,17 +182,17 @@ export class AddCustomMealComponent implements OnInit {
       if (quantityMatch) {
         const quantity = quantityMatch[1] + quantityMatch[2];
         const name = lineWithoutType.substring(0, quantityMatch.index).trim();
-        this.ingredientList.push({ name, quantity, inventoryType });
+        this.ingredientList.push({ name, quantity, inventoryType, category });
       } else {
         // No quantity found, check if there's a number at the end
         const numberMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*$/);
         if (numberMatch) {
           const quantity = numberMatch[1];
           const name = lineWithoutType.substring(0, numberMatch.index).trim();
-          this.ingredientList.push({ name, quantity, inventoryType });
+          this.ingredientList.push({ name, quantity, inventoryType, category });
         } else {
           // Just ingredient name, no quantity
-          this.ingredientList.push({ name: lineWithoutType, quantity: '', inventoryType });
+          this.ingredientList.push({ name: lineWithoutType, quantity: '', inventoryType, category });
         }
       }
     });
@@ -191,7 +201,7 @@ export class AddCustomMealComponent implements OnInit {
   }
 
   // Convert ingredientList to ingredients string for database
-  // Format: "IngredientName Quantity [marked|non-marked]"
+  // Format: "IngredientName Quantity [marked|non-marked] [category]"
   convertIngredientsListToString(): string {
     return this.ingredientList
       .filter(ing => ing.name.trim().length > 0)
@@ -199,8 +209,11 @@ export class AddCustomMealComponent implements OnInit {
         const name = ing.name.trim();
         const qty = ing.quantity.trim();
         const type = ing.inventoryType || 'marked'; // Default to marked if not specified
+        const category = ing.category || undefined;
         const baseStr = qty ? `${name} ${qty}` : name;
-        return `${baseStr} [${type}]`;
+        const typeStr = `[${type}]`;
+        const categoryStr = category ? ` [${category}]` : '';
+        return `${baseStr} ${typeStr}${categoryStr}`;
       })
       .join('\n');
   }
@@ -916,7 +929,8 @@ export class AddCustomMealComponent implements OnInit {
       name: item.name,
       quantity: quantityStr,
       inventoryType: this.inventoryType, // Store the inventory type when selecting
-      maxQuantity: maxQty // Store max quantity from database
+      maxQuantity: maxQty, // Store max quantity from database
+      category: item.category // Store category from inventory item
     };
     
     console.log('🔍 Adding ingredient:', newIngredient);
