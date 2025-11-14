@@ -250,8 +250,25 @@ export class AddCustomMealComponent implements OnInit {
       next: (markedFoods: MarkedFood[]) => {
         console.log('📌 Loaded marked foods:', markedFoods);
         
+        // Filter out expired marked foods
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const validMarkedFoods = markedFoods.filter((markedFood: MarkedFood) => {
+          // Exclude expired marked foods
+          if (markedFood.expiry) {
+            const expiryDate = new Date(markedFood.expiry);
+            expiryDate.setHours(0, 0, 0, 0);
+            return expiryDate >= today;
+          }
+          // If no expiry date, include it
+          return true;
+        });
+
+        console.log(`📦 Filtered marked foods: ${validMarkedFoods.length} valid items (excluded ${markedFoods.length - validMarkedFoods.length} expired items)`);
+        
         // Convert marked foods to InventoryItem format
-        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+        const markedItems = validMarkedFoods.map((markedFood: MarkedFood) => {
             let expiryStr = '';
           if (markedFood.expiry) {
             const expiryDate = new Date(markedFood.expiry);
@@ -352,8 +369,29 @@ export class AddCustomMealComponent implements OnInit {
       next: (allFoods: Food[]) => {
         console.log('📌 Loaded Current Inventory foods:', allFoods);
 
+        // Get current user ID to filter foods
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id || user._id || '';
+
+        // Filter out expired and donated foods (same as manage-inventory)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const validFoods = allFoods.filter((food: Food) => {
+          // Only show foods that belong to the current user
+          // and have status 'inventory' (not 'donation' or 'expired')
+          // and are not expired
+          const isOwner = food.owner === userId;
+          const isInventory = food.status === 'inventory';
+          const isNotExpired = !food.expiry || new Date(food.expiry) >= today;
+          
+          return isOwner && isInventory && isNotExpired;
+        });
+
+        console.log(`📦 Filtered foods: ${validFoods.length} valid items (excluded ${allFoods.length - validFoods.length} expired/donated items)`);
+
         // Convert to InventoryItem format
-        const inventoryItems = allFoods.map((food: Food) => {
+        const inventoryItems = validFoods.map((food: Food) => {
             let expiryStr = '';
             if (food.expiry) {
               const expiryDate = new Date(food.expiry);
