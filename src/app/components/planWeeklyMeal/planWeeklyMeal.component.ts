@@ -206,13 +206,38 @@ export class PlanWeeklyMealComponent implements OnInit {
 
   // Load marked foods async version for Promise.all
   async loadMarkedFoodsAsync(): Promise<void> {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping marked foods load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    // Get current user ID to filter foods
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
     try {
       const markedFoods = await firstValueFrom(this.browseService.getMarkedFoods());
+      
+      // Filter by owner to ensure only current user's marked foods are shown
+      const filteredMarkedFoods = markedFoods.filter((markedFood: MarkedFood) => {
+        return markedFood.owner === userId;
+      });
+
       // Store raw marked foods for faster access (avoid re-fetching)
-      this.rawMarkedFoods = markedFoods;
+      this.rawMarkedFoods = filteredMarkedFoods;
       
       // Convert marked foods to InventoryItem format
-      const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+      const markedItems = filteredMarkedFoods.map((markedFood: MarkedFood) => {
         let expiryStr = '';
         if (markedFood.expiry) {
           const expiryDate = new Date(markedFood.expiry);
@@ -292,10 +317,13 @@ export class PlanWeeklyMealComponent implements OnInit {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userId = user.id || user._id || '';
 
-      // Convert to InventoryItem format and filter by owner and status
+      // Filter by owner, status, and expiry (same as manage-inventory)
+      const today = new Date();
       const inventoryItems = allFoods
         .filter((food: Food) => {
-          return food.owner === userId && (!food.status || food.status === 'inventory');
+          return food.owner === userId && 
+                 food.status === 'inventory' &&
+                 (!food.expiry || new Date(food.expiry) >= today);
         })
         .map((food: Food) => {
           let expiryStr = '';
@@ -331,17 +359,41 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   loadMarkedFoods() {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping marked foods load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    // Get current user ID to filter foods
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
     // Load only marked foods
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
+        // Filter by owner to ensure only current user's marked foods are shown
+        const filteredMarkedFoods = markedFoods.filter((markedFood: MarkedFood) => {
+          return markedFood.owner === userId;
+        });
+
         // Store raw marked foods for faster access (avoid re-fetching)
-        this.rawMarkedFoods = markedFoods;
+        this.rawMarkedFoods = filteredMarkedFoods;
         // Reduced logging for performance - uncomment for debugging
-        // console.log('📌 Loaded marked foods:', markedFoods);
+        // console.log('📌 Loaded marked foods:', filteredMarkedFoods);
         
         // Convert marked foods to InventoryItem format
         // Use exact quantities from database
-        const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+        const markedItems = filteredMarkedFoods.map((markedFood: MarkedFood) => {
             let expiryStr = '';
           if (markedFood.expiry) {
             const expiryDate = new Date(markedFood.expiry);
@@ -453,6 +505,14 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   loadNonMarkedFoods() {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping non-marked foods load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
     // Load Current Inventory data directly
     this.browseService.getFoods().subscribe({
       next: (allFoods: Food[]) => {
@@ -460,14 +520,18 @@ export class PlanWeeklyMealComponent implements OnInit {
 
         // Get current user ID to filter foods
         const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = user.id || '';
+        const userId = user.id || user._id || '';
 
-        // Convert to InventoryItem format and filter by owner and status
+        // Filter by owner, status, and expiry (same as manage-inventory)
+        const today = new Date();
         const inventoryItems = allFoods
           .filter((food: Food) => {
             // Only show foods that belong to the current user
             // and have status 'inventory' (added from manage-inventory)
-            return food.owner === userId && (!food.status || food.status === 'inventory');
+            // and are not expired
+            return food.owner === userId && 
+                   food.status === 'inventory' &&
+                   (!food.expiry || new Date(food.expiry) >= today);
           })
           .map((food: Food) => {
             let expiryStr = '';

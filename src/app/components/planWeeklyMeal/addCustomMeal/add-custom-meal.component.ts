@@ -225,7 +225,7 @@ export class AddCustomMealComponent implements OnInit {
     }
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       console.error('User ID not found in localStorage.');
@@ -553,7 +553,7 @@ export class AddCustomMealComponent implements OnInit {
 
     // Get user ID from localStorage
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const userId = user.id;
+    const userId = user.id || user._id;
 
     if (!userId) {
       alert('User ID not found. Please log in again.');
@@ -977,7 +977,8 @@ export class AddCustomMealComponent implements OnInit {
   async reduceIngredientQuantities(ingredients: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }>): Promise<void> {
     console.log('🔄 Starting reduceIngredientQuantities with ingredients:', ingredients);
     
-    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
     if (!userId) {
       throw new Error('User ID not found');
     }
@@ -1134,7 +1135,8 @@ export class AddCustomMealComponent implements OnInit {
   async restoreIngredientQuantities(ingredients: Array<{ name: string; quantity: string; inventoryType?: 'marked' | 'non-marked' }>): Promise<void> {
     console.log('🔄 Starting restoreIngredientQuantities with ingredients:', ingredients);
     
-    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
     if (!userId) {
       throw new Error('User ID not found');
     }

@@ -48,7 +48,7 @@ export class BrowseFoodService {
     // ⭐只在浏览器端取 localStorage
     if (isPlatformBrowser(this.platformId)) {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      userId = user.id || '';
+      userId = user.id || user._id || '';
     }
 
     return this.http.get<Food[]>(`${this.apiUrl}?userId=${userId}`);
@@ -59,7 +59,7 @@ export class BrowseFoodService {
 
     if (isPlatformBrowser(this.platformId)) {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      userId = user.id || '';
+      userId = user.id || user._id || '';
     }
 
     return this.http.get<any[]>(`${this.donationsUrl}?userId=${userId}`);
@@ -81,7 +81,7 @@ export class BrowseFoodService {
     let userId = '';
     if (isPlatformBrowser(this.platformId)) {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      userId = user.id || '';
+      userId = user.id || user._id || '';
     }
     return this.http.post<MarkedFood>(this.markedFoodsUrl, {
       ...markedFoodData,
@@ -94,7 +94,7 @@ export class BrowseFoodService {
     let userId = '';
     if (isPlatformBrowser(this.platformId)) {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      userId = user.id || '';
+      userId = user.id || user._id || '';
     }
     return this.http.get<MarkedFood[]>(`${this.markedFoodsUrl}?userId=${userId}`);
   }
