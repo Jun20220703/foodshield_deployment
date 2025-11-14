@@ -143,6 +143,14 @@ router.put('/:id', async (req, res) => {
       updateData,
       { new: true }
     );
+
+    res.json(updatedFood);
+
+    } catch (error) {                 // ← 1️⃣ Closing the try/catch
+      res.status(500).json({ message: 'Server error while updating food', error: error.message });
+    }
+
+    });  
     
 // Update food item by ID
 router.put('/:id', async (req, res) => {
