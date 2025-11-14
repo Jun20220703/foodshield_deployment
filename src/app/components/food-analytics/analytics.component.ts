@@ -100,6 +100,21 @@ export class AnalyticsComponent implements OnInit {
     }
   }
 
+  // ✅ Get no data message based on selected status
+  getNoDataMessage(): string {
+    const status = this.selectedStatus();
+    switch (status) {
+      case 'expired':
+        return 'Awesome!\n\nYou have no expired food.';
+      case 'donated':
+        return 'No donations yet.\n\nA great opportunity to help someone out!';
+      case 'consumed':
+        return 'No consumption activity recorded yet.\n\nYou\'re all set to start!';
+      default:
+        return 'No data available';
+    }
+  }
+
   // ✅ Get top food name based on selected status (the one with highest count/qty)
   getTopFoodName(): string | null {
     const status = this.selectedStatus();

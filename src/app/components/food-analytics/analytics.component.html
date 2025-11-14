@@ -110,7 +110,7 @@
               chartType="bar">
             </canvas>
             <ng-template #noBarDataTpl>
-              <div class="no-data-message">No data available for {{ getBarTitle() }}</div>
+              <div class="no-data-message">{{ getNoDataMessage() }}</div>
             </ng-template>
           </div>
         </div>

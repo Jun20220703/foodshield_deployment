@@ -13,38 +13,60 @@
 }
 
 .kpi {
-  width: 300px;        /* ⬅️ increase this value to make longer */
+  width: 300px;
   height: 250px;
   border-radius: 20px;
-  padding: 20px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
   box-shadow: 0px 2px 8px rgba(0,0,0,0.07);
+  text-align: center;
+  font-family: 'Nunito', sans-serif;
 }
 
 .kpi-title {
-  font-weight: 700;
-  opacity: 0.85;
+  font-weight: normal;
+  font-size: 30px;
+  margin-bottom: 20px;
+  text-align: center;
 }
 
 .kpi-value {
-  font-size: 42px;
-  font-weight: 800;
-  margin-top: 6px;
+  font-size: 56px;
+  font-weight: bold;
+  margin-top: 20px;
+  line-height: 1;
+  text-align: center;
 }
 
-/* Pastel colors based on prototype */
+/* Handwritten style colors based on design */
 .kpi-consumed {
   background: #d7e8d5;
+}
+
+.kpi-consumed .kpi-title,
+.kpi-consumed .kpi-value {
+  color: #1b5e20;
 }
 
 .kpi-donation {
   background: #ffe9b3;
 }
 
+.kpi-donation .kpi-title,
+.kpi-donation .kpi-value {
+  color: #e65100;
+}
+
 .kpi-expired {
   background: #f8c6c6;
+}
+
+.kpi-expired .kpi-title,
+.kpi-expired .kpi-value {
+  color: #b71c1c;
 }
 
 /* ========= CHARTS LAYOUT ========= */
@@ -178,6 +200,16 @@
 .loading {
   padding: 40px;
   text-align: center;
+}
+
+/* ========= NO DATA MESSAGE ========= */
+.no-data-message {
+  padding: 20px 20px;
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-line; /* Preserve line breaks from \n */
 }
 
 /* ========= RESPONSIVE ========= */

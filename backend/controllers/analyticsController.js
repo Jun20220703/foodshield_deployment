@@ -127,29 +127,35 @@ exports.getDaily = async (req, res) => {
     }
 
     // ====== ✅ DAILY DONATION (donationList.createdAt is today) ======
+    // Sum qty of donations made today (e.g., if 5 watermelons donated, count = 5, not 1)
     const donationMatch = {
       ...(ownerId && { owner: ownerId }),
       createdAt: { $gte: startUTC, $lte: endUTC }
     };
     console.log("🔍 Donation match filter:", JSON.stringify(donationMatch, null, 2));
     
+    // ✅ IMPORTANT: Sum qty (quantity) not count documents
+    // If 5 watermelons donated, donationCount = 5 (sum of qty), not 1 (count of items)
     const donationToday = await DonationList.aggregate([
       { $match: donationMatch },
       {
         $group: {
           _id: null,
-          totalQty: { $sum: "$qty" }
+          totalQty: { $sum: { $ifNull: ["$qty", 0] } } // Sum all qty values
         }
       }
     ]);
 
-    const donationCount = donationToday[0]?.totalQty ?? 0;
-    console.log("📊 Donation count:", donationCount);
+    console.log("🔍 Debug - Daily donation aggregation result:", JSON.stringify(donationToday, null, 2));
+    const donationCount = donationToday[0]?.totalQty ?? 0; // Use totalQty (sum of qty)
+    console.log("📊 Daily Donation count (qty sum):", donationCount);
     
-    // Debug: Show donation samples
+    // Debug: Show donation samples with qty
     if (ownerId) {
-      const donationSamples = await DonationList.find(donationMatch).limit(3).select('qty createdAt');
-      console.log("🔍 Debug - Today's donation samples:", donationSamples);
+      const donationSamples = await DonationList.find(donationMatch).select('qty createdAt foodId');
+      console.log("🔍 Debug - Today's donation samples with qty:", JSON.stringify(donationSamples, null, 2));
+      const manualSum = donationSamples.reduce((sum, item) => sum + (item.qty || 0), 0);
+      console.log("🔍 Debug - Manual qty sum:", manualSum);
     }
 
     // ====== ✅ DAILY CONSUMED (status changed to consumed today) ======
@@ -163,37 +169,42 @@ exports.getDaily = async (req, res) => {
     const consumedCount = await Food.countDocuments(consumedMatch);
     console.log("📊 Consumed count:", consumedCount);
 
-    // ====== ✅ DAILY EXPIRED (expiry date is today OR status changed to expired today) ======
-    // Count foods that expire today OR status changed to expired today
+    // ====== ✅ DAILY EXPIRED (expiry date is today only) ======
+    // Sum qty of foods that expire today (e.g., if 5 watermelons expired, count = 5, not 1)
     const expiredTodayQuery = {
       ...(ownerId && { owner: ownerId }),
-      $or: [
-        // Case 1: Status changed to expired today
-        {
-          status: "expired",
-          updatedAt: { $gte: startUTC, $lte: endUTC }
-        },
-        // Case 2: Expiry date is today (after auto-update, these should now have status="expired")
-        {
-          expiry: { 
-            $gte: startUTC, 
-            $lte: endUTC 
-          },
-          status: "expired"
-        }
-      ]
+      expiry: { 
+        $gte: startUTC, 
+        $lte: endUTC 
+      },
+      status: "expired"
     };
     console.log("🔍 Expired match filter:", JSON.stringify(expiredTodayQuery, null, 2));
     
-    // Use aggregate to get unique count (avoid double counting if both conditions match)
+    // ✅ IMPORTANT: Sum qty (quantity) not count documents
+    // If 5 watermelons expired, expiredCount = 5 (sum of qty), not 1 (count of items)
     const expiredResult = await Food.aggregate([
       { $match: expiredTodayQuery },
-      { $group: { _id: "$_id" } }, // Group by food ID to get unique count
-      { $count: "total" }
+      {
+        $group: {
+          _id: null,
+          totalQty: { $sum: { $ifNull: ["$qty", 0] } }, // Sum all qty values
+          count: { $sum: 1 } // Count of items (for debugging only)
+        }
+      }
     ]);
     
-    const expiredCount = expiredResult[0]?.total ?? 0;
-    console.log("📊 Expired count:", expiredCount);
+    console.log("🔍 Debug - Expired aggregation result:", JSON.stringify(expiredResult, null, 2));
+    const expiredCount = expiredResult[0]?.totalQty ?? 0; // Use totalQty (sum of qty)
+    console.log("📊 Daily Expired count (qty sum):", expiredCount, "| items count:", expiredResult[0]?.count ?? 0);
+    
+    // Additional debug: Show all matching items with their qty
+    if (ownerId) {
+      const allExpiredItems = await Food.find(expiredTodayQuery).select('name qty expiry status');
+      console.log("🔍 Debug - All expired items today with qty:", JSON.stringify(allExpiredItems, null, 2));
+      const manualSum = allExpiredItems.reduce((sum, item) => sum + (item.qty || 0), 0);
+      console.log("🔍 Debug - Manual qty sum:", manualSum);
+    }
     
     // Debug: Show expired samples
     if (ownerId) {
@@ -207,17 +218,10 @@ exports.getDaily = async (req, res) => {
     const topExpiredQuery = {
       ...(ownerId && { owner: ownerId }),
       status: "expired",
-      $or: [
-        {
-          updatedAt: { $gte: startUTC, $lte: endUTC }
-        },
-        {
-          expiry: { 
-            $gte: startUTC, 
-            $lte: endUTC 
-          }
-        }
-      ]
+      expiry: { 
+        $gte: startUTC, 
+        $lte: endUTC 
+      }
     };
     console.log("🔍 Top Expired Query (TODAY):", JSON.stringify(topExpiredQuery, null, 2));
     
@@ -393,23 +397,35 @@ exports.getMonthly = async (req, res) => {
     }
 
     // ====== ✅ MONTHLY DONATION (donationList.createdAt is this month) ======
+    // Sum qty of donations made this month (e.g., if 5 watermelons donated, count = 5, not 1)
     const donationMatch = {
       ...(ownerId && { owner: ownerId }),
       createdAt: { $gte: startUTC, $lte: endUTC }
     };
     
+    // ✅ IMPORTANT: Sum qty (quantity) not count documents
+    // If 5 watermelons donated, donationCount = 5 (sum of qty), not 1 (count of items)
     const donationThisMonth = await DonationList.aggregate([
       { $match: donationMatch },
       {
         $group: {
           _id: null,
-          totalQty: { $sum: "$qty" }
+          totalQty: { $sum: { $ifNull: ["$qty", 0] } } // Sum all qty values
         }
       }
     ]);
 
-    const donationCount = donationThisMonth[0]?.totalQty ?? 0;
-    console.log("📊 Monthly donation count:", donationCount);
+    console.log("🔍 Debug - Monthly donation aggregation result:", JSON.stringify(donationThisMonth, null, 2));
+    const donationCount = donationThisMonth[0]?.totalQty ?? 0; // Use totalQty (sum of qty)
+    console.log("📊 Monthly Donation count (qty sum):", donationCount);
+    
+    // Debug: Show donation samples with qty
+    if (ownerId) {
+      const donationSamples = await DonationList.find(donationMatch).select('qty createdAt foodId');
+      console.log("🔍 Debug - This month's donation samples with qty:", JSON.stringify(donationSamples, null, 2));
+      const manualSum = donationSamples.reduce((sum, item) => sum + (item.qty || 0), 0);
+      console.log("🔍 Debug - Manual qty sum:", manualSum);
+    }
 
     // ====== ✅ MONTHLY CONSUMED (status changed to consumed this month) ======
     const consumedMatch = {
@@ -421,48 +437,69 @@ exports.getMonthly = async (req, res) => {
     const consumedCount = await Food.countDocuments(consumedMatch);
     console.log("📊 Monthly consumed count:", consumedCount);
 
-    // ====== ✅ MONTHLY EXPIRED (expiry date is this month OR status changed to expired this month) ======
+    // ====== ✅ MONTHLY EXPIRED (expiry date is this month and has already expired) ======
+    // Sum qty of foods that expired this month (e.g., if 5 watermelons expired, count = 5, not 1)
+    const nowUTC = new Date();
+    // Use the earlier of endUTC (end of month) or nowUTC (current time) to exclude future dates
+    const maxExpiryDate = nowUTC < endUTC ? nowUTC : endUTC;
     const expiredThisMonthQuery = {
       ...(ownerId && { owner: ownerId }),
-      $or: [
-        {
-          status: "expired",
-          updatedAt: { $gte: startUTC, $lte: endUTC }
-        },
-        {
-          expiry: { 
-            $gte: startUTC, 
-            $lte: endUTC 
-          },
-          status: "expired"
-        }
-      ]
+      expiry: { 
+        $gte: startUTC, 
+        $lte: maxExpiryDate // Only include items that have already expired (not future dates)
+      },
+      status: "expired"
     };
     
+    // Debug: Check what items match the query
+    if (ownerId) {
+      const expiredSamples = await Food.find(expiredThisMonthQuery)
+        .limit(5)
+        .select('name status expiry qty updatedAt createdAt');
+      console.log("🔍 Debug - Monthly expired samples:", expiredSamples);
+      console.log("🔍 Debug - Monthly expired query date range:", { startUTC, maxExpiryDate, nowUTC, endUTC });
+      
+      // Also check if there are expired items outside this month
+      const allExpired = await Food.countDocuments({ 
+        ...(ownerId && { owner: ownerId }),
+        status: "expired"
+      });
+      console.log("🔍 Debug - Total expired items (all time):", allExpired);
+    }
+    
+    // ✅ IMPORTANT: Sum qty (quantity) not count documents
+    // If 5 watermelons expired, expiredCount = 5 (sum of qty), not 1 (count of items)
     const expiredResult = await Food.aggregate([
       { $match: expiredThisMonthQuery },
-      { $group: { _id: "$_id" } },
-      { $count: "total" }
+      {
+        $group: {
+          _id: null,
+          totalQty: { $sum: { $ifNull: ["$qty", 0] } }, // Sum all qty values
+          count: { $sum: 1 } // Count of items (for debugging only)
+        }
+      }
     ]);
     
-    const expiredCount = expiredResult[0]?.total ?? 0;
-    console.log("📊 Monthly expired count:", expiredCount);
+    console.log("🔍 Debug - Monthly expired aggregation result:", JSON.stringify(expiredResult, null, 2));
+    const expiredCount = expiredResult[0]?.totalQty ?? 0; // Use totalQty (sum of qty)
+    console.log("📊 Monthly Expired count (qty sum):", expiredCount, "| items count:", expiredResult[0]?.count ?? 0);
+    
+    // Additional debug: Show all matching items with their qty
+    if (ownerId) {
+      const allExpiredItems = await Food.find(expiredThisMonthQuery).select('name qty expiry status');
+      console.log("🔍 Debug - All expired items this month with qty:", JSON.stringify(allExpiredItems, null, 2));
+      const manualSum = allExpiredItems.reduce((sum, item) => sum + (item.qty || 0), 0);
+      console.log("🔍 Debug - Manual qty sum:", manualSum);
+    }
 
     // ====== ✅ TOP 3 EXPIRED FOODS (THIS MONTH, sorted by qty) ======
     const topExpiredQuery = {
       ...(ownerId && { owner: ownerId }),
       status: "expired",
-      $or: [
-        {
-          updatedAt: { $gte: startUTC, $lte: endUTC }
-        },
-        {
-          expiry: { 
-            $gte: startUTC, 
-            $lte: endUTC 
-          }
-        }
-      ]
+      expiry: { 
+        $gte: startUTC, 
+        $lte: maxExpiryDate // Only include items that have already expired (not future dates)
+      }
     };
     
     console.log("🔍 Monthly Top Expired Query:", JSON.stringify(topExpiredQuery, null, 2));
