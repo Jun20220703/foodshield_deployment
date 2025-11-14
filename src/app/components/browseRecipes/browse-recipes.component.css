@@ -47,6 +47,7 @@
   gap: 20px;
   margin-bottom: 20px;
   position: relative;
+  width: 100%;
 }
 
 .carousel-arrow {
@@ -77,14 +78,21 @@
   transform: scale(0.95);
 }
 
+.recipes-list-wrapper {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
 .recipes-list {
   display: flex;
   gap: 30px;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  width: 100%;
-  max-width: 900px;
+  justify-content: flex-start;
+  transition: transform 0.3s ease;
+  width: max-content;
 }
 
 .recipe-card {
@@ -96,15 +104,19 @@
   opacity: 0.5;
   transform: scale(0.8);
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .recipe-card.active {
   opacity: 1;
   transform: scale(1);
+  z-index: 2;
 }
 
 .recipe-card:hover {
   transform: scale(1.05);
+  z-index: 10;
 }
 
 .recipe-image {
@@ -129,6 +141,11 @@
   color: #1a1a1a;
   text-align: center;
   font-family: 'Inter', sans-serif;
+  position: relative;
+  z-index: 11;
+  background: transparent;
+  padding: 5px 0;
+  white-space: nowrap;
 }
 
 .info-text {
@@ -184,11 +201,51 @@
 
 .inventory-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 25px;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 15px;
+  margin-bottom: 25px;
+}
+
+.inventory-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0;
+  gap: 15px;
+}
+
+.inventory-type-dropdown {
+  padding: 10px 40px 10px 16px;
+  background: white;
+  border: 2px solid #4a7c59;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%234a7c59' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  min-width: 180px;
+}
+
+.inventory-type-dropdown:hover {
+  background-color: #e8f5e8;
+  border-color: #5a8c69;
+}
+
+.inventory-type-dropdown:focus {
+  outline: none;
+  border-color: #4a7c59;
+  box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
 }
 
 .search-filter-bar {

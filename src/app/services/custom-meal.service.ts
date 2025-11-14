@@ -6,7 +6,7 @@ export interface CustomMeal {
   _id?: string;
   foodName: string;
   ingredients: string;
-  howToCook: string;
+  remark: string;
   kcal: string;
   photo?: string | null;
   date: string; // YYYY-MM-DD format

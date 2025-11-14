@@ -37,7 +37,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   color: #1a1a1a;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 /* Calendar Section */
@@ -478,11 +478,53 @@
 
 .inventory-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   margin-bottom: 25px;
-  flex-wrap: wrap;
   gap: 15px;
+}
+
+.inventory-title-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  margin-bottom: 0;
+  gap: 15px;
+}
+
+.inventory-type-dropdown {
+  padding: 10px 40px 10px 16px;
+  background: white !important;
+  border: 2px solid #4a7c59 !important;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%234a7c59' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  min-width: 180px;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.inventory-type-dropdown:hover {
+  background-color: #e8f5e8;
+  border-color: #5a8c69;
+}
+
+.inventory-type-dropdown:focus {
+  outline: none;
+  border-color: #4a7c59;
+  box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.1);
 }
 
 .search-filter-bar {
@@ -565,6 +607,14 @@
   text-align: center;
 }
 
+.header-cell:nth-child(6) {
+  padding-left: 20px;
+}
+
+.header-cell:nth-child(7) {
+  padding-left: 20px;
+}
+
 .inventory-list {
   display: flex;
   flex-direction: column;
@@ -593,6 +643,15 @@
 .inventory-item.selected {
   background: #e8f5e8;
   border-left: 4px solid #4a7c59;
+}
+
+.inventory-item.expiring-soon {
+  background: #ffffcc;
+  border-left: 4px solid #ffeb3b;
+}
+
+.inventory-item.expiring-soon:hover {
+  background: #ffff99;
 }
 
 .item-name {
@@ -641,6 +700,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  padding-left: 20px;
 }
 
 .category-badge {
@@ -1122,6 +1182,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  padding-left: 20px;
 }
 
 .remove-btn {
@@ -1480,21 +1541,44 @@
   background: #fff5e6;
   border-radius: 20px;
   font-size: 0.9rem;
+  gap: 8px;
 }
 
 .ingredient-name {
   color: #1a1a1a;
   font-weight: 500;
+  flex: 1;
 }
 
-.ingredient-qty {
-  background: #ffb84d;
-  color: #1a1a1a;
+.ingredient-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 12px;
   border-radius: 15px;
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
+  background: #ffb84d;
+  color: #1a1a1a;
+}
+
+.ingredient-badge.has-marked {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.ingredient-badge.has-non-marked {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.ingredient-qty {
+  font-weight: 600;
+}
+
+.ingredient-status {
+  font-weight: 500;
 }
 
 .no-ingredients {
@@ -1580,6 +1664,36 @@
 .btn-edit:active,
 .btn-delete:active {
   transform: scale(0.98);
+}
+
+.btn-scroll-up {
+  background: white;
+  border: 2px solid #4a7c59;
+  border-radius: 8px;
+  padding: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #4a7c59;
+}
+
+.btn-scroll-up:hover {
+  background: #e8f5e8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 124, 89, 0.3);
+}
+
+.btn-scroll-up:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-scroll-up svg {
+  width: 24px;
+  height: 24px;
 }
 
 /* Responsive Design */

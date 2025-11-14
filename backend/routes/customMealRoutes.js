@@ -5,7 +5,7 @@ const CustomMeal = require('../models/CustomMeal');
 // Create a new custom meal
 router.post('/', async (req, res) => {
   try {
-    const { foodName, ingredients, howToCook, kcal, photo, date, mealType, owner } = req.body;
+    const { foodName, ingredients, remark, kcal, photo, date, mealType, owner } = req.body;
 
     if (!foodName || !foodName.trim()) {
       return res.status(400).json({ message: 'Food name is required' });
@@ -26,7 +26,7 @@ router.post('/', async (req, res) => {
     const customMeal = new CustomMeal({
       foodName: foodName.trim(),
       ingredients: ingredients || '',
-      howToCook: howToCook || '',
+      remark: remark || '',
       kcal: kcal || '',
       photo: photo || null,
       date: date, // YYYY-MM-DD format
@@ -83,12 +83,12 @@ router.get('/:id', async (req, res) => {
 // Update a custom meal
 router.put('/:id', async (req, res) => {
   try {
-    const { foodName, ingredients, howToCook, kcal, photo, date, mealType } = req.body;
+    const { foodName, ingredients, remark, kcal, photo, date, mealType } = req.body;
     
     const updateData = {
       foodName: foodName?.trim(),
       ingredients: ingredients || '',
-      howToCook: howToCook || '',
+      remark: remark || '',
       kcal: kcal || '',
       photo: photo || null
     };

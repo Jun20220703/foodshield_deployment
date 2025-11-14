@@ -1,7 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
+import { BrowseFoodService, MarkedFood, Food } from '../../services/browse-food.service';
+import { CustomMealService, CustomMeal } from '../../services/custom-meal.service';
+import { firstValueFrom } from 'rxjs';
 
 interface Recipe {
   id: string;
@@ -12,31 +16,67 @@ interface Recipe {
   kcal?: string;
 }
 
+interface IngredientInfo {
+  name: string;
+  quantity: number;
+  markedQuantity: number;
+  nonMarkedQuantity: number;
+  daysUntilExpiry?: number;
+  expiryLocation?: 'marked' | 'non-marked' | 'both';
+}
+
 @Component({
   selector: 'app-meal-detail',
   standalone: true,
   templateUrl: './meal-detail.component.html',
   styleUrls: ['./meal-detail.component.css'],
-  imports: [CommonModule, SidebarComponent]
+  imports: [CommonModule, FormsModule, SidebarComponent]
 })
 export class MealDetailComponent implements OnInit {
   recipeId: string = '';
   recipe: Recipe | null = null;
   imageError: boolean = false;
+  ingredientsList: IngredientInfo[] = [];
+  showPlanModal: boolean = false;
+  selectedDate: string = '';
+  selectedMealType: string = '';
+  isPlanning: boolean = false;
 
   // Sample recipe data - in a real app, this would come from a service
   recipes: Recipe[] = [
-    { id: '1', name: 'Chicken Rice', image: 'assets/recipes/chicken-rice.jpg', description: 'A delicious and healthy chicken rice dish.', ingredients: 'Chicken, Rice, Vegetables, Spices', kcal: '450 kcal' },
-    { id: '2', name: 'Chicken Salad', image: 'assets/recipes/chicken-salad.jpg', description: 'Fresh and nutritious chicken salad.', ingredients: 'Chicken, Lettuce, Tomatoes, Cucumber, Dressing', kcal: '320 kcal' },
-    { id: '3', name: 'Fried Rice', image: 'assets/recipes/fried-rice.jpg', description: 'Classic fried rice with vegetables.', ingredients: 'Rice, Eggs, Vegetables, Soy Sauce', kcal: '380 kcal' },
-    { id: '4', name: 'Omelette Rice', image: 'assets/recipes/omelette-rice.jpg', description: 'Japanese-style omelette rice.', ingredients: 'Eggs, Rice, Ketchup, Vegetables', kcal: '420 kcal' },
-    { id: '5', name: 'Kimchi Fried Rice', image: 'assets/recipes/kimchi-fried-rice.jpg', description: 'Spicy Korean kimchi fried rice.', ingredients: 'Rice, Kimchi, Eggs, Sesame Oil', kcal: '400 kcal' },
-    { id: '6', name: 'Carbonara Pasta', image: 'assets/recipes/carbonara-pasta.jpg', description: 'Creamy Italian carbonara pasta.', ingredients: 'Pasta, Bacon, Eggs, Parmesan Cheese, Cream', kcal: '550 kcal' }
+    { id: '1', name: 'Chicken Rice', image: 'assets/images/su-food1.jpg', description: 'A delicious and healthy chicken rice dish.', ingredients: 'Chicken 1, Rice 1, Garlic 1, Soy Sauce 1, Green Onion 1, Cucumber 1', kcal: '450 kcal' },
+    { id: '2', name: 'Chicken Salad', image: 'assets/images/su-food2.jpg', description: 'Fresh and nutritious chicken salad.', ingredients: 'Lettuce 3, Tomato 1, Cucumber 1, Chicken 1, Dressing 1', kcal: '320 kcal' },
+    { id: '3', name: 'Spaghetti', image: 'assets/images/su-food3.jpg', description: 'Classic spaghetti with garlic and olive oil.', ingredients: 'Spaghetti Noodles 1, Garlic 2, Olive Oil 1, Salt 1, Black Pepper 1', kcal: '380 kcal' },
+    { id: '4', name: 'Kimchi Fried Rice', image: 'assets/images/su-food4.jpg', description: 'Delicious kimchi fried rice.', ingredients: 'Rice 1, Kimchi 2, Egg 1, Green Onion 1, Soy Sauce 1', kcal: '400 kcal' },
+    { id: '5', name: 'Burger', image: 'assets/images/su-food5.jpg', description: 'Classic burger with all the fixings.', ingredients: 'Burger Bun 1, Meat Patty 1, Lettuce 1, Tomato 1, Cheese 1', kcal: '550 kcal' },
+    { id: '6', name: 'Tuna Mayo Rice', image: 'assets/images/su-food6.jpg', description: 'Simple and tasty tuna mayo rice.', ingredients: 'Rice 1, Tuna Can 1, Mayonnaise 1, Soy sauce 1, Seaweed Flakes 1', kcal: '420 kcal' },
+    { id: '7', name: 'Tteokbokki', image: 'assets/images/su-food7.jpg', description: 'Spicy Korean rice cakes.', ingredients: 'Rice Cake 1, Gochujang 1, Sugar 1, Green Onion 1, Fish Cake 1', kcal: '350 kcal' },
+    { id: '8', name: 'Tomato Pasta', image: 'assets/images/su-food8.jpg', description: 'Classic tomato pasta.', ingredients: 'Pasta Noodles 1, Tomato Sauce 2, Onion 1, Garlic 2, Olive Oil 2', kcal: '450 kcal' },
+    { id: '9', name: 'Omurice', image: 'assets/images/su-food9.jpg', description: 'Japanese-style omelet rice.', ingredients: 'Rice 1, Egg 2, Onion 1, Ketchup 1, Ham 1', kcal: '480 kcal' },
+    { id: '10', name: 'Pancake', image: 'assets/images/su-food10.jpg', description: 'Fluffy pancakes.', ingredients: 'Pancake Mix 2, Egg 1, Milk 1, Butter 1, Sugar 1', kcal: '320 kcal' },
+    { id: '11', name: 'Carbonara Pasta', image: 'assets/images/su-food11.jpg', description: 'Creamy carbonara pasta.', ingredients: 'Pasta Noodles 1, Egg 1, Bacon 1, Parmesan Cheese 1, Black Pepper 1', kcal: '520 kcal' },
+    { id: '12', name: 'Cheese Sandwich', image: 'assets/images/su-food12.jpg', description: 'Classic cheese sandwich.', ingredients: 'Bread 2, Ham 1, Cheese 1, Lettuce 1, Tomato 1', kcal: '380 kcal' },
+    { id: '13', name: 'Teriyaki Chicken', image: 'assets/images/su-food13.jpg', description: 'Sweet and savory teriyaki chicken.', ingredients: 'Chicken 1, Soy Sauce 2, Sugar 1, Garlic 1, Green Onion 1', kcal: '420 kcal' },
+    { id: '14', name: 'Japanese Curry Rice', image: 'assets/images/su-food14.jpg', description: 'Comforting Japanese curry.', ingredients: 'Rice 1, Curry Roux 1, Potato 1, Carrot 1, Onion 1', kcal: '480 kcal' },
+    { id: '15', name: 'Shrimp Fried Rice', image: 'assets/images/su-food15.jpg', description: 'Delicious shrimp fried rice.', ingredients: 'Rice 1, Shrimp 1, Egg 1, Garlic 1, Soy Sauce 1', kcal: '400 kcal' },
+    { id: '16', name: 'Scrambled Eggs', image: 'assets/images/ge-food1.jpg', description: 'Simple and delicious scrambled eggs.', ingredients: 'Egg 2, Onion 1, Salt, Oil 1, Carrot 1', kcal: '250 kcal' },
+    { id: '17', name: 'Potato & Veggie Hash', image: 'assets/images/ge-food2.jpg', description: 'Hearty potato and vegetable hash.', ingredients: 'Potato 2, Onion 1, Bell Pepper 1, Parsley 1, Oil 1, Salt 1', kcal: '320 kcal' },
+    { id: '18', name: 'Boiled Egg', image: 'assets/images/ge-food3.jpg', description: 'Simple boiled egg.', ingredients: 'Egg 1, Salt, Water 1', kcal: '70 kcal' },
+    { id: '19', name: 'Toast', image: 'assets/images/ge-food4.jpg', description: 'Classic toast with butter.', ingredients: 'Bread 1, Butter 1', kcal: '150 kcal' },
+    { id: '20', name: 'Vegetable Soup', image: 'assets/images/ge-food5.jpg', description: 'Warm and comforting vegetable soup.', ingredients: 'Onion 1, Carrot 1, Potato 1, Salt 1, Water 3', kcal: '120 kcal' },
+    { id: '21', name: 'Simple Salad', image: 'assets/images/ge-food6.jpg', description: 'Fresh and healthy simple salad.', ingredients: 'Lettuce 1, Tomato 1, Cucumber 1, Olive Oil 1, Salt 1', kcal: '80 kcal' },
+    { id: '22', name: 'Mashed Potato', image: 'assets/images/ge-food7.jpg', description: 'Creamy mashed potatoes.', ingredients: 'Potato 2, Butter 1, Milk 1, Salt 1', kcal: '220 kcal' },
+    { id: '23', name: 'Fried Rice', image: 'assets/images/ge-food8.jpg', description: 'Classic fried rice with vegetables.', ingredients: 'Rice 1, Egg 1, Carrot 1, Onion 1, Oil 1, Salt 1', kcal: '350 kcal' },
+    { id: '24', name: 'Cereal', image: 'assets/images/ge-food9.jpg', description: 'Simple cereal with milk.', ingredients: 'Cereal 1, Milk 1', kcal: '200 kcal' },
+    { id: '25', name: 'Omelet', image: 'assets/images/ge-food10.jpg', description: 'Delicious omelet with vegetables.', ingredients: 'Egg 2, Onion 1, Tomato 1, Oil 1, Salt 1', kcal: '180 kcal' }
   ];
 
   constructor(
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private browseService: BrowseFoodService,
+    private customMealService: CustomMealService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
@@ -44,6 +84,14 @@ export class MealDetailComponent implements OnInit {
     this.route.params.subscribe(params => {
       this.recipeId = params['id'];
       this.loadRecipe();
+    });
+
+    // Get date and mealType from query parameters (if coming from planWeeklyMeal)
+    this.route.queryParams.subscribe(queryParams => {
+      if (queryParams['date'] && queryParams['mealType']) {
+        this.selectedDate = queryParams['date'];
+        this.selectedMealType = queryParams['mealType'];
+      }
     });
   }
 
@@ -58,16 +106,796 @@ export class MealDetailComponent implements OnInit {
       console.error('Recipe not found:', this.recipeId);
       // Optionally redirect to browse-recipes if recipe not found
       // this.router.navigate(['/browse-recipes']);
+      return;
+    }
+
+    // Parse ingredients and load marked foods
+    this.parseIngredients();
+    this.loadMarkedFoods();
+  }
+
+  parseIngredients() {
+    if (!this.recipe || !this.recipe.ingredients) {
+      this.ingredientsList = [];
+      return;
+    }
+
+    // Parse ingredients from description string (e.g., "Chicken 1, Rice 1, Garlic 1" or "Chicken, Rice, Vegetables, Spices")
+    const ingredients = this.recipe.ingredients.split(',').map(ing => {
+      const trimmed = ing.trim();
+      // Extract quantity (number at the start or end)
+      const quantityMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s+|\s+(\d+(?:\.\d+)?)$/);
+      let quantity = 1; // Default quantity is 1
+      
+      if (quantityMatch) {
+        quantity = parseFloat(quantityMatch[1] || quantityMatch[2] || '1');
+      }
+      
+      // Extract ingredient name (remove quantity numbers)
+      let name = trimmed.replace(/^\d+(?:\.\d+)?\s+/, '').replace(/\s+\d+(?:\.\d+)?$/, '').trim();
+      
+      return { name, quantity, markedQuantity: 0, nonMarkedQuantity: 0, daysUntilExpiry: undefined, expiryLocation: undefined };
+    }).filter(ing => {
+      // Filter out only truly generic/abstract ingredients that don't represent actual food items
+      const genericIngredients = ['spices', 'vegetables', 'dressing', 'milk or water'];
+      const normalizedName = this.normalizeIngredientName(ing.name);
+      return ing.name.length > 0 && !genericIngredients.includes(normalizedName);
+    });
+
+    this.ingredientsList = ingredients;
+  }
+
+  normalizeIngredientName(name: string): string {
+    return name.toLowerCase().trim().replace(/\s+/g, ' ');
+  }
+
+  ingredientMatches(ingredient1: string, ingredient2: string): boolean {
+    const normalized1 = this.normalizeIngredientName(ingredient1);
+    const normalized2 = this.normalizeIngredientName(ingredient2);
+    
+    // Exact match
+    if (normalized1 === normalized2) return true;
+    
+    // Handle singular/plural (e.g., "Egg" vs "Eggs")
+    const singular1 = normalized1.replace(/s$/, '');
+    const singular2 = normalized2.replace(/s$/, '');
+    if (singular1 === normalized2 || normalized1 === singular2 || singular1 === singular2) {
+      return true;
+    }
+    
+    // Word boundary matching
+    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
+      const shorter = normalized1.length < normalized2.length ? normalized1 : normalized2;
+      const longer = normalized1.length >= normalized2.length ? normalized1 : normalized2;
+      
+      const wordBoundaryRegex = new RegExp(`(^|\\s)${shorter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`, 'i');
+      if (wordBoundaryRegex.test(longer)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  loadMarkedFoods() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return;
+    }
+
+    // Check if ingredientsList is ready
+    if (!this.ingredientsList || this.ingredientsList.length === 0) {
+      console.warn('⚠️ ingredientsList is empty, retrying in 100ms...');
+      setTimeout(() => {
+        this.loadMarkedFoods();
+      }, 100);
+      return;
+    }
+
+    this.browseService.getMarkedFoods().subscribe({
+      next: (markedFoods: MarkedFood[]) => {
+        console.log('📦 Loaded marked foods:', markedFoods.map(f => ({ name: f.name, qty: f.qty, expiry: f.expiry })));
+        
+        // Create a map of normalized food names to total quantities
+        // Also store original names and expiry info for matching
+        const markedFoodQuantities = new Map<string, number>();
+        const markedFoodOriginalNames = new Map<string, string>(); // normalized -> original
+        const markedFoodExpiry = new Map<string, { days: number; expiry: string }>(); // normalized -> expiry info
+        
+        markedFoods.forEach((markedFood: MarkedFood) => {
+          const normalizedName = this.normalizeIngredientName(markedFood.name);
+          const currentQty = markedFoodQuantities.get(normalizedName) || 0;
+          markedFoodQuantities.set(normalizedName, currentQty + (markedFood.qty || 0));
+          // Store original name for matching
+          if (!markedFoodOriginalNames.has(normalizedName)) {
+            markedFoodOriginalNames.set(normalizedName, markedFood.name);
+          }
+          // Store expiry info (use the earliest expiry if multiple entries)
+          if (markedFood.expiry) {
+            const days = this.getDaysUntilExpiry(markedFood.expiry);
+            const existing = markedFoodExpiry.get(normalizedName);
+            if (!existing || days < existing.days) {
+              markedFoodExpiry.set(normalizedName, { days, expiry: markedFood.expiry });
+            }
+          }
+        });
+
+        console.log('📋 Marked food quantities:', Array.from(markedFoodQuantities.entries()));
+        console.log('📋 Marked food expiry info:', Array.from(markedFoodExpiry.entries()).map(([name, info]) => `${name}: ${info.days} days`));
+        console.log('📋 Ingredients to match:', this.ingredientsList.map(i => i.name));
+
+        // Update ingredients list with marked quantities from database
+        // Match by name first, then get quantity separately
+        const updatedIngredients = this.ingredientsList.map(ingredient => {
+          let markedQty = 0;
+          const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
+          
+          console.log(`\n🔍 Matching: "${ingredient.name}" (normalized: "${normalizedIngredient}")`);
+          
+          // Step 1: Try direct normalized match FIRST (most reliable - exact match)
+          if (markedFoodQuantities.has(normalizedIngredient)) {
+            markedQty = markedFoodQuantities.get(normalizedIngredient)!;
+            const originalName = markedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
+            console.log(`   ✅ DIRECT MATCH: "${ingredient.name}" = "${originalName}" (qty: ${markedQty})`);
+          } else {
+            // Step 2: Try ingredientMatches method (handles singular/plural, word boundaries)
+            let foundMatch = false;
+            for (const [normalizedName, qty] of markedFoodQuantities.entries()) {
+              const originalName = markedFoodOriginalNames.get(normalizedName) || normalizedName;
+              
+              if (this.ingredientMatches(ingredient.name, originalName)) {
+                markedQty = qty;
+                console.log(`   ✅ MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                foundMatch = true;
+                break;
+              }
+            }
+            
+            // Step 3: Try singular/plural matching (if ingredientMatches didn't work)
+            if (!foundMatch) {
+              for (const [normalizedName, qty] of markedFoodQuantities.entries()) {
+                const singularNormalized = normalizedName.replace(/s$/, '');
+                const singularIngredient = normalizedIngredient.replace(/s$/, '');
+                
+                if (singularNormalized === normalizedIngredient || 
+                    normalizedName === singularIngredient || 
+                    singularNormalized === singularIngredient) {
+                  markedQty = qty;
+                  const originalName = markedFoodOriginalNames.get(normalizedName) || normalizedName;
+                  console.log(`   ✅ SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                  foundMatch = true;
+                  break;
+                }
+              }
+            }
+            
+            // Step 4: Try exact normalized match again (in case of any edge cases)
+            if (!foundMatch) {
+              for (const [normalizedName, qty] of markedFoodQuantities.entries()) {
+                if (normalizedName === normalizedIngredient) {
+                  markedQty = qty;
+                  const originalName = markedFoodOriginalNames.get(normalizedName) || normalizedName;
+                  console.log(`   ✅ EXACT NORMALIZED MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                  foundMatch = true;
+                  break;
+                }
+              }
+            }
+            
+            if (!foundMatch) {
+              console.log(`   ❌ NO MATCH: "${ingredient.name}"`);
+              console.log(`   Available in DB:`, Array.from(markedFoodOriginalNames.values()));
+            }
+          }
+          
+          // Get expiry info if found in marked foods
+          let daysUntilExpiry: number | undefined;
+          let expiryLocation: 'marked' | 'non-marked' | 'both' | undefined;
+          
+          if (markedQty > 0) {
+            // Try direct match first
+            if (markedFoodExpiry.has(normalizedIngredient)) {
+              daysUntilExpiry = markedFoodExpiry.get(normalizedIngredient)!.days;
+              expiryLocation = 'marked';
+              console.log(`   📅 Expiry info (direct) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+            } else {
+              // Try flexible matching for expiry
+              for (const [normalizedName, expiryInfo] of markedFoodExpiry.entries()) {
+                const originalName = markedFoodOriginalNames.get(normalizedName) || normalizedName;
+                if (this.ingredientMatches(ingredient.name, originalName)) {
+                  daysUntilExpiry = expiryInfo.days;
+                  expiryLocation = 'marked';
+                  console.log(`   📅 Expiry info (flexible match) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+                  break;
+                }
+              }
+            }
+          }
+          
+          return { 
+            ...ingredient, 
+            markedQuantity: markedQty, 
+            nonMarkedQuantity: ingredient.nonMarkedQuantity || 0,
+            daysUntilExpiry: daysUntilExpiry !== undefined ? daysUntilExpiry : ingredient.daysUntilExpiry,
+            expiryLocation: expiryLocation || ingredient.expiryLocation
+          };
+        });
+        
+        // Create completely new array to trigger change detection
+        const newIngredientsList = updatedIngredients.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0
+        }));
+        
+        console.log('✅ Final ingredients with marked quantities:', 
+          newIngredientsList.map(i => `${i.name}: ${i.markedQuantity}`));
+        
+        // Update ingredients list - create completely new array to trigger change detection
+        this.ingredientsList = newIngredientsList.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0
+        }));
+        
+        console.log('🔄 Updated ingredientsList:', this.ingredientsList);
+        
+        // After loading marked foods, check non-marked foods for items not found in marked
+        this.loadNonMarkedFoods();
+      },
+      error: (err) => {
+        console.error('Error loading marked foods:', err);
+        // Still try to load non-marked foods
+        this.loadNonMarkedFoods();
+      }
+    });
+  }
+
+  loadNonMarkedFoods() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ Window or localStorage not available for non-marked foods');
+      return;
+    }
+
+    // Check if ingredientsList is ready
+    if (!this.ingredientsList || this.ingredientsList.length === 0) {
+      console.warn('⚠️ ingredientsList is empty, cannot load non-marked foods');
+      return;
+    }
+
+    console.log('🔄 Loading non-marked foods for', this.ingredientsList.length, 'ingredients');
+
+    this.browseService.getFoods().subscribe({
+      next: (allFoods: Food[]) => {
+        console.log('📦 Loaded non-marked foods:', allFoods.length, 'items');
+        
+        // Get current user ID to filter foods
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id || '';
+
+        // Filter non-marked foods (status 'inventory' and owner matches)
+        const nonMarkedFoods = allFoods.filter((food: Food) => {
+          return food.owner === userId && (!food.status || food.status === 'inventory');
+        });
+
+        // Create a map of normalized food names to total quantities and expiry info
+        const nonMarkedFoodQuantities = new Map<string, number>();
+        const nonMarkedFoodOriginalNames = new Map<string, string>();
+        const nonMarkedFoodExpiry = new Map<string, { days: number; expiry: string }>(); // normalized -> expiry info
+
+        nonMarkedFoods.forEach((food: Food) => {
+          const normalizedName = this.normalizeIngredientName(food.name);
+          const currentQty = nonMarkedFoodQuantities.get(normalizedName) || 0;
+          nonMarkedFoodQuantities.set(normalizedName, currentQty + (food.qty || 0));
+          if (!nonMarkedFoodOriginalNames.has(normalizedName)) {
+            nonMarkedFoodOriginalNames.set(normalizedName, food.name);
+          }
+          // Store expiry info (use the earliest expiry if multiple entries)
+          if (food.expiry) {
+            const expiryStr = this.formatExpiryDate(food.expiry);
+            const days = this.getDaysUntilExpiry(expiryStr);
+            const existing = nonMarkedFoodExpiry.get(normalizedName);
+            if (!existing || days < existing.days) {
+              nonMarkedFoodExpiry.set(normalizedName, { days, expiry: expiryStr });
+            }
+          }
+        });
+
+        console.log('📋 Non-marked food quantities:', Array.from(nonMarkedFoodQuantities.entries()));
+        console.log('📋 Non-marked food expiry info:', Array.from(nonMarkedFoodExpiry.entries()).map(([name, info]) => `${name}: ${info.days} days`));
+
+        // Update ingredients list - check non-marked foods for ALL items (even if found in marked foods)
+        const updatedIngredientsList = this.ingredientsList.map(ingredient => {
+          // Check non-marked foods for ALL ingredients (not just those not in marked foods)
+          // This allows showing both marked and non-marked quantities if both exist
+          let nonMarkedQty = 0;
+          const normalizedIngredient = this.normalizeIngredientName(ingredient.name);
+
+          // Step 1: Try direct normalized match
+          if (nonMarkedFoodQuantities.has(normalizedIngredient)) {
+            nonMarkedQty = nonMarkedFoodQuantities.get(normalizedIngredient)!;
+            const originalName = nonMarkedFoodOriginalNames.get(normalizedIngredient) || normalizedIngredient;
+            console.log(`   ✅ NON-MARKED MATCH: "${ingredient.name}" = "${originalName}" (qty: ${nonMarkedQty})`);
+          } else {
+            // Step 2: Try ingredientMatches method
+            let foundMatch = false;
+            for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
+              const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+              
+              if (this.ingredientMatches(ingredient.name, originalName)) {
+                nonMarkedQty = qty;
+                console.log(`   ✅ NON-MARKED MATCHED: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                foundMatch = true;
+                break;
+              }
+            }
+            
+            // Step 3: Try singular/plural matching
+            if (!foundMatch) {
+              for (const [normalizedName, qty] of nonMarkedFoodQuantities.entries()) {
+                const singularNormalized = normalizedName.replace(/s$/, '');
+                const singularIngredient = normalizedIngredient.replace(/s$/, '');
+                
+                if (singularNormalized === normalizedIngredient || 
+                    normalizedName === singularIngredient || 
+                    singularNormalized === singularIngredient) {
+                  nonMarkedQty = qty;
+                  const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+                  console.log(`   ✅ NON-MARKED SINGULAR/PLURAL MATCH: "${ingredient.name}" = "${originalName}" (qty: ${qty})`);
+                  foundMatch = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Get expiry info if found in non-marked foods
+          let daysUntilExpiry: number | undefined = ingredient.daysUntilExpiry;
+          let expiryLocation: 'marked' | 'non-marked' | 'both' | undefined = ingredient.expiryLocation;
+          
+          if (nonMarkedQty > 0 && nonMarkedFoodExpiry.has(normalizedIngredient)) {
+            const expiryInfo = nonMarkedFoodExpiry.get(normalizedIngredient)!;
+            // If already has expiry from marked, compare and use the earliest
+            if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
+              daysUntilExpiry = expiryInfo.days;
+              expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
+              console.log(`   📅 Expiry info for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+            } else if (ingredient.markedQuantity > 0) {
+              expiryLocation = 'both';
+              console.log(`   📅 Expiry info (both) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+            }
+          } else if (nonMarkedQty > 0) {
+            // Try flexible matching for expiry
+            for (const [normalizedName, expiryInfo] of nonMarkedFoodExpiry.entries()) {
+              const originalName = nonMarkedFoodOriginalNames.get(normalizedName) || normalizedName;
+              if (this.ingredientMatches(ingredient.name, originalName)) {
+                if (daysUntilExpiry === undefined || expiryInfo.days < daysUntilExpiry) {
+                  daysUntilExpiry = expiryInfo.days;
+                  expiryLocation = ingredient.markedQuantity > 0 ? 'both' : 'non-marked';
+                  console.log(`   📅 Expiry info (flexible match) for "${ingredient.name}": ${daysUntilExpiry} days (${expiryLocation})`);
+                  break;
+                }
+              }
+            }
+          }
+          
+          return { 
+            ...ingredient, 
+            nonMarkedQuantity: nonMarkedQty,
+            daysUntilExpiry,
+            expiryLocation
+          };
+        });
+
+        // Create completely new array to trigger change detection
+        const finalIngredientsList = updatedIngredientsList.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0,
+          daysUntilExpiry: ing.daysUntilExpiry,
+          expiryLocation: ing.expiryLocation
+        }));
+
+        console.log('✅ Final ingredients with all quantities:', 
+          finalIngredientsList.map(i => `${i.name}: Marked=${i.markedQuantity}, Non-Marked=${i.nonMarkedQuantity}, DaysUntilExpiry=${i.daysUntilExpiry}`));
+        
+        // Update ingredients list - create completely new array reference
+        this.ingredientsList = finalIngredientsList.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          markedQuantity: ing.markedQuantity,
+          nonMarkedQuantity: ing.nonMarkedQuantity || 0,
+          daysUntilExpiry: ing.daysUntilExpiry,
+          expiryLocation: ing.expiryLocation
+        }));
+        
+        console.log('🔄 Updated ingredientsList with non-marked:', this.ingredientsList);
+        console.log('🔍 Checking non-marked items:', 
+          this.ingredientsList.filter(i => i.nonMarkedQuantity > 0).map(i => `${i.name}: ${i.nonMarkedQuantity}`));
+        
+        // Debug expiring items (include expired items too, <= 7 days)
+        const expiringItems = this.ingredientsList.filter(i => 
+          i.daysUntilExpiry !== undefined && i.daysUntilExpiry <= 7
+        );
+        console.log('🔴 Checking expiring items (<=7 days):', 
+          expiringItems.map(i => `${i.name}: ${i.daysUntilExpiry} days (${i.expiryLocation})`));
+        console.log('🔴 Expiring items count:', expiringItems.length);
+        console.log('🔴 All ingredients with expiry:', 
+          this.ingredientsList.map(i => `${i.name}: daysUntilExpiry=${i.daysUntilExpiry}, expiryLocation=${i.expiryLocation}`));
+        
+        // Force change detection
+        try {
+          if (this.cdr) {
+            this.cdr.markForCheck();
+            this.cdr.detectChanges();
+          }
+        } catch (error) {
+          console.warn('ChangeDetectorRef error:', error);
+        }
+      },
+      error: (err) => {
+        console.error('Error loading non-marked foods:', err);
+      }
+    });
+  }
+
+  getDaysUntilExpiry(expiry: string): number {
+    if (!expiry) return 999; // No expiry date means far future
+    
+    try {
+      // Parse expiry date (DD/MM/YYYY format)
+      const expiryParts = expiry.split('/');
+      if (expiryParts.length !== 3) return 999;
+      
+      const expiryDate = new Date(
+        parseInt(expiryParts[2]), 
+        parseInt(expiryParts[1]) - 1, 
+        parseInt(expiryParts[0])
+      );
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch (error) {
+      return 999; // Error parsing date, return large number
+    }
+  }
+
+  formatExpiryDate(expiry: string | Date): string {
+    if (!expiry) return '';
+    
+    try {
+      const expiryDate = typeof expiry === 'string' ? new Date(expiry) : expiry;
+      const day = String(expiryDate.getDate()).padStart(2, '0');
+      const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+      const year = expiryDate.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  trackByIngredientName(index: number, ingredient: IngredientInfo): string {
+    return `${ingredient.name}-${ingredient.markedQuantity}-${ingredient.nonMarkedQuantity}-${ingredient.daysUntilExpiry || 0}`;
+  }
+
+  getExpiryMessage(daysUntilExpiry: number | undefined): string {
+    if (daysUntilExpiry === undefined) return '';
+    
+    if (daysUntilExpiry < 0) {
+      const daysAgo = Math.abs(daysUntilExpiry);
+      return `Expired ${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago`;
+    } else {
+      return `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}`;
     }
   }
 
   back() {
-    this.router.navigate(['/browse-recipes']);
+    // Get section and index from query params to restore carousel position
+    this.route.queryParams.subscribe(params => {
+      const section = params['section'];
+      const index = params['index'];
+      
+      if (section && index !== undefined) {
+        this.router.navigate(['/browse-recipes'], {
+          queryParams: { section: section, index: index }
+        });
+      } else {
+        this.router.navigate(['/browse-recipes']);
+      }
+    }).unsubscribe();
   }
 
-  planMeal() {
-    // Navigate to planWeeklyMeal page
-    this.router.navigate(['/planWeeklyMeal']);
+  async planMeal() {
+    if (!this.recipe || this.ingredientsList.length === 0) {
+      alert('Recipe information is not available.');
+      return;
+    }
+
+    // Check if all ingredients have sufficient quantity
+    const insufficientIngredients: string[] = [];
+    
+    for (const ingredient of this.ingredientsList) {
+      const totalAvailable = ingredient.markedQuantity + ingredient.nonMarkedQuantity;
+      if (totalAvailable < ingredient.quantity) {
+        insufficientIngredients.push(`${ingredient.name} (needed: ${ingredient.quantity}, available: ${totalAvailable})`);
+      }
+    }
+
+    if (insufficientIngredients.length > 0) {
+      alert('Not enough ingredients in your inventory, try again next time please');
+      return;
+    }
+
+    // Check query params directly (in case they weren't set in ngOnInit yet)
+    const snapshot = this.route.snapshot;
+    const dateFromParams = snapshot.queryParams['date'];
+    const mealTypeFromParams = snapshot.queryParams['mealType'];
+    
+    // Use query params if available, otherwise use component properties
+    const date = dateFromParams || this.selectedDate;
+    const mealType = mealTypeFromParams || this.selectedMealType;
+
+    // If date and mealType are available (from query params or component), create meal plan directly
+    if (date && mealType) {
+      // Set the values to component properties
+      this.selectedDate = date;
+      this.selectedMealType = mealType;
+      await this.confirmPlanMeal();
+    } else {
+      // Otherwise, show date and meal type selection modal
+      this.showPlanModal = true;
+      // Set default date to today
+      const today = new Date();
+      this.selectedDate = today.toISOString().split('T')[0];
+      this.selectedMealType = 'Breakfast';
+    }
+  }
+
+  closePlanModal() {
+    this.showPlanModal = false;
+    // Don't clear selectedDate and selectedMealType if they came from query params
+    // They will be preserved for the next planMeal() call
+  }
+
+  async confirmPlanMeal() {
+    if (!this.recipe || !this.selectedDate || !this.selectedMealType) {
+      alert('Please select date and meal type.');
+      return;
+    }
+
+    // Get user ID from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      alert('User ID not found. Please log in again.');
+      return;
+    }
+
+    this.isPlanning = true;
+
+    try {
+      // Convert ingredients list to string format (same as add-custom-meal)
+      // Format: "Name Qty [marked], Name Qty [non-marked]" or "Name Qty [marked|non-marked]"
+      const ingredientsString = this.ingredientsList.map(ing => {
+        const parts: string[] = [];
+        const requiredQty = ing.quantity;
+        const availableMarked = ing.markedQuantity || 0;
+        const availableNonMarked = ing.nonMarkedQuantity || 0;
+        
+        // Calculate how much to take from marked and non-marked
+        let remainingQty = requiredQty;
+        if (availableMarked > 0) {
+          const qtyFromMarked = Math.min(availableMarked, remainingQty);
+          if (qtyFromMarked > 0) {
+            parts.push(`${ing.name} ${qtyFromMarked} [marked]`);
+            remainingQty -= qtyFromMarked;
+          }
+        }
+        if (remainingQty > 0 && availableNonMarked > 0) {
+          const qtyFromNonMarked = Math.min(availableNonMarked, remainingQty);
+          if (qtyFromNonMarked > 0) {
+            parts.push(`${ing.name} ${qtyFromNonMarked} [non-marked]`);
+          }
+        }
+        
+        // If neither marked nor non-marked available, use original format
+        if (parts.length === 0) {
+          const inventoryType = availableMarked > 0 ? 'marked' : 'non-marked';
+          parts.push(`${ing.name} ${ing.quantity} [${inventoryType}]`);
+        }
+        
+        return parts.join(', ');
+      }).join(', ');
+
+      // Create meal plan data
+      const mealData: CustomMeal = {
+        foodName: this.recipe.name,
+        ingredients: ingredientsString,
+        remark: this.recipe.description || '',
+        kcal: this.recipe.kcal || '',
+        photo: null,
+        date: this.selectedDate,
+        mealType: this.selectedMealType,
+        owner: userId
+      };
+
+      // Create meal plan
+      const savedMeal = await firstValueFrom(this.customMealService.createCustomMeal(mealData));
+      console.log('✅ Meal plan created successfully:', savedMeal);
+
+      // Reduce ingredient quantities (marked first, then non-marked for remaining)
+      await this.reduceIngredientQuantities(this.ingredientsList);
+
+      alert('Meal plan created successfully!');
+      this.closePlanModal();
+      // Navigate to planWeeklyMeal page with reload flag
+      this.router.navigate(['/planWeeklyMeal'], {
+        queryParams: { reload: 'true' }
+      });
+    } catch (error: any) {
+      console.error('❌ Error creating meal plan:', error);
+      const errorMessage = error.error?.message || error.message || 'Unknown error';
+      alert(`Failed to create meal plan: ${errorMessage}`);
+    } finally {
+      this.isPlanning = false;
+    }
+  }
+
+  async reduceIngredientQuantities(ingredients: IngredientInfo[]): Promise<void> {
+    console.log('🔄 Starting reduceIngredientQuantities with ingredients:', ingredients);
+    
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Get all marked foods and non-marked foods
+    const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+    const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+
+    const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+    if (!markedFoods || !allFoods) {
+      throw new Error('Failed to load inventory');
+    }
+
+    console.log('📦 Loaded marked foods:', markedFoods.length);
+    console.log('📦 Loaded non-marked foods:', allFoods.length);
+
+    // Process each ingredient
+    const updatePromises: Promise<any>[] = [];
+
+    for (const ingredient of ingredients) {
+      console.log(`🔍 Processing ingredient:`, ingredient);
+      
+      if (!ingredient.name || !ingredient.quantity) {
+        console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
+        continue;
+      }
+
+      const quantityToReduce = ingredient.quantity;
+      if (isNaN(quantityToReduce) || quantityToReduce <= 0) {
+        console.warn(`⚠️ Invalid quantity: ${quantityToReduce}`);
+        continue;
+      }
+
+      const ingredientNameNormalized = ingredient.name.trim().toLowerCase();
+      const availableMarkedQty = ingredient.markedQuantity || 0;
+      const availableNonMarkedQty = ingredient.nonMarkedQuantity || 0;
+      
+      console.log(`📋 Processing: "${ingredient.name}" (normalized: "${ingredientNameNormalized}"), required: ${quantityToReduce}, marked: ${availableMarkedQty}, non-marked: ${availableNonMarkedQty}`);
+
+      // Step 1: Reduce from marked foods first (if available)
+      let remainingQty = quantityToReduce;
+      
+      if (availableMarkedQty > 0) {
+        // Find matching marked food
+        const markedFood = markedFoods.find(mf => {
+          const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        
+        if (markedFood && markedFood._id) {
+          const qtyFromMarked = Math.min(availableMarkedQty, remainingQty);
+          const newMarkedQty = Math.max(0, (markedFood.qty || 0) - qtyFromMarked);
+          
+          console.log(`📉 Reducing marked food "${ingredient.name}": ${markedFood.qty} -> ${newMarkedQty} (reducing ${qtyFromMarked})`);
+          
+          if (newMarkedQty === 0) {
+            // Delete if quantity becomes 0
+            updatePromises.push(
+              firstValueFrom(this.browseService.deleteMarkedFood(markedFood._id))
+                .then(() => console.log(`✅ Successfully deleted marked food "${ingredient.name}" (qty became 0)`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to delete marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            updatePromises.push(
+              firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newMarkedQty))
+                .then(() => console.log(`✅ Successfully reduced marked food "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to reduce marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          }
+          
+          remainingQty -= qtyFromMarked;
+          console.log(`📊 Remaining quantity to reduce: ${remainingQty}`);
+        } else {
+          console.warn(`⚠️ Marked food not found: ${ingredient.name}`);
+        }
+      }
+
+      // Step 2: Reduce remaining quantity from non-marked foods (if still needed)
+      if (remainingQty > 0 && availableNonMarkedQty > 0) {
+        const food = allFoods.find(f => {
+          const foodNameNormalized = (f.name || '').toLowerCase().trim();
+          const nameMatches = foodNameNormalized === ingredientNameNormalized;
+          const ownerMatches = f.owner === userId;
+          const statusMatches = !f.status || f.status === 'inventory';
+          return nameMatches && ownerMatches && statusMatches;
+        });
+        
+        if (food && food._id) {
+          const qtyFromNonMarked = Math.min(availableNonMarkedQty, remainingQty);
+          const newNonMarkedQty = Math.max(0, (food.qty || 0) - qtyFromNonMarked);
+          
+          console.log(`📉 Reducing non-marked food "${ingredient.name}": ${food.qty} -> ${newNonMarkedQty} (reducing ${qtyFromNonMarked})`);
+          
+          if (newNonMarkedQty === 0) {
+            // Delete if quantity becomes 0
+            updatePromises.push(
+              firstValueFrom(this.browseService.deleteFood(food._id))
+                .then(() => console.log(`✅ Successfully deleted non-marked food "${ingredient.name}" (qty became 0)`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to delete non-marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            updatePromises.push(
+              firstValueFrom(this.browseService.updateFoodQty(food._id, newNonMarkedQty))
+                .then(() => console.log(`✅ Successfully reduced non-marked food "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to reduce non-marked food "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          }
+          
+          remainingQty -= qtyFromNonMarked;
+          console.log(`📊 Remaining quantity after non-marked reduction: ${remainingQty}`);
+        } else {
+          console.warn(`⚠️ Non-marked food not found: ${ingredient.name}`);
+        }
+      }
+
+      // Check if we still have remaining quantity (shouldn't happen if validation passed)
+      if (remainingQty > 0) {
+        console.warn(`⚠️ Warning: Could not fully reduce quantity for "${ingredient.name}". Remaining: ${remainingQty}`);
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log('✅ All ingredient quantities reduced successfully');
+    } else {
+      console.warn('⚠️ No update promises to execute - no ingredients matched');
+      throw new Error('No ingredients were successfully processed for quantity reduction');
+    }
   }
 
   onImageError(event: Event) {

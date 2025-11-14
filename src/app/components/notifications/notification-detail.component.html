@@ -7,14 +7,27 @@
     </button>
 
     <div *ngIf="notification" class="card">
+      <h2 class="header">
+        [{{ notification.type | titlecase }}] {{ notification.title }}
+      </h2>
       <div class="header-row">
         <span class="icon">{{ getEmoji(notification?.type || '') }}</span>
         <h2 class="title">{{ notification?.title }}</h2>
       </div>
 
       <p class="date">
-        {{ notification?.createdAt | date: 'dd MMMM yyyy, h:mm a' }}
+        {{ notification.createdAt | date: 'dd MMMM yyyy, h:mm a' }}
       </p>
+      <hr />
+      <p class="body">{{ notification.message }}</p>
+
+      <!-- ✅ 関連ページへ遷移するボタン（任意） -->
+      <button *ngIf="notification.type === 'inventory'" class="link-btn">
+        View related item
+      </button>
+      <button *ngIf="notification.type === 'donation'" class="link-btn">
+        View donation details
+      </button>
 
       <p class="body" [innerHTML]="notification?.message"></p>
 

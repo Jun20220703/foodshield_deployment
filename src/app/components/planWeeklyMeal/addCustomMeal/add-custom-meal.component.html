@@ -52,28 +52,68 @@
         <!-- Ingredients -->
         <div class="form-group">
           <label class="form-label">Ingredients</label>
-          <textarea 
-            class="form-textarea" 
-            [(ngModel)]="ingredients" 
-            name="ingredients"
-            placeholder="Enter ingredients"
-            rows="6"></textarea>
+          <div class="ingredients-list">
+            <div 
+              class="ingredient-item" 
+              *ngFor="let ingredient of ingredientList; let i = index">
+              <div class="ingredient-name-wrapper">
+                <span class="inventory-type-badge" 
+                      [class.marked]="(ingredient.inventoryType || 'marked') === 'marked'" 
+                      [class.non-marked]="ingredient.inventoryType === 'non-marked'">
+                  {{ (ingredient.inventoryType || 'marked') === 'marked' ? 'Marked' : 'Non-Marked' }}
+                </span>
+                <input 
+                  type="text" 
+                  class="ingredient-name-input" 
+                  [(ngModel)]="ingredient.name"
+                  [name]="'ingredientName' + i"
+                  placeholder="Click to select from inventory"
+                  (click)="openIngredientModal()"
+                  readonly
+                  required>
+              </div>
+              <input 
+                type="number" 
+                class="ingredient-quantity-input" 
+                [(ngModel)]="ingredient.quantity"
+                [name]="'ingredientQuantity' + i"
+                [max]="ingredient.maxQuantity || 999999"
+                [min]="1"
+                (input)="onIngredientQuantityInput(ingredient, i, $event)"
+                (ngModelChange)="onIngredientQuantityChange(ingredient, i, $event)"
+                (blur)="onIngredientQuantityChange(ingredient, i, $event)"
+                placeholder="Quantity"
+                required>
+              <button 
+                type="button" 
+                class="remove-ingredient-btn" 
+                (click)="removeIngredient(i)">
+                ×
+              </button>
+            </div>
+            <button 
+              type="button" 
+              class="add-ingredient-btn" 
+              (click)="openIngredientModal()">
+              + Add Ingredient from Inventory
+            </button>
+          </div>
         </div>
 
         <!-- How to Cook -->
         <div class="form-group">
-          <label class="form-label">How to Cook</label>
+          <label class="form-label">Remark(Optional)</label>
           <textarea 
             class="form-textarea" 
-            [(ngModel)]="howToCook" 
-            name="howToCook"
-            placeholder="Enter cooking instructions"
+            [(ngModel)]="remark" 
+            name="remark"
+            placeholder="Enter remark (optional)"
             rows="6"></textarea>
         </div>
 
         <!-- Kcal -->
         <div class="form-group">
-          <label class="form-label">Kcal</label>
+          <label class="form-label">Kcal(Optional)</label>
           <input 
             type="text" 
             class="form-input" 
@@ -90,18 +130,35 @@
       </form>
     </div>
 
-    <!-- Right: Current Inventory Section -->
-    <div class="inventory-wrapper">
-      <div class="inventory-section">
+    <!-- Ingredient Selection Modal -->
+    <div class="ingredient-modal-overlay" *ngIf="showIngredientModal" (click)="closeIngredientModal()">
+      <div class="ingredient-modal-content" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h2 class="modal-title">Select Ingredients ({{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }})</h2>
+            <button class="modal-close-btn" (click)="closeIngredientModal()">×</button>
+          </div>
+        
+        <div class="inventory-section">
         <div class="inventory-header">
-          <h2 class="section-title">Marked Foods</h2>
+          <div class="inventory-title-row">
+            <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
+            <select 
+              class="inventory-type-dropdown" 
+              [ngModel]="inventoryType" 
+              (ngModelChange)="inventoryType = $event; onInventoryTypeChange()"
+              title="Select inventory type">
+              <option value="marked">Marked Foods</option>
+              <option value="non-marked">Non-Marked Foods</option>
+            </select>
+          </div>
           <div class="search-filter-bar">
           <input 
             type="text" 
             class="search-input" 
             placeholder="Food item Name"
             [(ngModel)]="searchTerm"
-            (input)="filterInventory()">
+            (input)="onSearchInput($event)"
+            (keyup)="onSearchInput($event)">
           <button class="search-btn" (click)="filterInventory()">
             <span class="search-icon">🔍</span>
           </button>
@@ -117,17 +174,31 @@
           <div class="header-cell">Quantity</div>
           <div class="header-cell">Category</div>
           <div class="header-cell">Expiry</div>
+          <div class="header-cell">Action</div>
         </div>
 
-        <div class="inventory-list">
-          <div 
-            class="inventory-item" 
-            *ngFor="let item of paginatedInventory; let i = index"
-            [class.selected]="selectedItemIndex === i"
-            (click)="selectItem(i)">
+              <div class="inventory-list" [class.loading]="isLoadingInventory">
+                <!-- Loading overlay -->
+                <div class="loading-overlay" *ngIf="isLoadingInventory">
+                  <div class="loading-spinner"></div>
+                  <p class="loading-text">Loading...</p>
+                </div>
+                <!-- Inventory items -->
+                <div 
+                  class="inventory-item ingredient-selectable" 
+                  *ngFor="let item of paginatedInventory; let i = index"
+                  [class.fade-in]="!isLoadingInventory"
+                  [class.expiring-soon]="getDaysUntilExpiry(item.expiry) <= 7 && getDaysUntilExpiry(item.expiry) >= 0">
             <div class="item-name">{{ item.name }}</div>
             <div class="item-quantity">
-              <span class="quantity-circle">{{ item.quantity }}</span>
+              <input 
+                type="number" 
+                class="quantity-input"
+                [value]="selectedIngredientQuantity[item.name] || item.quantity || 1"
+                (input)="updateIngredientQuantity(item.name, +$any($event.target).value)"
+                min="1"
+                [max]="item.quantity">
+              <span class="quantity-label">/ {{ item.quantity }}</span>
             </div>
             <div class="item-category">
               <span class="category-badge" [class]="'category-' + item.category.toLowerCase()">
@@ -137,6 +208,13 @@
             </div>
             <div class="item-expiry">
               <span class="expiry-date">{{ item.expiry }}</span>
+            </div>
+            <div class="item-action">
+              <button 
+                class="select-ingredient-btn"
+                (click)="selectIngredient(item)">
+                Select
+              </button>
             </div>
           </div>
         </div>
@@ -155,8 +233,10 @@
         </div>
         </div>
       </div>
+        </div>
+      </div>
     </div>
-    </div>
+
   </div>
 
   <!-- Filter Drawer -->

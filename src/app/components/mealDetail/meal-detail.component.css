@@ -168,6 +168,107 @@
   font-family: 'Inter', sans-serif;
 }
 
+.ingredients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ingredient-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.ingredient-item:last-child {
+  border-bottom: none;
+}
+
+.ingredient-name {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.ingredient-quantity {
+  color: #4a7c59;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.ingredient-marked {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.ingredient-marked.has-marked {
+  color: #28a745; /* Green for items in Marked Foods */
+}
+
+.ingredient-marked.has-non-marked {
+  color: #007bff; /* Blue for items in Non-Marked Foods */
+}
+
+.ingredient-marked.has-both {
+  color: #4a7c59; /* Dark green for items in both Marked and Non-Marked Foods */
+}
+
+.ingredient-marked.no-marked {
+  color: #6c757d; /* Gray for items not in Marked/Non-Marked Foods */
+}
+
+.ingredient-item.has-marked {
+  background-color: #f0f9f4; /* Light green background for items in Marked Foods */
+  border-left: 3px solid #28a745;
+}
+
+.ingredient-item.has-non-marked {
+  background-color: #e7f3ff; /* Light blue background for items in Non-Marked Foods */
+  border-left: 3px solid #007bff;
+}
+
+.ingredient-item.has-both {
+  background-color: #e8f5e9; /* Light green-blue background for items in both Marked and Non-Marked Foods */
+  border-left: 3px solid #4a7c59;
+}
+
+.ingredient-item.no-marked {
+  background-color: #f8f9fa; /* Light gray background for items not in Marked/Non-Marked Foods */
+}
+
+/* Expiring soon styles - HIGHEST PRIORITY - must override ALL other background colors */
+/* Use higher specificity to ensure red always shows */
+.ingredient-item.expiring-soon,
+.ingredient-item.expiring-soon.has-marked,
+.ingredient-item.has-marked.expiring-soon,
+.ingredient-item.expiring-soon.has-non-marked,
+.ingredient-item.has-non-marked.expiring-soon,
+.ingredient-item.expiring-soon.has-both,
+.ingredient-item.has-both.expiring-soon,
+.ingredient-item.expiring-soon.no-marked,
+.ingredient-item.no-marked.expiring-soon {
+  background-color: #ffe6e6 !important; /* Light red background for expiring items - ALWAYS override */
+  border-left: 4px solid #dc3545 !important; /* Red border - thicker to stand out */
+  box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.2) !important; /* Subtle red shadow for extra visibility */
+}
+
+.ingredient-marked.expiring-soon {
+  color: #dc3545 !important; /* Red text for expiring items */
+  font-weight: 600;
+}
+
+.expiry-warning {
+  color: #dc3545;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-left: 8px;
+  display: block;
+  margin-top: 4px;
+}
+
 .recipe-not-found {
   background: white;
   border-radius: 20px;
@@ -222,5 +323,115 @@
   .recipe-details {
     padding: 20px;
   }
+}
+
+/* Plan Meal Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.modal-content h2 {
+  margin: 0 0 24px 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  font-family: 'Inter', sans-serif;
+}
+
+.modal-form {
+  margin-bottom: 24px;
+}
+
+.modal-form .form-group {
+  margin-bottom: 20px;
+}
+
+.modal-form label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+  font-family: 'Inter', sans-serif;
+}
+
+.modal-form input[type="date"],
+.modal-form select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  color: #1a1a1a;
+  background: white;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.modal-form input[type="date"]:focus,
+.modal-form select:focus {
+  outline: none;
+  border-color: #4a7c59;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel {
+  background: #e9ecef;
+  color: #1a1a1a;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: #dee2e6;
+}
+
+.btn-confirm {
+  background: #4a7c59;
+  color: white;
+}
+
+.btn-confirm:hover:not(:disabled) {
+  background: #5a8c69;
+}
+
+.btn-cancel:disabled,
+.btn-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 

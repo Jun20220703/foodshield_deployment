@@ -26,7 +26,7 @@
             <div class="meal-slots">
               <div class="meal-slot" *ngFor="let meal of mealTypes" 
                    (click)="selectMealSlot(day, meal)"
-                   [class.has-meal]="hasMeal(day, meal)"
+                   [class.has-meal]="day.hasMeal && day.hasMeal[meal]"
                    [class.selected]="selectedDay && selectedDay.fullDate.getTime() === day.fullDate.getTime() && selectedMealType === meal">
                 <div class="meal-indicator"></div>
                 <div class="meal-name">{{ meal }}</div>
@@ -103,7 +103,14 @@
               <div class="ingredients-container">
                 <div class="ingredient-item" *ngFor="let ingredient of parseIngredients(selectedCustomMeal.ingredients)">
                   <span class="ingredient-name">{{ ingredient.name }}</span>
-                  <span class="ingredient-qty" *ngIf="ingredient.qty">{{ ingredient.qty }}</span>
+                  <span class="ingredient-badge" 
+                        [class.has-marked]="ingredient.inventoryType === 'marked'"
+                        [class.has-non-marked]="ingredient.inventoryType === 'non-marked'">
+                    <span class="ingredient-qty" *ngIf="ingredient.qty">{{ ingredient.qty }}</span>
+                    <span class="ingredient-status" *ngIf="ingredient.inventoryType">
+                      [{{ ingredient.inventoryType }}]
+                    </span>
+                  </span>
                 </div>
                 <div *ngIf="parseIngredients(selectedCustomMeal.ingredients).length === 0" class="no-ingredients">
                   No ingredients listed
@@ -113,13 +120,13 @@
 
             <!-- Right: How to Cook -->
             <div class="meal-info-right">
-              <label class="meal-section-label">How to Cook</label>
+              <label class="meal-section-label">Remark</label>
               <div class="cooking-instructions">
-                <div class="instruction-line" *ngFor="let line of selectedCustomMeal.howToCook.split('\n')">
+                <div class="instruction-line" *ngFor="let line of selectedCustomMeal.remark.split('\n')">
                   {{ line }}
                 </div>
-                <div *ngIf="!selectedCustomMeal.howToCook || !selectedCustomMeal.howToCook.trim()" class="no-instructions">
-                  No cooking instructions provided
+                <div *ngIf="!selectedCustomMeal.remark || !selectedCustomMeal.remark.trim()" class="no-instructions">
+                  No remark provided
                 </div>
               </div>
             </div>
@@ -127,8 +134,21 @@
 
           <!-- Action Buttons -->
           <div class="meal-action-buttons">
-            <button class="btn-edit" (click)="editCustomMeal()">Edit</button>
-            <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
+            <!-- 지난 날짜인 경우 위쪽 화살표 버튼만 표시 -->
+            <button *ngIf="isSelectedMealPastDate()" class="btn-scroll-up" (click)="closeCustomMealDetails()">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5V19M12 5L5 12M12 5L19 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <!-- 오늘이거나 미래 날짜인 경우 Edit/Delete 버튼 표시 -->
+            <!-- Suggested Meals/Generic Meals에서 생성된 meal plan은 Edit 불가 -->
+            <ng-container *ngIf="!isSelectedMealPastDate()">
+              <button 
+                *ngIf="!isMealFromBrowseRecipes(selectedCustomMeal)" 
+                class="btn-edit" 
+                (click)="editCustomMeal()">Edit</button>
+              <button class="btn-delete" (click)="deleteCustomMeal()">Delete</button>
+            </ng-container>
           </div>
         </div>
       </div>
@@ -138,7 +158,17 @@
   <!-- Marked Foods Section -->
   <div class="inventory-section">
     <div class="inventory-header">
-      <h2 class="section-title">Marked Foods</h2>
+      <div class="inventory-title-row">
+        <h2 class="section-title">{{ inventoryType === 'marked' ? 'Marked Foods' : 'Non-Marked Foods' }}</h2>
+        <select 
+          class="inventory-type-dropdown" 
+          [(ngModel)]="inventoryType" 
+          (change)="onInventoryTypeChange()"
+          title="Select inventory type">
+          <option value="marked">Marked Foods</option>
+          <option value="non-marked">Non-Marked Foods</option>
+        </select>
+      </div>
       <div class="search-filter-bar">
         <input 
           type="text" 
@@ -163,7 +193,7 @@
         <div class="header-cell">Mark</div>
         <div class="header-cell">Marked Quantity</div>
         <div class="header-cell">Expiry</div>
-        <div class="header-cell">Action</div>
+        <div class="header-cell" *ngIf="inventoryType === 'marked'">Action</div>
       </div>
 
       <div class="inventory-list">
@@ -171,6 +201,7 @@
           class="inventory-item" 
           *ngFor="let item of paginatedInventory; let i = index"
           [class.selected]="selectedItemIndex === i"
+          [class.expiring-soon]="getDaysUntilExpiry(item.expiry) <= 7 && getDaysUntilExpiry(item.expiry) >= 0"
           (click)="selectItem(i)">
           <div class="item-name">{{ item.name }}</div>
           <div class="item-quantity">
@@ -197,7 +228,7 @@
           <div class="item-expiry">
             <span class="expiry-date">{{ item.expiry }}</span>
           </div>
-          <div class="item-action">
+          <div class="item-action" *ngIf="inventoryType === 'marked'">
             <button class="remove-btn" (click)="openRemoveModal(item, $event)">
               Remove
             </button>

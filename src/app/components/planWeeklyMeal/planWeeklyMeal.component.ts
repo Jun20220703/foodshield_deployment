@@ -1,10 +1,11 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, NgZone } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
-import { FoodService, Food } from '../../services/food.service';
-import { BrowseFoodService, MarkedFood } from '../../services/browse-food.service';
+import { FoodService } from '../../services/food.service';
+import { BrowseFoodService, MarkedFood, Food } from '../../services/browse-food.service';
 import { CustomMealService, CustomMeal } from '../../services/custom-meal.service';
 
 interface DayInfo {
@@ -14,6 +15,7 @@ interface DayInfo {
   isCurrentMonth: boolean; // 현재 표시 중인 달인지 여부
   isToday: boolean; // 오늘 날짜인지 여부
   isPast: boolean; // 지난 날짜인지 여부
+  hasMeal?: { [mealType: string]: boolean }; // 각 meal type별로 meal이 있는지 여부
 }
 
 interface MonthYear {
@@ -81,6 +83,9 @@ export class PlanWeeklyMealComponent implements OnInit {
   expiryFilterDays: number | null = null; // null = no filter, number = days until expiry
   availableCategories: string[] = []; // Will be populated from actual inventory data
 
+  // Inventory type selection
+  inventoryType: 'marked' | 'non-marked' = 'marked';
+
   // Remove modal
   showRemoveModal: boolean = false;
   removeItem: InventoryItem | null = null;
@@ -95,12 +100,14 @@ export class PlanWeeklyMealComponent implements OnInit {
   constructor(
     private cdr: ChangeDetectorRef,
     private router: Router,
+    private route: ActivatedRoute,
     private foodService: FoodService,
     private browseService: BrowseFoodService,
-    private customMealService: CustomMealService
+    private customMealService: CustomMealService,
+    private ngZone: NgZone
   ) {}
 
-  ngOnInit() {
+  async ngOnInit() {
     // currentDate를 주의 시작점(일요일)로 설정
     const today = new Date();
     const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -112,9 +119,61 @@ export class PlanWeeklyMealComponent implements OnInit {
     this.targetMonth = today.getMonth();
     this.targetYear = today.getFullYear();
     
+    // Load data first, then initialize calendar
+    await Promise.all([
+      this.loadInventoryAsync(),
+      this.loadCustomMealsAsync()
+    ]);
+    
+    // Initialize calendar after data is loaded
     this.initializeWeekDays();
-    this.loadInventory();
-    this.loadCustomMeals();
+    this.cdr.detectChanges();
+
+    // Check for reload query param (when coming back from meal-detail after creating meal plan)
+    this.route.queryParams.subscribe(params => {
+      if (params['reload'] === 'true') {
+        // Reload meal plans to show newly created meal
+        this.loadCustomMealsAsync().then(() => {
+          this.initializeWeekDays();
+          this.cdr.detectChanges();
+        });
+        // Remove the reload param from URL
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: {},
+          replaceUrl: true
+        });
+      }
+    });
+  }
+
+  // Load inventory async version for Promise.all
+  async loadInventoryAsync(): Promise<void> {
+    // SSR 환경 방어: 브라우저 환경에서만 실행
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping inventory load.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      this.inventory = [];
+      this.filteredInventory = [];
+      return;
+    }
+
+    if (this.inventoryType === 'marked') {
+      // Load marked foods
+      await this.loadMarkedFoodsAsync();
+    } else {
+      // Load non-marked foods
+      await this.loadNonMarkedFoodsAsync();
+    }
   }
 
   loadInventory() {
@@ -136,6 +195,142 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
+    if (this.inventoryType === 'marked') {
+      // Load marked foods
+      this.loadMarkedFoods();
+    } else {
+      // Load non-marked foods
+      this.loadNonMarkedFoods();
+    }
+  }
+
+  // Load marked foods async version for Promise.all
+  async loadMarkedFoodsAsync(): Promise<void> {
+    try {
+      const markedFoods = await firstValueFrom(this.browseService.getMarkedFoods());
+      // Store raw marked foods for faster access (avoid re-fetching)
+      this.rawMarkedFoods = markedFoods;
+      
+      // Convert marked foods to InventoryItem format
+      const markedItems = markedFoods.map((markedFood: MarkedFood) => {
+        let expiryStr = '';
+        if (markedFood.expiry) {
+          const expiryDate = new Date(markedFood.expiry);
+          const day = String(expiryDate.getDate()).padStart(2, '0');
+          const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+          const year = expiryDate.getFullYear();
+          expiryStr = `${day}/${month}/${year}`;
+        }
+
+        // Handle foodId - it might be an object if populated, or a string
+        let foodIdStr = '';
+        const foodIdValue = (markedFood as any).foodId;
+        
+        if (typeof foodIdValue === 'string') {
+          foodIdStr = foodIdValue;
+        } else if (foodIdValue && typeof foodIdValue === 'object' && foodIdValue._id) {
+          foodIdStr = foodIdValue._id;
+        } else if (foodIdValue) {
+          foodIdStr = String(foodIdValue);
+        }
+
+        const dbQty = markedFood.qty || 0;
+
+        return {
+          foodId: foodIdStr,
+          name: markedFood.name,
+          quantity: dbQty,
+          category: markedFood.category || 'Other',
+          marked: true,
+          markedQuantity: dbQty,
+          expiry: expiryStr,
+          markedFoodIds: markedFood._id ? [markedFood._id] : []
+        };
+      });
+      
+      // Merge marked items with same foodId
+      const markedItemsByFoodId = new Map<string, InventoryItem>();
+      markedItems.forEach(item => {
+        const foodId = item.foodId;
+        if (!foodId) {
+          return;
+        }
+        
+        const existing = markedItemsByFoodId.get(foodId);
+        if (existing) {
+          const newQuantity = existing.quantity + item.quantity;
+          const newMarkedQuantity = existing.markedQuantity + item.markedQuantity;
+          
+          existing.quantity = newQuantity;
+          existing.markedQuantity = newMarkedQuantity;
+          if (item.markedFoodIds && item.markedFoodIds.length > 0) {
+            existing.markedFoodIds = (existing.markedFoodIds || []).concat(item.markedFoodIds);
+          }
+        } else {
+          markedItemsByFoodId.set(foodId, { ...item });
+        }
+      });
+
+      this.inventory = Array.from(markedItemsByFoodId.values());
+      // Sort by name alphabetically
+      this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+      this.updateAvailableCategories();
+      this.applyFilters();
+    } catch (err) {
+      console.error('❌ Error loading marked foods:', err);
+      this.inventory = [];
+      this.filteredInventory = [];
+    }
+  }
+
+  // Load non-marked foods async version for Promise.all
+  async loadNonMarkedFoodsAsync(): Promise<void> {
+    try {
+      const allFoods = await firstValueFrom(this.browseService.getFoods());
+      
+      // Get current user ID to filter foods
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = user.id || '';
+
+      // Convert to InventoryItem format and filter by owner and status
+      const inventoryItems = allFoods
+        .filter((food: Food) => {
+          return food.owner === userId && (!food.status || food.status === 'inventory');
+        })
+        .map((food: Food) => {
+          let expiryStr = '';
+          if (food.expiry) {
+            const expiryDate = new Date(food.expiry);
+            const day = String(expiryDate.getDate()).padStart(2, '0');
+            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+            const year = expiryDate.getFullYear();
+            expiryStr = `${day}/${month}/${year}`;
+          }
+
+          return {
+            foodId: food._id || '',
+            name: food.name,
+            quantity: food.qty || 0,
+            category: food.category || 'Other',
+            marked: false,
+            markedQuantity: 0,
+            expiry: expiryStr
+          };
+        });
+
+      this.inventory = inventoryItems;
+      // Sort by name alphabetically
+      this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+      this.updateAvailableCategories();
+      this.applyFilters();
+    } catch (err) {
+      console.error('❌ Error loading non-marked foods:', err);
+      this.inventory = [];
+      this.filteredInventory = [];
+    }
+  }
+
+  loadMarkedFoods() {
     // Load only marked foods
     this.browseService.getMarkedFoods().subscribe({
       next: (markedFoods: MarkedFood[]) => {
@@ -147,14 +342,14 @@ export class PlanWeeklyMealComponent implements OnInit {
         // Convert marked foods to InventoryItem format
         // Use exact quantities from database
         const markedItems = markedFoods.map((markedFood: MarkedFood) => {
-          let expiryStr = '';
+            let expiryStr = '';
           if (markedFood.expiry) {
             const expiryDate = new Date(markedFood.expiry);
-            const day = String(expiryDate.getDate()).padStart(2, '0');
-            const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
-            const year = expiryDate.getFullYear();
-            expiryStr = `${day}/${month}/${year}`;
-          }
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
 
           // Handle foodId - it might be an object if populated, or a string
           let foodIdStr = '';
@@ -181,7 +376,7 @@ export class PlanWeeklyMealComponent implements OnInit {
           //   foodId: foodIdStr
           // });
 
-          return {
+            return {
             foodId: foodIdStr,
             name: markedFood.name,
             quantity: dbQty, // Exact quantity from database
@@ -190,9 +385,9 @@ export class PlanWeeklyMealComponent implements OnInit {
             markedQuantity: dbQty, // Exact marked quantity from database
             expiry: expiryStr,
             markedFoodIds: markedFood._id ? [markedFood._id] : []
-          };
-        });
-
+            };
+          });
+        
         // Merge marked items with same foodId (same food item marked multiple times)
         // Sum up quantities from database accurately
         const markedItemsByFoodId = new Map<string, InventoryItem>();
@@ -233,6 +428,8 @@ export class PlanWeeklyMealComponent implements OnInit {
         });
 
         this.inventory = Array.from(markedItemsByFoodId.values());
+        // Sort by name alphabetically
+        this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
         // Reduced logging for performance - uncomment for debugging
         // console.log('📌 Final inventory from database:', this.inventory.map(item => ({
         //   name: item.name,
@@ -253,6 +450,73 @@ export class PlanWeeklyMealComponent implements OnInit {
         this.cdr.detectChanges();
       }
     });
+  }
+
+  loadNonMarkedFoods() {
+    // Load Current Inventory data directly
+    this.browseService.getFoods().subscribe({
+      next: (allFoods: Food[]) => {
+        console.log('📌 Loaded Current Inventory foods:', allFoods);
+
+        // Get current user ID to filter foods
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = user.id || '';
+
+        // Convert to InventoryItem format and filter by owner and status
+        const inventoryItems = allFoods
+          .filter((food: Food) => {
+            // Only show foods that belong to the current user
+            // and have status 'inventory' (added from manage-inventory)
+            return food.owner === userId && (!food.status || food.status === 'inventory');
+          })
+          .map((food: Food) => {
+            let expiryStr = '';
+            if (food.expiry) {
+              const expiryDate = new Date(food.expiry);
+              const day = String(expiryDate.getDate()).padStart(2, '0');
+              const month = String(expiryDate.getMonth() + 1).padStart(2, '0');
+              const year = expiryDate.getFullYear();
+              expiryStr = `${day}/${month}/${year}`;
+            }
+
+            return {
+            foodId: food._id || '',
+              name: food.name,
+              quantity: food.qty || 0,
+              category: food.category || 'Other',
+            marked: false,
+            markedQuantity: 0,
+              expiry: expiryStr
+            };
+          });
+        
+        this.inventory = inventoryItems;
+        // Sort by name alphabetically
+        this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+        console.log('📦 Current Inventory loaded:', this.inventory.length, 'items');
+
+        this.updateAvailableCategories();
+        this.applyFilters();
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('❌ Error loading Current Inventory:', err);
+        this.inventory = [];
+        this.filteredInventory = [];
+        this.availableCategories = [];
+        this.applyFilters();
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  onInventoryTypeChange() {
+    // Reset filters and reload inventory
+    this.searchTerm = '';
+    this.selectedCategories.clear();
+    this.expiryFilterDays = null;
+    this.currentPage = 1;
+    this.loadInventory();
   }
 
   initializeWeekDays() {
@@ -280,13 +544,22 @@ export class PlanWeeklyMealComponent implements OnInit {
       // 지난 날짜인지 확인 (오늘 이전)
       const isPast = day.getTime() < today.getTime();
       
+      // 각 meal type별로 meal이 있는지 확인
+      const dateKey = this.getDateKey(day);
+      const hasMealMap: { [mealType: string]: boolean } = {};
+      this.mealTypes.forEach(mealType => {
+        const mealKey = `${dateKey}-${mealType}`;
+        hasMealMap[mealType] = this.mealPlans.has(mealKey);
+      });
+      
       this.weekDays.push({
         name: dayNames[day.getDay()],
         date: day.getDate(),
         fullDate: day,
         isCurrentMonth: isCurrentMonth,
         isToday: isToday,
-        isPast: isPast
+        isPast: isPast,
+        hasMeal: hasMealMap
       });
     }
     
@@ -613,20 +886,18 @@ export class PlanWeeklyMealComponent implements OnInit {
       });
     }
 
-    // Apply search term filter
+    // Apply search term filter - Only search by name, not category
     if (this.searchTerm.trim()) {
       const searchTermLower = this.searchTerm.toLowerCase().trim();
       const searchWords = searchTermLower.split(/\s+/).filter(word => word.length > 0);
       
       filtered = filtered.filter(item => {
         const itemNameLower = item.name.toLowerCase();
-        const itemCategoryLower = item.category.toLowerCase();
         
         return searchWords.every(word => {
           const wordPattern = new RegExp(`(^|\\s)${this.escapeRegex(word)}`, 'i');
           const nameMatch = wordPattern.test(itemNameLower) || itemNameLower === word;
-          const categoryMatch = wordPattern.test(itemCategoryLower) || itemCategoryLower === word;
-          return nameMatch || categoryMatch;
+          return nameMatch;
         });
       });
     }
@@ -1055,7 +1326,47 @@ export class PlanWeeklyMealComponent implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
-  // Custom meals 로드
+  // Custom meals 로드 (async version for Promise.all)
+  async loadCustomMealsAsync(): Promise<void> {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      console.warn('⚠️ localStorage not available (SSR mode). Skipping custom meals load.');
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id;
+
+    if (!userId) {
+      console.error('User ID not found in localStorage.');
+      return;
+    }
+
+    try {
+      const customMeals = await firstValueFrom(this.customMealService.getCustomMeals(userId));
+      console.log('📅 Custom meals loaded:', customMeals.length);
+      
+      // Custom meals 캐시 업데이트
+      this.customMealsCache = customMeals;
+      
+      // Custom meals를 mealPlans Map에 추가
+      customMeals.forEach((meal: CustomMeal) => {
+        if (meal.date && meal.mealType) {
+          const mealKey = `${meal.date}-${meal.mealType}`;
+          const mealPlan: MealPlan = {
+            dateKey: meal.date,
+            mealType: meal.mealType,
+            mealName: meal.foodName
+          };
+          this.mealPlans.set(mealKey, mealPlan);
+          console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
+        }
+      });
+    } catch (err) {
+      console.error('❌ Error loading custom meals:', err);
+    }
+  }
+
+  // Custom meals 로드 (original Observable version for backward compatibility)
   loadCustomMeals() {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
       console.warn('⚠️ localStorage not available (SSR mode). Skipping custom meals load.');
@@ -1077,22 +1388,26 @@ export class PlanWeeklyMealComponent implements OnInit {
         // Custom meals 캐시 업데이트
         this.customMealsCache = customMeals;
         
-        // Custom meals를 mealPlans Map에 추가
-        customMeals.forEach((meal: CustomMeal) => {
-          if (meal.date && meal.mealType) {
-            const mealKey = `${meal.date}-${meal.mealType}`;
-            const mealPlan: MealPlan = {
-              dateKey: meal.date,
-              mealType: meal.mealType,
-              mealName: meal.foodName
-            };
-            this.mealPlans.set(mealKey, mealPlan);
-            console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
-          }
-        });
-        
-        // UI 업데이트
-        this.cdr.detectChanges();
+         // Custom meals를 mealPlans Map에 추가
+         customMeals.forEach((meal: CustomMeal) => {
+           if (meal.date && meal.mealType) {
+             const mealKey = `${meal.date}-${meal.mealType}`;
+             const mealPlan: MealPlan = {
+               dateKey: meal.date,
+               mealType: meal.mealType,
+               mealName: meal.foodName
+             };
+             this.mealPlans.set(mealKey, mealPlan);
+             console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
+           }
+         });
+         
+         // Re-initialize week days to update time slots after meals are loaded
+         this.ngZone.run(() => {
+           this.initializeWeekDays();
+           this.cdr.markForCheck();
+           this.cdr.detectChanges();
+         });
       },
       error: (err) => {
         console.error('❌ Error loading custom meals:', err);
@@ -1205,23 +1520,83 @@ export class PlanWeeklyMealComponent implements OnInit {
   }
 
   // Ingredients를 파싱하여 배열로 반환 (예: "Tomato Sauce 150g\nSpaghetti 100g" -> [{name: "Tomato Sauce", qty: "150g"}, ...])
-  parseIngredients(ingredients: string): Array<{name: string, qty: string}> {
+  parseIngredients(ingredients: string): Array<{name: string, qty: string, inventoryType?: string}> {
     if (!ingredients || !ingredients.trim()) {
       return [];
     }
     
+    // 먼저 쉼표로 분리 시도 (meal-detail에서 저장한 형식: "재료명 수량 [marked], 재료명 수량 [non-marked]")
+    const commaSeparated = ingredients.split(',').map(item => item.trim()).filter(item => item);
+    
+    if (commaSeparated.length > 1) {
+      // 쉼표로 분리된 경우 (meal-detail에서 저장한 형식)
+      return commaSeparated.map(item => {
+        // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱
+        const match = item.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s+\[(marked|non-marked)\]$/);
+        if (match) {
+          return {
+            name: match[1].trim(),
+            qty: match[2],
+            inventoryType: match[3]
+          };
+        }
+        // "재료명 수량" 형식 (inventoryType 없음)
+        const simpleMatch = item.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
+        if (simpleMatch) {
+          return {
+            name: simpleMatch[1].trim(),
+            qty: simpleMatch[2],
+            inventoryType: undefined
+          };
+        }
+        // 파싱 실패 시 전체를 이름으로
+        return { name: item.trim(), qty: '', inventoryType: undefined };
+      });
+    }
+    
+    // 줄바꿈으로 분리된 경우 (add-custom-meal 형식: "재료명 수량 [marked|non-marked]")
     const lines = ingredients.split('\n').filter(line => line.trim());
     return lines.map(line => {
-      // "재료명 수량" 형식으로 파싱
-      const parts = line.trim().split(/\s+(?=\d|tbsp|tsp|g|kg|ml|l|cup|cups)/);
-      if (parts.length >= 2) {
+      const trimmedLine = line.trim();
+      
+      // "재료명 수량 [marked]" 또는 "재료명 수량 [non-marked]" 형식 파싱
+      const match = trimmedLine.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)\s+\[(marked|non-marked)\]$/);
+      if (match) {
         return {
-          name: parts.slice(0, -1).join(' '),
-          qty: parts[parts.length - 1]
+          name: match[1].trim(),
+          qty: match[2],
+          inventoryType: match[3]
         };
       }
-      return { name: line.trim(), qty: '' };
+      
+      // "재료명 수량" 형식 (inventoryType 없음)
+      const simpleMatch = trimmedLine.match(/^(.+?)\s+(\d+(?:\.\d+)?(?:\s*(?:tbsp|tsp|g|kg|ml|l|cup|cups))?)$/);
+      if (simpleMatch) {
+        return {
+          name: simpleMatch[1].trim(),
+          qty: simpleMatch[2],
+          inventoryType: undefined
+        };
+      }
+      
+      // 파싱 실패 시 전체를 이름으로
+      return { name: trimmedLine, qty: '', inventoryType: undefined };
     });
+  }
+
+  // Check if meal is from Suggested Meals or Generic Meals (not editable)
+  isMealFromBrowseRecipes(meal: CustomMeal): boolean {
+    if (!meal || !meal.ingredients) {
+      return false;
+    }
+    
+    // meal-detail에서 생성된 meal plan은 ingredients가 쉼표로 구분되어 있음
+    // "재료명 수량 [marked], 재료명 수량 [non-marked]" 형식
+    const commaSeparated = meal.ingredients.split(',').map(item => item.trim()).filter(item => item);
+    
+    // 쉼표로 구분된 항목이 2개 이상이면 meal-detail에서 생성된 것으로 간주
+    // (add-custom-meal은 줄바꿈으로 구분)
+    return commaSeparated.length > 1;
   }
 
   // Custom meal 삭제
@@ -1235,33 +1610,101 @@ export class PlanWeeklyMealComponent implements OnInit {
       return;
     }
 
+    console.log('🗑️ Deleting custom meal:', this.selectedCustomMeal);
+    console.log('🗑️ Meal ingredients:', this.selectedCustomMeal?.ingredients);
+    
     this.customMealService.deleteCustomMeal(this.selectedCustomMeal._id).subscribe({
       next: () => {
-        console.log('✅ Custom meal deleted successfully');
+        console.log('✅ Custom meal deleted successfully from database');
         
-        // mealPlans에서 제거
-        if (this.selectedDay && this.selectedMealType) {
-          const dateKey = this.getDateKey(this.selectedDay.fullDate);
-          const mealKey = `${dateKey}-${this.selectedMealType}`;
-          this.mealPlans.delete(mealKey);
+        // Restore ingredient quantities to marked/non-marked foods
+        if (!this.selectedCustomMeal || !this.selectedCustomMeal.ingredients) {
+          console.warn('⚠️ No ingredients to restore');
+          // If no ingredients, just proceed with deletion
+          if (this.selectedDay && this.selectedMealType) {
+            const dateKey = this.getDateKey(this.selectedDay.fullDate);
+            const mealKey = `${dateKey}-${this.selectedMealType}`;
+            this.mealPlans.delete(mealKey);
+          }
+          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+            this.customMealsCache = this.customMealsCache.filter(
+              meal => meal._id !== this.selectedCustomMeal!._id
+            );
+          }
+          this.closeCustomMealDetails();
+          
+          // Reload inventory
+          this.loadInventory();
+          
+          // Reload custom meals to update the meal plans display
+          this.loadCustomMeals();
+          
+          this.cdr.detectChanges();
+          alert('Meal deleted successfully!');
+          return;
         }
         
-        // 캐시에서도 제거
-        if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
-          this.customMealsCache = this.customMealsCache.filter(
-            meal => meal._id !== this.selectedCustomMeal!._id
-          );
-        }
-        
-        // UI 업데이트
-        this.closeCustomMealDetails();
-        this.cdr.detectChanges();
-        
-        alert('Meal deleted successfully!');
+        this.restoreIngredientQuantities(this.selectedCustomMeal.ingredients).then(async () => {
+          // mealPlans에서 제거
+          if (this.selectedDay && this.selectedMealType) {
+            const dateKey = this.getDateKey(this.selectedDay.fullDate);
+            const mealKey = `${dateKey}-${this.selectedMealType}`;
+            this.mealPlans.delete(mealKey);
+          }
+          
+          // 캐시에서도 제거
+          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+            this.customMealsCache = this.customMealsCache.filter(
+              meal => meal._id !== this.selectedCustomMeal!._id
+            );
+          }
+          
+          // UI 업데이트
+          this.closeCustomMealDetails();
+          
+          // Reload inventory to reflect restored quantities
+          // Wait for inventory to reload before showing alert
+          if (this.inventoryType === 'marked') {
+            await firstValueFrom(this.browseService.getMarkedFoods());
+            this.loadMarkedFoods();
+          } else {
+            await firstValueFrom(this.browseService.getFoods());
+            this.loadNonMarkedFoods();
+          }
+          
+          // Reload custom meals to update the meal plans display
+          this.loadCustomMeals();
+          
+          // Force change detection to ensure UI is updated
+          this.cdr.detectChanges();
+          
+          alert('Meal deleted successfully!');
+        }).catch((err: any) => {
+          console.error('❌ Error restoring ingredient quantities:', err);
+          // Still proceed with deletion even if restoration fails
+          if (this.selectedDay && this.selectedMealType) {
+            const dateKey = this.getDateKey(this.selectedDay.fullDate);
+            const mealKey = `${dateKey}-${this.selectedMealType}`;
+            this.mealPlans.delete(mealKey);
+          }
+          if (this.selectedCustomMeal && this.selectedCustomMeal._id) {
+            this.customMealsCache = this.customMealsCache.filter(
+              meal => meal._id !== this.selectedCustomMeal!._id
+            );
+          }
+            this.closeCustomMealDetails();
+            
+            // Reload inventory even if restoration failed
+            this.loadInventory();
+            
+            this.cdr.detectChanges();
+            alert('Meal deleted but failed to restore ingredient quantities. Please check your inventory.');
+        });
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('❌ Error deleting custom meal:', err);
-        alert('Failed to delete meal. Please try again.');
+        console.error('❌ Error details:', JSON.stringify(err, null, 2));
+        alert(`Failed to delete meal: ${err.error?.message || err.message || 'Unknown error'}. Please try again.`);
       }
     });
   }
@@ -1366,6 +1809,333 @@ export class PlanWeeklyMealComponent implements OnInit {
     const selectedDate = new Date(this.selectedDay.fullDate);
     selectedDate.setHours(0, 0, 0, 0);
     return selectedDate.getTime() < today.getTime();
+  }
+
+  // 선택된 custom meal의 날짜가 지난 날짜인지 확인
+  isSelectedMealPastDate(): boolean {
+    if (!this.selectedCustomMeal || !this.selectedCustomMeal.date) {
+      return false;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // date는 YYYY-MM-DD 형식
+    const mealDate = new Date(this.selectedCustomMeal.date);
+    mealDate.setHours(0, 0, 0, 0);
+    
+    return mealDate.getTime() < today.getTime();
+  }
+
+  // Parse ingredients string and restore quantities to marked/non-marked foods
+  // Format: "IngredientName Quantity [marked|non-marked]" (줄바꿈으로 구분) 또는
+  //         "IngredientName Quantity [marked], IngredientName Quantity [non-marked]" (쉼표로 구분)
+  async restoreIngredientQuantities(ingredientsStr: string): Promise<void> {
+    console.log('🔄 Starting restoreIngredientQuantities with:', ingredientsStr);
+    
+    if (!ingredientsStr || !ingredientsStr.trim()) {
+      console.warn('⚠️ No ingredients string provided');
+      return;
+    }
+
+    const userId = JSON.parse(localStorage.getItem('user') || '{}').id;
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Parse ingredients - 먼저 쉼표로 분리 시도 (meal-detail 형식)
+    let lines: string[] = [];
+    const commaSeparated = ingredientsStr.split(',').map(item => item.trim()).filter(item => item);
+    
+    if (commaSeparated.length > 1) {
+      // 쉼표로 구분된 경우 (meal-detail 형식)
+      lines = commaSeparated;
+      console.log('📝 Parsed as comma-separated format:', lines);
+    } else {
+      // 줄바꿈으로 구분된 경우 (add-custom-meal 형식)
+      lines = ingredientsStr.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      console.log('📝 Parsed as newline-separated format:', lines);
+    }
+    
+    const ingredients: Array<{ name: string; quantity: number; inventoryType: 'marked' | 'non-marked' }> = [];
+
+    for (const line of lines) {
+      console.log('🔍 Processing line:', line);
+      
+      // Extract inventory type: [marked] or [non-marked]
+      const typeMatch = line.match(/\s+\[(marked|non-marked)\]\s*$/);
+      const inventoryType = typeMatch ? (typeMatch[1] as 'marked' | 'non-marked') : 'marked';
+      const lineWithoutType = typeMatch ? line.substring(0, typeMatch.index).trim() : line;
+      console.log('📦 Inventory type:', inventoryType, 'Line without type:', lineWithoutType);
+
+      // Extract quantity - try multiple patterns
+      let quantity = 0;
+      let name = '';
+      
+      // Pattern 1: "Name 200g [marked]" or "Name 200 [marked]"
+      const quantityMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*(g|kg|ml|l|tbsp|tsp|cup|cups|oz|lb|개|조각|컵|스푼|작은술|큰술)?\s*$/i);
+      if (quantityMatch) {
+        quantity = parseFloat(quantityMatch[1]);
+        name = lineWithoutType.substring(0, quantityMatch.index).trim();
+        console.log('✅ Pattern 1 matched - Name:', name, 'Quantity:', quantity);
+      } else {
+        // Pattern 2: "Name 200 [marked]" (just number)
+        const numberMatch = lineWithoutType.match(/\s+(\d+(?:\.\d+)?)\s*$/);
+        if (numberMatch) {
+          quantity = parseFloat(numberMatch[1]);
+          name = lineWithoutType.substring(0, numberMatch.index).trim();
+          console.log('✅ Pattern 2 matched - Name:', name, 'Quantity:', quantity);
+        } else {
+          // Pattern 3: "Name [marked]" (no quantity, skip)
+          console.warn('⚠️ No quantity found in line:', line);
+          continue;
+        }
+      }
+
+      if (name && quantity > 0) {
+        ingredients.push({ name: name.toLowerCase(), quantity, inventoryType });
+        console.log('✅ Added ingredient:', { name: name.toLowerCase(), quantity, inventoryType });
+      }
+    }
+
+    console.log('📋 Final ingredients array:', ingredients);
+    
+    if (ingredients.length === 0) {
+      console.warn('⚠️ No valid ingredients parsed');
+      return;
+    }
+
+    // Get all marked foods and non-marked foods
+    const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+    const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+
+    const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+    if (!markedFoods || !allFoods) {
+      throw new Error('Failed to load inventory');
+    }
+
+    // Process each ingredient
+    const updatePromises: Promise<any>[] = [];
+
+    for (const ingredient of ingredients) {
+      console.log(`🔄 Processing ingredient for restoration:`, ingredient);
+      
+      if (ingredient.inventoryType === 'marked') {
+        // Find matching marked food - normalize both names for comparison
+        const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
+        const markedFood = markedFoods.find(mf => {
+          const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+          return foodNameNormalized === ingredientNameNormalized;
+        });
+        console.log(`🔍 Looking for marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, markedFood);
+        console.log(`🔍 Available marked foods (full details):`, markedFoods);
+        console.log(`🔍 Available marked foods (names only):`, markedFoods.map(mf => ({ 
+          name: mf.name, 
+          normalized: (mf.name || '').toLowerCase().trim(),
+          qty: mf.qty,
+          _id: mf._id
+        })));
+        
+        if (markedFood && markedFood._id) {
+          const newQty = (markedFood.qty || 0) + ingredient.quantity;
+          console.log(`📈 Restoring marked food "${ingredient.name}": ${markedFood.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateMarkedFoodQty(markedFood._id, newQty))
+              .then(() => console.log(`✅ Successfully restored marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to restore marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          console.warn(`⚠️ Marked food not found for restoration: ${ingredient.name}`);
+          console.warn(`⚠️ Available marked foods:`, markedFoods.map(mf => mf.name));
+          
+          // If marked food doesn't exist, try to find it in non-marked foods and create a marked food entry
+          console.log(`🔄 Trying to find "${ingredient.name}" in non-marked foods to create marked food entry...`);
+          const nonMarkedFood = allFoods.find(f => {
+            const foodNameNormalized = (f.name || '').toLowerCase().trim();
+            return foodNameNormalized === ingredientNameNormalized;
+          });
+          
+          if (nonMarkedFood && nonMarkedFood._id) {
+            console.log(`✅ Found in non-marked foods, creating marked food entry:`, nonMarkedFood);
+            // Create a new marked food entry with the restored quantity
+            const newMarkedFoodData = {
+              foodId: nonMarkedFood._id,
+              name: nonMarkedFood.name,
+              qty: ingredient.quantity,
+              category: nonMarkedFood.category || 'Other',
+              storage: nonMarkedFood.storage || 'Fridge',
+              expiry: nonMarkedFood.expiry || '',
+              notes: nonMarkedFood.notes || ''
+            };
+            updatePromises.push(
+              firstValueFrom(this.browseService.markFood(newMarkedFoodData))
+                .then(() => console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`))
+                .catch((err: any) => {
+                  console.error(`❌ Failed to create marked food entry for "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          } else {
+            // Neither marked nor non-marked food exists - create new non-marked food first, then marked food
+            console.log(`🔄 Food "${ingredient.name}" not found in either marked or non-marked foods. Creating new food entry...`);
+            
+            // Create a new non-marked food with default values
+            const defaultExpiry = new Date();
+            defaultExpiry.setDate(defaultExpiry.getDate() + 7); // Default: 7 days from now
+            
+            const newFoodData = {
+              name: ingredient.name, // Use original name (not normalized)
+              qty: ingredient.quantity,
+              category: 'Other', // Default category
+              storage: 'Fridge', // Default storage
+              expiry: defaultExpiry, // Date object for FoodService
+              notes: 'Restored from meal plan deletion',
+              owner: userId // Add owner field
+            };
+            
+            // First create non-marked food, then create marked food entry
+            updatePromises.push(
+              firstValueFrom(this.foodService.addFood(newFoodData))
+                .then((createdFood) => {
+                  console.log(`✅ Successfully created non-marked food "${ingredient.name}"`);
+                  
+                  // Now create marked food entry
+                  // Convert expiry Date to string for MarkedFood
+                  let expiryString = '';
+                  if (createdFood.expiry) {
+                    if (createdFood.expiry instanceof Date) {
+                      expiryString = createdFood.expiry.toISOString();
+                    } else if (typeof createdFood.expiry === 'string') {
+                      expiryString = createdFood.expiry;
+                    } else {
+                      expiryString = defaultExpiry.toISOString();
+                    }
+                  } else {
+                    expiryString = defaultExpiry.toISOString();
+                  }
+                  
+                  const newMarkedFoodData = {
+                    foodId: createdFood._id!,
+                    name: createdFood.name,
+                    qty: ingredient.quantity,
+                    category: createdFood.category || 'Other',
+                    storage: createdFood.storage || 'Fridge',
+                    expiry: expiryString, // String for MarkedFood
+                    notes: createdFood.notes || 'Restored from meal plan deletion'
+                  };
+                  
+                  return firstValueFrom(this.browseService.markFood(newMarkedFoodData));
+                })
+                .then(() => {
+                  console.log(`✅ Successfully created marked food entry for "${ingredient.name}"`);
+                })
+                .catch((err: any) => {
+                  console.error(`❌ Failed to create food entry for "${ingredient.name}":`, err);
+                  throw err;
+                })
+            );
+          }
+        }
+      } else {
+        // Find matching non-marked food (current inventory) - normalize both names for comparison
+        // Also filter by owner and status to ensure we only update the current user's inventory items
+        const ingredientNameNormalized = ingredient.name.toLowerCase().trim();
+        const food = allFoods.find(f => {
+          const foodNameNormalized = (f.name || '').toLowerCase().trim();
+          const nameMatches = foodNameNormalized === ingredientNameNormalized;
+          const ownerMatches = f.owner === userId;
+          const statusMatches = !f.status || f.status === 'inventory';
+          return nameMatches && ownerMatches && statusMatches;
+        });
+        console.log(`🔍 Looking for non-marked food "${ingredient.name}" (normalized: "${ingredientNameNormalized}"):`, food);
+        console.log(`🔍 Available non-marked foods:`, allFoods.map(f => ({ 
+          name: f.name, 
+          normalized: (f.name || '').toLowerCase().trim(),
+          owner: f.owner,
+          status: f.status,
+          qty: f.qty 
+        })));
+        
+        if (food && food._id) {
+          const newQty = (food.qty || 0) + ingredient.quantity;
+          console.log(`📈 Restoring non-marked food "${ingredient.name}": ${food.qty} -> ${newQty}`);
+          updatePromises.push(
+            firstValueFrom(this.browseService.updateFoodQty(food._id, newQty))
+              .then(() => console.log(`✅ Successfully restored non-marked food "${ingredient.name}"`))
+              .catch((err: any) => {
+                console.error(`❌ Failed to restore non-marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        } else {
+          // Non-marked food doesn't exist - create new non-marked food
+          console.log(`🔄 Non-marked food "${ingredient.name}" not found. Creating new food entry...`);
+          
+          // Create a new non-marked food with default values
+          const defaultExpiry = new Date();
+          defaultExpiry.setDate(defaultExpiry.getDate() + 7); // Default: 7 days from now
+          
+          const newFoodData = {
+            name: ingredient.name, // Use original name (not normalized)
+            qty: ingredient.quantity,
+            category: 'Other', // Default category
+            storage: 'Fridge', // Default storage
+            expiry: defaultExpiry, // Date object for FoodService
+            notes: 'Restored from meal plan deletion',
+            owner: userId // Add owner field
+          };
+          
+          updatePromises.push(
+            firstValueFrom(this.foodService.addFood(newFoodData))
+              .then(() => {
+                console.log(`✅ Successfully created non-marked food "${ingredient.name}"`);
+              })
+              .catch((err: any) => {
+                console.error(`❌ Failed to create non-marked food "${ingredient.name}":`, err);
+                throw err;
+              })
+          );
+        }
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      console.log('✅ All ingredient quantities restored successfully');
+    } else {
+      console.warn('⚠️ No update promises to execute - no ingredients matched');
+    }
+  }
+
+  getDaysUntilExpiry(expiry: string): number {
+    if (!expiry) return 999; // No expiry date means far future
+    
+    try {
+      // Parse expiry date (DD/MM/YYYY format)
+      const expiryParts = expiry.split('/');
+      if (expiryParts.length !== 3) return 999;
+      
+      const expiryDate = new Date(
+        parseInt(expiryParts[2]), 
+        parseInt(expiryParts[1]) - 1, 
+        parseInt(expiryParts[0])
+      );
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch (error) {
+      return 999; // Error parsing date, return large number
+    }
   }
 }
 
