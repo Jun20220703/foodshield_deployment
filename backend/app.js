@@ -146,29 +146,8 @@ app.get('/api/donations', async (req, res) => {
 });
 app.options('/api/foods/:id/status', cors());
 
-// app.js または foodRoutes.js
-app.put('/api/foods/:id', async (req, res) => {
-  try {
-    const { qty } = req.body;
-    console.log(`🟢 [DB Update] Updating food ${req.params.id} with qty: ${qty}`);
-    
-    const updatedFood = await Food.findByIdAndUpdate(
-      req.params.id,
-      { qty },
-      { new: true }  // 更新後のデータを返す
-    );
-    
-    if (!updatedFood) {
-      return res.status(404).json({ message: 'Food not found' });
-    }
-    
-    console.log(`✅ [DB Update] Food updated in database: ${updatedFood.name}, new qty: ${updatedFood.qty}`);
-    res.json(updatedFood);
-  } catch (error) {
-    console.error('❌ [DB Update] Error updating food:', error);
-    res.status(500).json({ message: 'Server error while updating food', error });
-  }
-});
+// Note: Food update route is handled in foodRoutes.js (router.put('/:id', ...))
+// This route was removed to avoid conflicts - all fields are now updated properly
 
 app.use('/api/notifications', notificationRoutes);
 console.log('✅ Notification routes registered');
