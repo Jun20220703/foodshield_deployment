@@ -51,21 +51,45 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-// app.js または foodRoutes.js
-router.put('/api/foods/:id', async (req, res) => {
+// Update food item by ID
+router.put('/:id', async (req, res) => {
   try {
+    console.log('📝 Updating food:', req.params.id, 'with data:', req.body);
+    
+    // Prepare update data - ensure all fields are included
+    const updateData = {
+      name: req.body.name,
+      qty: req.body.qty,
+      expiry: req.body.expiry,
+      category: req.body.category,
+      storage: req.body.storage,
+      notes: req.body.notes
+    };
+    
+    // Remove undefined fields
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+    
+    console.log('📝 Update data (cleaned):', updateData);
+    
     const updatedFood = await Food.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { new: true }  // 更新後のデータを返す
+      updateData,
+      { new: true, runValidators: true }  // 更新後のデータを返す、バリデーションも実行
     );
+    
     if (!updatedFood) {
       return res.status(404).json({ message: 'Food not found' });
     }
+    
+    console.log('✅ Food updated successfully:', updatedFood);
     res.json(updatedFood);
   } catch (error) {
-    console.error('Error updating food:', error);
-    res.status(500).json({ message: 'Server error while updating food', error });
+    console.error('❌ Error updating food:', error);
+    res.status(500).json({ message: 'Server error while updating food', error: error.message });
   }
 });
 

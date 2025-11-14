@@ -42,11 +42,19 @@ export class ManageFoodInventory {
 }
 
 loadFoods() {
+  // Check if we're in browser environment (not SSR)
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    console.warn('⚠️ localStorage not available (SSR mode). Skipping foods load.');
+    this.foodItems = [];
+    return;
+  }
+
   // localStorage からログインユーザー情報を取得
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   console.log('Loaded user from localStorage:', user);
 
-  const userId = user.id;
+  // Support both user.id and user._id (MongoDB uses _id)
+  const userId = user.id || user._id;
 
   if (!userId) {
     console.error('User ID not found in localStorage.');
@@ -135,13 +143,21 @@ cancelDonate() {
 }
 
 confirmDonate() {
+  // Check if we're in browser environment (not SSR)
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    console.warn('⚠️ localStorage not available (SSR mode). Cannot donate.');
+    this.donateError = 'Cannot donate in SSR mode.';
+    return;
+  }
+
   // 必須項目チェック
   if (!this.donationDetails.location.trim() || !this.donationDetails.availability.trim()) {
     this.donateError = 'Pickup location and availability are required.';
     return;
   }
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const userId = user?.id;
+  // Support both user.id and user._id (MongoDB uses _id)
+  const userId = user?.id || user?._id;
 
   if(!userId){
     this.donateError = 'User not logged in.';

@@ -53,13 +53,33 @@ export class EditFoodComponent implements OnInit {
   // 更新処理
   onSubmit() {
     if (this.foodForm.valid) {
-      this.foodService.updateFood(this.foodId, this.foodForm.value).subscribe({
-        next: () => {
+      // Prepare update data with all fields
+      const formValue = this.foodForm.value;
+      const updateData = {
+        name: formValue.name,
+        qty: formValue.qty,
+        expiry: formValue.expiry, // Date format: YYYY-MM-DD
+        category: formValue.category,
+        storage: formValue.storage,
+        notes: formValue.notes || ''
+      };
+      
+      console.log('📝 Updating food with data:', updateData);
+      
+      this.foodService.updateFood(this.foodId, updateData).subscribe({
+        next: (updatedFood) => {
+          console.log('✅ Food updated successfully:', updatedFood);
           alert('Food item updated successfully!');
           this.router.navigate(['/manage-inventory']); // 更新後一覧ページへ
         },
-        error: (err) => console.error('Error updating food:', err)
+        error: (err) => {
+          console.error('❌ Error updating food:', err);
+          alert('Failed to update food item. Please try again.');
+        }
       });
+    } else {
+      console.warn('⚠️ Form is invalid:', this.foodForm.errors);
+      alert('Please fill in all required fields.');
     }
   }
 
