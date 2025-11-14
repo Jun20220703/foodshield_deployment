@@ -19,15 +19,8 @@
         {{ notification.createdAt | date: 'dd MMMM yyyy, h:mm a' }}
       </p>
       <hr />
-      <p class="body">{{ notification.message }}</p>
 
-      <!-- ✅ 関連ページへ遷移するボタン（任意） -->
-      <button *ngIf="notification.type === 'inventory'" class="link-btn">
-        View related item
-      </button>
-      <button *ngIf="notification.type === 'donation'" class="link-btn">
-        View donation details
-      </button>
+      
 
       <p class="body" [innerHTML]="notification?.message"></p>
 
