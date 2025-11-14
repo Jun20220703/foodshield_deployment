@@ -65,12 +65,38 @@ app.get('/', (req, res) => {
 app.post('/api/foods', async (req, res) => {
   try{
     console.log("Received POST /api/foods:", req.body);
-    const newFood = new Food(req.body);
+    
+    // Validate required fields
+    const { name, qty, expiry, category, storage, owner } = req.body;
+    if (!name || qty === undefined || !expiry || !category || !storage || !owner) {
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        required: ['name', 'qty', 'expiry', 'category', 'storage', 'owner'],
+        received: Object.keys(req.body)
+      });
+    }
+    
+    const newFood = new Food({
+      name,
+      qty: Number(qty),
+      expiry: new Date(expiry),
+      category,
+      storage,
+      notes: req.body.notes || '',
+      status: req.body.status || 'inventory',
+      owner
+    });
+    
     await newFood.save();
+    console.log("✅ Food saved successfully:", newFood);
     res.status(201).json(newFood);
   } catch (error){
-    console.error("Error savinf food:", error);
-    res.status(400).json({message: error.message});
+    console.error("❌ Error saving food:", error);
+    res.status(400).json({
+      message: error.message,
+      error: error.name,
+      details: error.errors || {}
+    });
   }
 });
 
