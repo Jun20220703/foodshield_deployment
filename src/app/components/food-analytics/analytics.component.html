@@ -34,30 +34,42 @@
     <section class="charts-row">
       <!-- Pie card -->
       <div class="panel pie-panel">
-        <!-- left stacked toggle like prototype -->
-        <div class="toggle-stack">
-          <button
-            class="pill"
-            [class.active]="range()==='day'"
-            (click)="setRange('day')">
-            Day
-          </button>
-          <button
-            class="pill"
-            [class.disabled]="range()==='day'"
-            [class.active]="range()==='month'"
-            (click)="setRange('month')">
-            Month
-          </button>
-        </div>
-
         <div class="panel-body">
-          <div class="chart-wrap" *ngIf="!loading(); else loadingTpl">
-            <canvas baseChart
-              [data]="pieData()"
-              [options]="pieOptions"
-              chartType="pie">
-            </canvas>
+          <!-- Pie chart title -->
+          <div class="pie-chart-title">{{ getPieChartTitle() }}</div>
+          
+          <!-- 2-column layout: buttons on left, chart on right -->
+          <div class="pie-layout">
+            <!-- Column 1: Toggle buttons -->
+            <div class="toggle-stack">
+              <button
+                class="pill"
+                [class.active]="range()==='day'"
+                (click)="setRange('day')">
+                Day
+              </button>
+              <button
+                class="pill"
+                [class.disabled]="range()==='day'"
+                [class.active]="range()==='month'"
+                (click)="setRange('month')">
+                Month
+              </button>
+            </div>
+
+            <!-- Column 2: Pie chart -->
+            <div class="chart-wrap" *ngIf="!loading(); else loadingTpl">
+              <canvas 
+                *ngIf="hasPieData(); else noPieDataTpl"
+                baseChart
+                [data]="pieData()"
+                [options]="pieOptions"
+                [type]="'pie'">
+              </canvas>
+              <ng-template #noPieDataTpl>
+                <div class="no-data-message">{{ getPieNoDataMessage() }}</div>
+              </ng-template>
+            </div>
           </div>
         </div>
       </div>
@@ -107,7 +119,7 @@
               baseChart
               [data]="currentBarData()"
               [options]="barOptions"
-              chartType="bar">
+              [type]="'bar'">
             </canvas>
             <ng-template #noBarDataTpl>
               <div class="no-data-message">{{ getNoDataMessage() }}</div>

@@ -8,6 +8,87 @@ import { AnalyticsService, AnalyticsData, Range } from '../../services/analytics
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { NgIf } from '@angular/common';
 
+// Helper function to darken a hex or rgba color
+function darkenColor(color: string, percent: number): string {
+  // Handle rgba colors
+  if (color.startsWith('rgba')) {
+    const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbaMatch) {
+      const r = Math.max(0, Math.floor(parseInt(rgbaMatch[1]) * (1 - percent)));
+      const g = Math.max(0, Math.floor(parseInt(rgbaMatch[2]) * (1 - percent)));
+      const b = Math.max(0, Math.floor(parseInt(rgbaMatch[3]) * (1 - percent)));
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  }
+  
+  // Handle hex colors
+  const hex = color.replace('#', '');
+  const num = parseInt(hex, 16);
+  const r = Math.max(0, Math.floor((num >> 16) * (1 - percent)));
+  const g = Math.max(0, Math.floor(((num >> 8) & 0x00FF) * (1 - percent)));
+  const b = Math.max(0, Math.floor((num & 0x0000FF) * (1 - percent)));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+// Plugin to display labels and percentages inside pie chart segments
+const pieLabelsPlugin = {
+  id: 'pieLabels',
+  afterDraw: (chart: Chart) => {
+    const ctx = chart.ctx;
+    const dataset = chart.data.datasets[0];
+    const labels = chart.data.labels as string[];
+    const data = dataset.data as number[];
+    const colors = dataset.backgroundColor as string[];
+    
+    if (!data || data.length === 0) return;
+    
+    const total = data.reduce((a, b) => a + b, 0);
+    if (total === 0) return;
+    
+    chart.getDatasetMeta(0).data.forEach((arc: any, index: number) => {
+      const model = arc;
+      const angle = model.startAngle + (model.endAngle - model.startAngle) / 2;
+      
+      // Position labels in the center of each segment
+      const x = model.x + Math.cos(angle) * (model.innerRadius + (model.outerRadius - model.innerRadius) / 2);
+      const y = model.y + Math.sin(angle) * (model.innerRadius + (model.outerRadius - model.innerRadius) / 2);
+      
+      const value = data[index];
+      const percentage = ((value / total) * 100).toFixed(1);
+      let label = labels[index] || '';
+      
+      // Map labels to proper display names
+      const labelMap: { [key: string]: string } = {
+        'consumed': 'Consumed',
+        'donated': 'Donation',
+        'expired': 'Expired'
+      };
+      
+      // Use mapped label or capitalize first letter
+      label = labelMap[label.toLowerCase()] || label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+      
+      // Get the original segment color (use original colors to avoid rgba issues)
+      // Original colors: ['#8afc9e', '#fad46b', '#f56b6b'] for Consumed, Donated, Expired
+      const originalColors = ['#8afc9e', '#fad46b', '#f56b6b'];
+      const segmentColor = originalColors[index] || colors[index] || '#333';
+      const darkerColor = darkenColor(segmentColor, 0.5); // Darken by 50% for better visibility
+      
+      ctx.save();
+      ctx.fillStyle = darkerColor;
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // Display label and percentage together
+      ctx.fillText(`${label} ${percentage}%`, x, y);
+      
+      ctx.restore();
+    });
+  }
+};
+
+Chart.register(pieLabelsPlugin);
+
 
 @Component({
   selector: 'app-analytics',
@@ -35,6 +116,9 @@ export class AnalyticsComponent implements OnInit {
   // charts
   pieData = signal<ChartData<'pie'>>({ labels: [], datasets: [] });
   barData = signal<ChartData<'bar'>>({ labels: [], datasets: [] });
+  
+  // Store original pie chart colors for hover effects
+  private originalPieColors: string[] = ['#8afc9e', '#fad46b', '#f56b6b']; // Consumed, Donated, Expired
 
   // ✅ Computed bar data based on selected status
   currentBarData = computed(() => {
@@ -143,18 +227,80 @@ export class AnalyticsComponent implements OnInit {
 
   pieOptions: ChartConfiguration<'pie'>['options'] = {
     responsive: true,
-    plugins: { legend: { display: false } }
+    plugins: { 
+      legend: { display: false },
+      tooltip: { 
+        enabled: true,
+        callbacks: {
+          label: (context) => {
+            const label = context.label || '';
+            const value = context.parsed || 0;
+            // Map labels to proper display names
+            const labelMap: { [key: string]: string } = {
+              'consumed': 'Consumed',
+              'donated': 'Donation',
+              'expired': 'Expired'
+            };
+            const displayLabel = labelMap[label.toLowerCase()] || label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+            return `${displayLabel}: ${value}`;
+          }
+        }
+      }
+    },
+    onHover: (event, activeElements, chart) => {
+      const dataset = chart?.data?.datasets?.[0];
+      if (!dataset || !this.originalPieColors.length) return;
+      
+      if (activeElements.length > 0) {
+        const hoveredIndex = activeElements[0].index;
+        
+        // Create new colors array with transparency for non-hovered segments
+        const newColors = this.originalPieColors.map((color, index) => {
+          if (index === hoveredIndex) {
+            return color; // Keep original color for hovered segment
+          } else {
+            return this.addTransparency(color, 0.7); // 30% opacity for others
+          }
+        });
+        
+        dataset.backgroundColor = newColors;
+        chart.update('none'); // Update without animation for smooth hover
+      } else {
+        // Restore original colors when not hovering
+        dataset.backgroundColor = [...this.originalPieColors];
+        chart.update('none');
+      }
+    }
   };
+  
+  // Helper function to add transparency to hex color
+  private addTransparency(hex: string, opacity: number): string {
+    // Remove # if present
+    const cleanHex = hex.replace('#', '');
+    
+    // Convert hex to RGB
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    
+    // Return rgba string
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
 
   barOptions: ChartConfiguration<'bar'>['options'] = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: { legend: { display: false } },
     scales: {
       x: { ticks: { autoSkip: false } },
       y: {
         beginAtZero: true,
-        ticks: { stepSize: 1 }
+        ticks: {
+          stepSize: 2,
+          callback: (value) => Number.isInteger(value) ? value : ''
         }
+      }
+
 
     }
   };
@@ -179,12 +325,14 @@ export class AnalyticsComponent implements OnInit {
         this.data.set(res);
 
         // pie: Consumed / Donated / Expired
+        // Store original colors
+        this.originalPieColors = ['#8afc9e', '#fad46b', '#f56b6b'];
         this.pieData.set({
           labels: res.pie.labels,
           datasets: [{
             data: res.pie.values,
             // prototype colors
-            backgroundColor: ['#8afc9e', '#fad46b', '#f56b6b'],
+            backgroundColor: [...this.originalPieColors],
           }]
         });
 
@@ -210,5 +358,27 @@ export class AnalyticsComponent implements OnInit {
   onStatusChange(status: 'expired' | 'donated' | 'consumed') {
     this.selectedStatus.set(status);
     this.updateBarData();
+  }
+
+  // ✅ Check if pie chart has data
+  hasPieData(): boolean {
+    const data = this.pieData();
+    if (!data.datasets || data.datasets.length === 0) return false;
+    const values = data.datasets[0].data as number[];
+    if (!values || values.length === 0) return false;
+    // Check if all values are 0 or if sum is 0
+    return values.some(val => val > 0);
+  }
+
+  // ✅ Get no data message for pie chart
+  getPieNoDataMessage(): string {
+    return 'No activity to show yet 🌼\n\nAdd or update your food items to see your progress!';
+  }
+
+  // ✅ Get pie chart title based on range
+  getPieChartTitle(): string {
+    return this.range() === 'day' 
+      ? '🌞 Today\'s Food Activity Breakdown' 
+      : '📅 Monthly Food Activity Breakdown';
   }
 }
