@@ -139,8 +139,48 @@
   font-size: 18px;
   font-weight: 700;
   color: #333;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   text-align: center;
+}
+
+/* ========= PIE CHART LEGEND ========= */
+.pie-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-square {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-consumed {
+  background-color: #8afc9e; /* Green for consumed */
+}
+
+.legend-donation {
+  background-color: #fad46b; /* Yellow for donation */
+}
+
+.legend-expired {
+  background-color: #f56b6b; /* Red for expired */
+}
+
+.legend-label {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
 }
 
 .pie-layout {

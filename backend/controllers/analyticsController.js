@@ -115,8 +115,8 @@ exports.getDaily = async (req, res) => {
       const todayConsumedSamples = await Food.find({
         owner: ownerId,
         status: "consumed",
-        updatedAt: { $gte: startUTC, $lte: endUTC }
-      }).limit(3).select('name status updatedAt');
+        createdAt: { $gte: startUTC, $lte: endUTC }
+      }).limit(3).select('name status createdAt qty');
       const todayExpiredSamples = await Food.find({
         owner: ownerId,
         status: "expired",
@@ -159,15 +159,47 @@ exports.getDaily = async (req, res) => {
     }
 
     // ====== ✅ DAILY CONSUMED (status changed to consumed today) ======
+    // Sum qty of foods consumed today (e.g., if 7 apples consumed, count = 7, not 1)
     const consumedMatch = {
       ...(ownerId && { owner: ownerId }),
       status: "consumed",
-      updatedAt: { $gte: startUTC, $lte: endUTC }
+      createdAt: { $gte: startUTC, $lte: endUTC }
     };
     console.log("🔍 Consumed match filter:", JSON.stringify(consumedMatch, null, 2));
     
-    const consumedCount = await Food.countDocuments(consumedMatch);
-    console.log("📊 Consumed count:", consumedCount);
+    // ✅ IMPORTANT: Sum qty (quantity) not count documents
+    // If 7 apples consumed, consumedCount = 7 (sum of qty), not 1 (count of items)
+    let consumedCount = 0;
+    try {
+      const consumedResult = await Food.aggregate([
+        { $match: consumedMatch },
+        {
+          $group: {
+            _id: null,
+            totalQty: { $sum: { $ifNull: ["$qty", 0] } } // Sum all qty values
+          }
+        }
+      ]);
+      
+      console.log("🔍 Debug - Daily consumed aggregation result:", JSON.stringify(consumedResult, null, 2));
+      consumedCount = (consumedResult && consumedResult.length > 0 && consumedResult[0].totalQty) ? consumedResult[0].totalQty : 0;
+      console.log("📊 Daily Consumed count (qty sum):", consumedCount);
+      
+      // Debug: Show consumed samples with qty
+      if (ownerId) {
+        const consumedSamples = await Food.find(consumedMatch).select('name qty createdAt');
+        console.log("🔍 Debug - Today's consumed samples with qty:", JSON.stringify(consumedSamples, null, 2));
+        const manualSum = consumedSamples.reduce((sum, item) => sum + (item.qty || 0), 0);
+        console.log("🔍 Debug - Manual qty sum:", manualSum);
+        console.log("🔍 Debug - Aggregation sum:", consumedCount);
+        if (manualSum !== consumedCount) {
+          console.error("⚠️ WARNING: Manual sum and aggregation sum don't match!");
+        }
+      }
+    } catch (err) {
+      console.error("🔥 Error in consumed aggregation:", err);
+      consumedCount = 0;
+    }
 
     // ====== ✅ DAILY EXPIRED (expiry date is today only) ======
     // Sum qty of foods that expire today (e.g., if 5 watermelons expired, count = 5, not 1)
@@ -428,14 +460,47 @@ exports.getMonthly = async (req, res) => {
     }
 
     // ====== ✅ MONTHLY CONSUMED (status changed to consumed this month) ======
+    // Sum qty of foods consumed this month (e.g., if 7 apples consumed, count = 7, not 1)
     const consumedMatch = {
       ...(ownerId && { owner: ownerId }),
       status: "consumed",
-      updatedAt: { $gte: startUTC, $lte: endUTC }
+      createdAt: { $gte: startUTC, $lte: endUTC }
     };
+    console.log("🔍 Monthly Consumed match filter:", JSON.stringify(consumedMatch, null, 2));
     
-    const consumedCount = await Food.countDocuments(consumedMatch);
-    console.log("📊 Monthly consumed count:", consumedCount);
+    // ✅ IMPORTANT: Sum qty (quantity) not count documents
+    // If 7 apples consumed, consumedCount = 7 (sum of qty), not 1 (count of items)
+    let consumedCount = 0;
+    try {
+      const consumedResult = await Food.aggregate([
+        { $match: consumedMatch },
+        {
+          $group: {
+            _id: null,
+            totalQty: { $sum: { $ifNull: ["$qty", 0] } } // Sum all qty values
+          }
+        }
+      ]);
+      
+      console.log("🔍 Debug - Monthly consumed aggregation result:", JSON.stringify(consumedResult, null, 2));
+      consumedCount = (consumedResult && consumedResult.length > 0 && consumedResult[0].totalQty) ? consumedResult[0].totalQty : 0;
+      console.log("📊 Monthly Consumed count (qty sum):", consumedCount);
+      
+      // Debug: Show consumed samples with qty
+      if (ownerId) {
+        const consumedSamples = await Food.find(consumedMatch).select('name qty createdAt');
+        console.log("🔍 Debug - This month's consumed samples with qty:", JSON.stringify(consumedSamples, null, 2));
+        const manualSum = consumedSamples.reduce((sum, item) => sum + (item.qty || 0), 0);
+        console.log("🔍 Debug - Manual qty sum:", manualSum);
+        console.log("🔍 Debug - Aggregation sum:", consumedCount);
+        if (manualSum !== consumedCount) {
+          console.error("⚠️ WARNING: Manual sum and aggregation sum don't match!");
+        }
+      }
+    } catch (err) {
+      console.error("🔥 Error in monthly consumed aggregation:", err);
+      consumedCount = 0;
+    }
 
     // ====== ✅ MONTHLY EXPIRED (expiry date is this month and has already expired) ======
     // Sum qty of foods that expired this month (e.g., if 5 watermelons expired, count = 5, not 1)

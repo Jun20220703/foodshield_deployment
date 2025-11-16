@@ -38,6 +38,22 @@
           <!-- Pie chart title -->
           <div class="pie-chart-title">{{ getPieChartTitle() }}</div>
           
+          <!-- Color legend -->
+          <div class="pie-legend">
+            <div class="legend-item" *ngIf="hasConsumedData()">
+              <div class="legend-square legend-consumed"></div>
+              <span class="legend-label">Consumed</span>
+            </div>
+            <div class="legend-item" *ngIf="hasDonationData()">
+              <div class="legend-square legend-donation"></div>
+              <span class="legend-label">Donation</span>
+            </div>
+            <div class="legend-item" *ngIf="hasExpiredData()">
+              <div class="legend-square legend-expired"></div>
+              <span class="legend-label">Expired</span>
+            </div>
+          </div>
+          
           <!-- 2-column layout: buttons on left, chart on right -->
           <div class="pie-layout">
             <!-- Column 1: Toggle buttons -->
