@@ -67,10 +67,8 @@ const pieLabelsPlugin = {
       // Use mapped label or capitalize first letter
       label = labelMap[label.toLowerCase()] || label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
       
-      // Get the original segment color (use original colors to avoid rgba issues)
-      // Original colors: ['#8afc9e', '#fad46b', '#f56b6b'] for Consumed, Donated, Expired
-      const originalColors = ['#8afc9e', '#fad46b', '#f56b6b'];
-      const segmentColor = originalColors[index] || colors[index] || '#333';
+      // Get the segment color from the dataset (already filtered)
+      const segmentColor = colors[index] || '#333';
       const darkerColor = darkenColor(segmentColor, 0.5); // Darken by 50% for better visibility
       
       ctx.save();
@@ -112,6 +110,11 @@ export class AnalyticsComponent implements OnInit {
   consumed = computed(() => this.data()?.header.consumed ?? 0);
   donation = computed(() => this.data()?.header.donation ?? 0);
   expired  = computed(() => this.data()?.header.expired  ?? 0);
+  
+  // Helper methods to check if category has data (for legend display)
+  hasConsumedData = computed(() => this.consumed() > 0);
+  hasDonationData = computed(() => this.donation() > 0);
+  hasExpiredData = computed(() => this.expired() > 0);
 
   // charts
   pieData = signal<ChartData<'pie'>>({ labels: [], datasets: [] });
@@ -119,6 +122,8 @@ export class AnalyticsComponent implements OnInit {
   
   // Store original pie chart colors for hover effects
   private originalPieColors: string[] = ['#8afc9e', '#fad46b', '#f56b6b']; // Consumed, Donated, Expired
+  // Store current filtered colors (for hover restoration)
+  private currentPieColors: string[] = [];
 
   // ✅ Computed bar data based on selected status
   currentBarData = computed(() => {
@@ -249,42 +254,73 @@ export class AnalyticsComponent implements OnInit {
     },
     onHover: (event, activeElements, chart) => {
       const dataset = chart?.data?.datasets?.[0];
-      if (!dataset || !this.originalPieColors.length) return;
+      if (!dataset || !dataset.backgroundColor || !Array.isArray(dataset.backgroundColor)) return;
       
       if (activeElements.length > 0) {
         const hoveredIndex = activeElements[0].index;
         
+        // Use stored original colors (hex format) for proper transparency conversion
+        const originalColors = this.currentPieColors.length > 0 
+          ? this.currentPieColors 
+          : (dataset.backgroundColor as string[]);
+        
         // Create new colors array with transparency for non-hovered segments
-        const newColors = this.originalPieColors.map((color, index) => {
+        const newColors = originalColors.map((color, index) => {
           if (index === hoveredIndex) {
             return color; // Keep original color for hovered segment
           } else {
-            return this.addTransparency(color, 0.7); // 30% opacity for others
+            // Convert hex to rgba with transparency
+            return this.addTransparency(color, 0.3); // 30% opacity for others
           }
         });
         
         dataset.backgroundColor = newColors;
         chart.update('none'); // Update without animation for smooth hover
       } else {
-        // Restore original colors when not hovering
-        dataset.backgroundColor = [...this.originalPieColors];
+        // Restore original colors when not hovering (use stored hex colors)
+        dataset.backgroundColor = [...this.currentPieColors];
         chart.update('none');
       }
     }
   };
   
-  // Helper function to add transparency to hex color
-  private addTransparency(hex: string, opacity: number): string {
-    // Remove # if present
-    const cleanHex = hex.replace('#', '');
+  // Helper function to add transparency to hex or rgba color
+  private addTransparency(color: string, opacity: number): string {
+    // Handle rgba colors (already has transparency)
+    if (color.startsWith('rgba')) {
+      const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (rgbaMatch) {
+        const r = parseInt(rgbaMatch[1]);
+        const g = parseInt(rgbaMatch[2]);
+        const b = parseInt(rgbaMatch[3]);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+    }
     
-    // Convert hex to RGB
-    const r = parseInt(cleanHex.substring(0, 2), 16);
-    const g = parseInt(cleanHex.substring(2, 4), 16);
-    const b = parseInt(cleanHex.substring(4, 6), 16);
+    // Handle hex colors
+    if (color.startsWith('#')) {
+      const cleanHex = color.replace('#', '');
+      
+      // Handle both 6-digit and 3-digit hex
+      let r: number, g: number, b: number;
+      if (cleanHex.length === 6) {
+        r = parseInt(cleanHex.substring(0, 2), 16);
+        g = parseInt(cleanHex.substring(2, 4), 16);
+        b = parseInt(cleanHex.substring(4, 6), 16);
+      } else if (cleanHex.length === 3) {
+        r = parseInt(cleanHex[0] + cleanHex[0], 16);
+        g = parseInt(cleanHex[1] + cleanHex[1], 16);
+        b = parseInt(cleanHex[2] + cleanHex[2], 16);
+      } else {
+        // Invalid hex, return original color
+        return color;
+      }
+      
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
     
-    // Return rgba string
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    // If color format is not recognized, return as-is
+    return color;
   }
 
   barOptions: ChartConfiguration<'bar'>['options'] = {
@@ -325,14 +361,31 @@ export class AnalyticsComponent implements OnInit {
         this.data.set(res);
 
         // pie: Consumed / Donated / Expired
-        // Store original colors
+        // Store original colors (order: Consumed, Donation, Expired)
         this.originalPieColors = ['#8afc9e', '#fad46b', '#f56b6b'];
+        
+        // Filter out labels and values that are 0 (no data)
+        const filteredLabels: string[] = [];
+        const filteredValues: number[] = [];
+        const filteredColors: string[] = [];
+        
+        res.pie.labels.forEach((label, index) => {
+          const value = res.pie.values[index];
+          if (value > 0) {
+            filteredLabels.push(label);
+            filteredValues.push(value);
+            filteredColors.push(this.originalPieColors[index]);
+          }
+        });
+        
+        // Store current colors for hover restoration
+        this.currentPieColors = [...filteredColors];
+        
         this.pieData.set({
-          labels: res.pie.labels,
+          labels: filteredLabels,
           datasets: [{
-            data: res.pie.values,
-            // prototype colors
-            backgroundColor: [...this.originalPieColors],
+            data: filteredValues,
+            backgroundColor: filteredColors,
           }]
         });
 
