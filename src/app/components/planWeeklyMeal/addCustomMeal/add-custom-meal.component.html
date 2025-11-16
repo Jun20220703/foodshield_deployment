@@ -9,7 +9,7 @@
       <div class="meal-form-container">
         <h1 class="page-title">{{ isEditMode ? 'Edit Custom Meal' : 'Add Custom meals' }}</h1>
         
-        <form class="meal-form" (ngSubmit)="createMeal()">
+        <form class="meal-form" (ngSubmit)="createMeal()" #mealForm="ngForm">
         <!-- Food Photo (Optional) -->
         <div class="form-group">
           <label class="form-label">Food Photo (Optional)</label>
@@ -69,8 +69,7 @@
                   [name]="'ingredientName' + i"
                   placeholder="Click to select from inventory"
                   (click)="openIngredientModal()"
-                  readonly
-                  required>
+                  readonly>
               </div>
               <input 
                 type="number" 
@@ -82,8 +81,7 @@
                 (input)="onIngredientQuantityInput(ingredient, i, $event)"
                 (ngModelChange)="onIngredientQuantityChange(ingredient, i, $event)"
                 (blur)="onIngredientQuantityChange(ingredient, i, $event)"
-                placeholder="Quantity"
-                required>
+                placeholder="Quantity">
               <button 
                 type="button" 
                 class="remove-ingredient-btn" 
@@ -125,7 +123,7 @@
         <!-- Buttons -->
         <div class="form-actions">
           <button type="button" class="btn-back" (click)="back()">Back</button>
-          <button type="submit" class="btn-create">{{ isEditMode ? 'Update' : 'Create' }}</button>
+          <button type="button" class="btn-create" (click)="createMeal($event)">{{ isEditMode ? 'Update' : 'Create' }}</button>
         </div>
       </form>
     </div>

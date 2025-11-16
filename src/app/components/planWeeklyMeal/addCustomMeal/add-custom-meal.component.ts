@@ -79,6 +79,29 @@ export class AddCustomMealComponent implements OnInit {
 
   ngOnInit() {
     // Query parameters에서 선택된 날짜와 meal type 받기
+    // Use snapshot for immediate access (synchronous)
+    const params = this.route.snapshot.queryParams;
+    this.selectedDate = params['date'] || '';
+    this.selectedMealType = params['mealType'] || '';
+    this.isEditMode = params['edit'] === 'true';
+    this.editMealId = params['id'] || null;
+    
+    console.log('🔍 ngOnInit - Query params:', {
+      selectedDate: this.selectedDate,
+      selectedMealType: this.selectedMealType,
+      isEditMode: this.isEditMode,
+      editMealId: this.editMealId
+    });
+    
+    // Edit 모드이고 id가 있으면 기존 데이터 로드
+    if (this.isEditMode && this.editMealId) {
+      console.log('🟢 Loading existing meal for edit:', this.editMealId);
+      this.loadExistingMeal(this.editMealId);
+    } else {
+      console.log('🟢 Not in edit mode, starting fresh');
+    }
+    
+    // Also subscribe to query params changes (for navigation within same component)
     this.route.queryParams.subscribe(params => {
       this.selectedDate = params['date'] || '';
       this.selectedMealType = params['mealType'] || '';
@@ -89,7 +112,6 @@ export class AddCustomMealComponent implements OnInit {
       if (this.isEditMode && this.editMealId) {
         this.loadExistingMeal(this.editMealId);
       }
-      // Not in edit mode: ingredientList starts empty, user clicks button to add
     });
     
     // CRITICAL: Ensure filter drawer is closed by default
@@ -128,11 +150,20 @@ export class AddCustomMealComponent implements OnInit {
         // Parse ingredients string into ingredientList
         this.parseIngredientsToList(meal.ingredients || '');
         
-        // Store original ingredients for comparison during edit
+        // Store original ingredients FIRST (before loading max quantities)
+        // This is needed because loadMaxQuantitiesForIngredients uses originalIngredientList
         this.originalIngredientList = JSON.parse(JSON.stringify(this.ingredientList));
         console.log('📋 Original ingredients stored:', this.originalIngredientList);
         
-        this.cdr.detectChanges();
+        // Load maxQuantity for each ingredient from current inventory
+        // In edit mode, this will add original quantity to current inventory quantity
+        this.loadMaxQuantitiesForIngredients().then(() => {
+          this.cdr.detectChanges();
+        }).catch((err) => {
+          console.error('❌ Error loading max quantities:', err);
+          // Still continue even if max quantities fail to load
+          this.cdr.detectChanges();
+        });
       },
       error: (err) => {
         console.error('❌ Error loading existing meal:', err);
@@ -204,10 +235,11 @@ export class AddCustomMealComponent implements OnInit {
   // Format: "IngredientName Quantity [marked|non-marked] [category]"
   convertIngredientsListToString(): string {
     return this.ingredientList
-      .filter(ing => ing.name.trim().length > 0)
+      .filter(ing => ing.name && ing.name.trim().length > 0)
       .map(ing => {
         const name = ing.name.trim();
-        const qty = ing.quantity.trim();
+        // Convert quantity to string if it's a number, then trim
+        const qty = ing.quantity ? String(ing.quantity).trim() : '';
         const type = ing.inventoryType || 'marked'; // Default to marked if not specified
         const category = ing.category || undefined;
         const baseStr = qty ? `${name} ${qty}` : name;
@@ -226,6 +258,88 @@ export class AddCustomMealComponent implements OnInit {
   // Remove ingredient row
   removeIngredient(index: number) {
     this.ingredientList.splice(index, 1);
+  }
+
+  // Load maxQuantity for each ingredient from current inventory
+  // In edit mode: maxQuantity = current inventory quantity + original meal plan quantity
+  // This ensures users cannot increase quantity beyond what was originally used + what's currently available
+  async loadMaxQuantitiesForIngredients(): Promise<void> {
+    if (this.ingredientList.length === 0) {
+      return;
+    }
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.id || user._id;
+    if (!userId) {
+      console.warn('⚠️ User ID not found, cannot load max quantities');
+      return;
+    }
+
+    try {
+      // Get all marked foods and non-marked foods
+      const markedFoodsPromise = firstValueFrom(this.browseService.getMarkedFoods());
+      const allFoodsPromise = firstValueFrom(this.browseService.getFoods());
+      const [markedFoods, allFoods] = await Promise.all([markedFoodsPromise, allFoodsPromise]);
+
+      // Update maxQuantity for each ingredient
+      for (const ingredient of this.ingredientList) {
+        if (!ingredient.name || !ingredient.name.trim()) {
+          continue;
+        }
+
+        const ingredientNameNormalized = ingredient.name.trim().toLowerCase();
+        const inventoryType = ingredient.inventoryType || 'marked';
+
+        // Get current inventory quantity
+        let currentInventoryQty = 0;
+        if (inventoryType === 'marked') {
+          // Find matching marked food
+          const markedFood = markedFoods.find(mf => {
+            const foodNameNormalized = (mf.name || '').toLowerCase().trim();
+            return foodNameNormalized === ingredientNameNormalized;
+          });
+          if (markedFood) {
+            currentInventoryQty = markedFood.qty || 0;
+          }
+        } else {
+          // Find matching non-marked food
+          const food = allFoods.find(f => {
+            const foodNameNormalized = (f.name || '').toLowerCase().trim();
+            return foodNameNormalized === ingredientNameNormalized && f.owner === userId && f.status === 'inventory';
+          });
+          if (food) {
+            currentInventoryQty = food.qty || 0;
+          }
+        }
+
+        // In edit mode: add original quantity from meal plan
+        // Original quantity is what was used in the meal plan (will be restored)
+        let originalQuantity = 0;
+        if (this.isEditMode && this.originalIngredientList.length > 0) {
+          const originalIngredient = this.originalIngredientList.find(orig => {
+            const origNameNormalized = (orig.name || '').trim().toLowerCase();
+            return origNameNormalized === ingredientNameNormalized;
+          });
+          
+          if (originalIngredient && originalIngredient.quantity) {
+            const origQtyStr = String(originalIngredient.quantity).trim();
+            const origQtyMatch = origQtyStr.match(/^(\d+(?:\.\d+)?)/);
+            if (origQtyMatch) {
+              originalQuantity = parseFloat(origQtyMatch[1]);
+            }
+          }
+        }
+
+        // maxQuantity = current inventory + original meal plan quantity
+        // This ensures users cannot exceed what's available after restoring original quantity
+        ingredient.maxQuantity = currentInventoryQty + originalQuantity;
+        
+        console.log(`✅ Set maxQuantity for "${ingredient.name}": ${ingredient.maxQuantity} (current: ${currentInventoryQty} + original: ${originalQuantity})`);
+      }
+    } catch (err) {
+      console.error('❌ Error loading max quantities:', err);
+      throw err;
+    }
   }
 
   loadInventory() {
@@ -598,8 +712,25 @@ export class AddCustomMealComponent implements OnInit {
     this.foodPhoto = null;
   }
 
-  createMeal() {
-    if (!this.foodName.trim()) {
+  createMeal(event?: Event) {
+    // Prevent default form submission
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    console.log('🔍 createMeal() called');
+    console.log('🔍 Current state:', {
+      isEditMode: this.isEditMode,
+      editMealId: this.editMealId,
+      foodName: this.foodName,
+      selectedDate: this.selectedDate,
+      selectedMealType: this.selectedMealType,
+      ingredientListLength: this.ingredientList.length,
+      ingredientList: this.ingredientList
+    });
+
+    if (!this.foodName || !this.foodName.trim()) {
       alert('Please enter a food name');
       return;
     }
@@ -618,6 +749,64 @@ export class AddCustomMealComponent implements OnInit {
       alert('Date and meal type are required. Please go back and select a date and meal type.');
       return;
     }
+
+    // Validate ingredient quantities - STRICT validation
+    // Check if any quantity exceeds maxQuantity (current inventory + original meal plan quantity in edit mode)
+    for (const ingredient of this.ingredientList) {
+      if (!ingredient.name || !ingredient.name.trim()) {
+        continue; // Skip empty ingredients
+      }
+      
+      // Convert quantity to number
+      const quantityStr = ingredient.quantity ? String(ingredient.quantity).trim() : '';
+      if (!quantityStr) {
+        continue; // Skip if no quantity
+      }
+      
+      const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
+      if (!quantityMatch) {
+        continue; // Skip if invalid format
+      }
+      
+      const enteredQty = parseFloat(quantityMatch[1]);
+      if (isNaN(enteredQty) || enteredQty <= 0) {
+        alert(`Invalid quantity for "${ingredient.name}". Please enter a valid positive number.`);
+        return;
+      }
+      
+      // STRICT: If maxQuantity is set, entered quantity must not exceed it
+      if (ingredient.maxQuantity !== undefined && ingredient.maxQuantity !== null) {
+        if (enteredQty > ingredient.maxQuantity) {
+          const maxQty = ingredient.maxQuantity;
+          alert(`The quantity for "${ingredient.name}" (${enteredQty}) exceeds the maximum available quantity (${maxQty}).\n\nYou cannot use more than what is currently available in your inventory.`);
+          return;
+        }
+      } else {
+        // If maxQuantity is not set, this is a critical error - should not proceed
+        console.error(`❌ maxQuantity not set for "${ingredient.name}" - cannot validate quantity`);
+        alert(`Cannot validate quantity for "${ingredient.name}". Please refresh the page and try again.`);
+        return;
+      }
+    }
+
+    // Re-check query params in case they weren't set yet (race condition fix)
+    const currentParams = this.route.snapshot.queryParams;
+    const isEditModeFromParams = currentParams['edit'] === 'true';
+    const editMealIdFromParams = currentParams['id'] || null;
+    
+    // Use current values or fallback to query params
+    const isEditMode = this.isEditMode || isEditModeFromParams;
+    const editMealId = this.editMealId || editMealIdFromParams;
+
+    console.log('🔍 Edit mode check:', {
+      isEditMode: this.isEditMode,
+      editMealId: this.editMealId,
+      isEditModeFromParams: isEditModeFromParams,
+      editMealIdFromParams: editMealIdFromParams,
+      finalIsEditMode: isEditMode,
+      finalEditMealId: editMealId,
+      willUpdate: isEditMode && editMealId
+    });
 
     // Convert ingredientList to string format for database
     const ingredientsString = this.convertIngredientsListToString();
@@ -644,10 +833,14 @@ export class AddCustomMealComponent implements OnInit {
     }
 
     // Edit 모드인지 확인
-    if (this.isEditMode && this.editMealId) {
+    if (isEditMode && editMealId) {
       // Update existing meal
-      console.log('🟢 Updating custom meal:', { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null });
-      this.customMealService.updateCustomMeal(this.editMealId, mealData).subscribe({
+      console.log('🟢 Updating custom meal:', {
+        id: editMealId,
+        mealData: { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null }
+      });
+      
+      this.customMealService.updateCustomMeal(editMealId, mealData).subscribe({
         next: (updatedMeal) => {
           console.log('✅ Custom meal updated successfully:', updatedMeal);
           
@@ -655,7 +848,7 @@ export class AddCustomMealComponent implements OnInit {
           // Restore original quantities first, then reduce new quantities
           this.adjustIngredientQuantitiesForEdit().then(() => {
             alert('Custom meal updated successfully!');
-            this.router.navigate(['/planWeeklyMeal']);
+    this.router.navigate(['/planWeeklyMeal']);
           }).catch((err: any) => {
             console.error('❌ Error adjusting ingredient quantities:', err);
             alert('Meal updated but failed to adjust ingredient quantities. Please check your inventory.');
@@ -665,11 +858,19 @@ export class AddCustomMealComponent implements OnInit {
         error: (err) => {
           console.error('❌ Error updating custom meal:', err);
           console.error('❌ Error details:', JSON.stringify(err, null, 2));
+          console.error('❌ Error status:', err.status);
+          console.error('❌ Error statusText:', err.statusText);
           const errorMessage = err.error?.message || err.message || 'Unknown error';
-          alert(`Failed to update custom meal: ${errorMessage}`);
+          alert(`Failed to update custom meal: ${errorMessage}\n\nPlease check the browser console for more details.`);
         }
       });
     } else {
+      console.warn('⚠️ Not in edit mode or editMealId is missing:', {
+        isEditMode: isEditMode,
+        editMealId: editMealId,
+        thisIsEditMode: this.isEditMode,
+        thisEditMealId: this.editMealId
+      });
       // Create new meal
       console.log('🟢 Creating custom meal:', { ...mealData, photo: mealData.photo ? `[Base64 string ${mealData.photo.length} chars]` : null });
       this.customMealService.createCustomMeal(mealData).subscribe({
@@ -1056,13 +1257,15 @@ export class AddCustomMealComponent implements OnInit {
     for (const ingredient of ingredients) {
       console.log(`🔍 Processing ingredient:`, ingredient);
       
-      if (!ingredient.name.trim() || !ingredient.quantity.trim()) {
+      // Convert quantity to string if it's a number
+      const quantityStr = ingredient.quantity ? String(ingredient.quantity).trim() : '';
+      
+      if (!ingredient.name.trim() || !quantityStr) {
         console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
         continue;
       }
 
       // Extract numeric value from quantity string (e.g., "200g" -> 200, "1.5kg" -> 1.5)
-      const quantityStr = ingredient.quantity.trim();
       const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
       if (!quantityMatch) {
         console.warn(`⚠️ Could not parse quantity from: "${quantityStr}"`);
@@ -1158,8 +1361,9 @@ export class AddCustomMealComponent implements OnInit {
       await Promise.all(updatePromises);
       console.log('✅ All ingredient quantities reduced successfully');
     } else {
-      console.warn('⚠️ No update promises to execute - no ingredients matched');
-      throw new Error('No ingredients were successfully processed for quantity reduction');
+      console.warn('⚠️ No update promises to execute - no ingredients matched or all ingredients were skipped');
+      // Don't throw error - ingredients might not exist in inventory (e.g., already consumed or deleted)
+      // This is acceptable in edit mode where we're just adjusting quantities
     }
   }
 
@@ -1214,13 +1418,15 @@ export class AddCustomMealComponent implements OnInit {
     for (const ingredient of ingredients) {
       console.log(`🔍 Processing ingredient for restoration:`, ingredient);
       
-      if (!ingredient.name.trim() || !ingredient.quantity.trim()) {
+      // Convert quantity to string if it's a number
+      const quantityStr = ingredient.quantity ? String(ingredient.quantity).trim() : '';
+      
+      if (!ingredient.name.trim() || !quantityStr) {
         console.warn(`⚠️ Skipping ingredient with empty name or quantity:`, ingredient);
         continue;
       }
 
       // Extract numeric value from quantity string
-      const quantityStr = ingredient.quantity.trim();
       const quantityMatch = quantityStr.match(/^(\d+(?:\.\d+)?)/);
       if (!quantityMatch) {
         console.warn(`⚠️ Could not parse quantity from: "${quantityStr}"`);
