@@ -301,10 +301,22 @@ export class PlanWeeklyMealComponent implements OnInit {
       this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
       this.updateAvailableCategories();
       this.applyFilters();
+      
+      // Force change detection after loading marked foods
+      this.ngZone.run(() => {
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
     } catch (err) {
       console.error('❌ Error loading marked foods:', err);
       this.inventory = [];
       this.filteredInventory = [];
+      
+      // Force change detection on error
+      this.ngZone.run(() => {
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
     }
   }
 
@@ -352,10 +364,22 @@ export class PlanWeeklyMealComponent implements OnInit {
       this.inventory.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
       this.updateAvailableCategories();
       this.applyFilters();
+      
+      // Force change detection after loading non-marked foods
+      this.ngZone.run(() => {
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
     } catch (err) {
       console.error('❌ Error loading non-marked foods:', err);
       this.inventory = [];
       this.filteredInventory = [];
+      
+      // Force change detection on error
+      this.ngZone.run(() => {
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
     }
   }
 
@@ -1428,8 +1452,20 @@ export class PlanWeeklyMealComponent implements OnInit {
           console.log(`✅ Added custom meal: ${mealKey} - ${meal.foodName}`);
         }
       });
+      
+      // Force change detection after loading custom meals
+      this.ngZone.run(() => {
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
     } catch (err) {
       console.error('❌ Error loading custom meals:', err);
+      
+      // Force change detection on error
+      this.ngZone.run(() => {
+        this.cdr.markForCheck();
+        this.cdr.detectChanges();
+      });
     }
   }
 
@@ -1767,21 +1803,22 @@ export class PlanWeeklyMealComponent implements OnInit {
             this.closeCustomMealDetails();
             
             // Reload inventory to reflect restored quantities
-            // Wait for inventory to reload before showing alert
+            // Use async versions to ensure completion before UI update
             if (this.inventoryType === 'marked') {
-              await firstValueFrom(this.browseService.getMarkedFoods());
-              this.loadMarkedFoods();
+              await this.loadMarkedFoodsAsync();
             } else {
-              await firstValueFrom(this.browseService.getFoods());
-              this.loadNonMarkedFoods();
+              await this.loadNonMarkedFoodsAsync();
             }
             
             // Reload custom meals to update the meal plans display
             await this.loadCustomMealsAsync();
             this.initializeWeekDays();
             
-            // Force change detection to ensure UI is updated
-            this.cdr.detectChanges();
+            // Force change detection to ensure UI is updated after all async operations complete
+            this.ngZone.run(() => {
+              this.cdr.markForCheck();
+              this.cdr.detectChanges();
+            });
             
             alert('Meal deleted successfully!');
           });
