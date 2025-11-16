@@ -157,8 +157,9 @@ confirmDonate() {
   }
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   // Support both user.id and user._id (MongoDB uses _id)
-  const userId = user?.id || user?._id;
+  // const userId = user?.id || user?._id;
 
+  const userId=localStorage.getItem('userId');
   if(!userId){
     this.donateError = 'User not logged in.';
     return;

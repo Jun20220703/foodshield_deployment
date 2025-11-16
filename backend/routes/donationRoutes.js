@@ -18,12 +18,13 @@ router.post('/', async (req, res) => {
     // 🟢 新しいDonationListドキュメントを作成
     const donation = new DonationList({
       foodId,
-      owner,
       qty,
       location,
       availability,
       notes,
-      donationAt: new Date()
+      donationAt: new Date(),
+      owner
+
     });
 
     // 🟢 保存
