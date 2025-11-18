@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { SidebarComponent } from '../../sidebar/sidebar.component';
-
+import { NotificationService } from '../../../services/notification.service';
 @Component({
   selector: 'app-home-page',
   standalone: true,
@@ -15,13 +15,31 @@ export class HomePageComponent implements OnInit {
   showWelcomeMessage: boolean = false;
   show2FASetupMessage: boolean = false;
 
-  constructor(private router: Router, private route: ActivatedRoute, private http: HttpClient, private cdr: ChangeDetectorRef) {
+  constructor(
+    private router: Router, 
+    private route: ActivatedRoute, 
+    private http: HttpClient, 
+    private cdr: ChangeDetectorRef,
+    private notificationService: NotificationService
+  ) {
     console.log('HomePageComponent constructor called. cdr:', this.cdr);
     this.checkForNewUser();
   }
 
   ngOnInit() {
     this.checkForNewUser();
+
+    const userId = localStorage.getItem('userId');
+
+    if (userId) {
+      this.notificationService.checkExpiry(userId).subscribe({
+        next: () => {
+          console.log('Expiry check done on login.');
+        },
+        error: (err) => console.error('Error during expiry check:', err),
+      });
+    }
+
   }
 
   checkForNewUser() {

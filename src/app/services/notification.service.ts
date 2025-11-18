@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { Subject } from 'rxjs';
 
 // 通知データ型
 export interface Notification {
@@ -19,8 +20,16 @@ export interface Notification {
 export class NotificationService {
   private apiUrl = 'http://localhost:5001/api/notifications';
 
+  // 🔴 サイドバー更新イベント（未読数の自動反映用）
+  private notifyUpdateSource = new Subject<void>();
+  notifyUpdate$ = this.notifyUpdateSource.asObservable(); 
+
   constructor(private http: HttpClient) {}
 
+   // 🔴 サイドバーに「通知が変わったよ！」と知らせる用
+  triggerNotificationUpdate() {
+    this.notifyUpdateSource.next();
+  }
   // ✅ ログインユーザーの通知だけ取得
   getNotifications(): Observable<Notification[]> {
     const userId = localStorage.getItem('userId'); // ローカルストレージから取得

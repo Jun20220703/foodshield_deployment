@@ -12,7 +12,10 @@
     <a routerLink="/inventory" class="menu-item" routerLinkActive="active">🔎 Browse inventory</a>
     <a routerLink="/analytics" class="menu-item" routerLinkActive="active">📊 View Analytics</a>
     <a routerLink="/planWeeklyMeal" class="menu-item" routerLinkActive="active">🍽 Plan Weekly Meals</a>
-    <a routerLink="/notifications-list" class="menu-item" routerLinkActive="active">🔔 Notification</a>
+    <a routerLink="/notifications-list" class="menu-item" routerLinkActive="active">
+      🔔 Notification 
+      <span class="notif-badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
+    </a>
     <a routerLink="/account-settings" class="menu-item" routerLinkActive="active">⚙️ Account Settings</a>
   </nav>
 </aside>
