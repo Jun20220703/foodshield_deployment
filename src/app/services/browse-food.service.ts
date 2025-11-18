@@ -71,9 +71,13 @@ export class BrowseFoodService {
   }
 
   /** 更新食物数量（Used / Meal） */
-  updateFoodQty(id: string, newQty: number): Observable<any> {
-    console.log("🟢 updateFoodQty id:", id, "newQty:", newQty);
-    return this.http.put(`${this.apiUrl}/${id}`, { qty: newQty });
+  updateFoodQty(id: string, newQty: number, action?: 'used' | 'meal'): Observable<any> {
+    console.log("🟢 updateFoodQty id:", id, "newQty:", newQty, "action:", action);
+    const body: any = { qty: newQty };
+    if (action) {
+      body.action = action;
+    }
+    return this.http.put(`${this.apiUrl}/${id}`, body);
   }
 
   /** Mark food - Save marked food to database */

@@ -97,7 +97,7 @@ router.get('/:id', async (req, res) => {
 // ✅ Update food item (qty, etc.) - split consumed quantity into new item, keep remainder in inventory
 router.put('/:id', async (req, res) => {
   try {
-    const { qty } = req.body;
+    const { qty, action } = req.body;
     
     // Get current food item to compare qty
     const currentFood = await Food.findById(req.params.id);
@@ -105,8 +105,9 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Food not found' });
     }
     
-    // If qty is being decreased (used/consumed), split the item
-    if (qty !== undefined && qty < currentFood.qty && currentFood.status === 'inventory') {
+    // Only create consumed item if action is 'used' and qty is being decreased
+    // For 'meal' action, just update the quantity without creating consumed item
+    if (qty !== undefined && qty < currentFood.qty && currentFood.status === 'inventory' && action === 'used') {
       const consumedQty = currentFood.qty - qty;
       
       // Create a new consumed item with the consumed quantity
@@ -126,6 +127,8 @@ router.put('/:id', async (req, res) => {
       
       // Update the original item with remaining quantity, keep status as "inventory"
       const updateData = { ...req.body, status: 'inventory' };
+      // Remove action from updateData as it's not a Food model field
+      delete updateData.action;
       const updatedFood = await Food.findByIdAndUpdate(
         req.params.id,
         updateData,
@@ -136,8 +139,10 @@ router.put('/:id', async (req, res) => {
       return res.json(updatedFood);
     }
     
-    // If qty is not decreased or status is not inventory, just update normally
+    // If qty is not decreased, status is not inventory, or action is not 'used', just update normally
     const updateData = { ...req.body };
+    // Remove action from updateData as it's not a Food model field
+    delete updateData.action;
     const updatedFood = await Food.findByIdAndUpdate(
       req.params.id,
       updateData,
