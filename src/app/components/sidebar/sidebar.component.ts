@@ -23,6 +23,10 @@ export class SidebarComponent implements OnInit {
   ngOnInit() {
     this.loadUserProfile();
     this.checkUnreadNotifications();
+    this.notificationService.notifyUpdate$.subscribe(() => {
+      this.checkUnreadNotifications(); // 🔥 Add後に即更新！
+    });
+
 
     // ✅ 定时检测用户信息更新（2秒一次）
     if (typeof window !== 'undefined') {
