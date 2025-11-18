@@ -2,6 +2,8 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { ManageFoodInventory } from '../manageFoodInventory/manage-inventory.component';
+import { NotificationService } from '../../services/notification.service';
+
 @Component({
   selector: 'app-sidebar',
   standalone: true,
@@ -13,15 +15,20 @@ export class SidebarComponent implements OnInit {
   username = 'User';
   profilePhoto: string = ''; // 프로필 사진이 없을 때는 빈 문자열
 
-  constructor(private cdr: ChangeDetectorRef) {}
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private notificationService: NotificationService
+  ) {}
 
   ngOnInit() {
     this.loadUserProfile();
+    this.checkUnreadNotifications();
 
     // ✅ 定时检测用户信息更新（2秒一次）
     if (typeof window !== 'undefined') {
       setInterval(() => {
         this.loadUserProfile();
+        this.checkUnreadNotifications();
       }, 2000);
     }
   }
@@ -60,4 +67,22 @@ export class SidebarComponent implements OnInit {
       event.target.src = 'assets/avatar.png';
     }
   }
+
+  unreadCount = 0;
+
+  checkUnreadNotifications() {
+  this.notificationService.getNotifications().subscribe({
+    next: (notifications) => {
+      const unread = notifications.filter(n => !n.read).length;
+
+      if (this.unreadCount !== unread) {
+        this.unreadCount = unread;
+        this.cdr.detectChanges(); // 🟢 UI 更新
+      }
+    },
+    error: (err) => console.error('Error loading notifications:', err),
+  });
+}
+
+
 }
