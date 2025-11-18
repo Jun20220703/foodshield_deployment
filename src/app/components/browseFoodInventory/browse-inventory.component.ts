@@ -513,7 +513,7 @@ export class InventoryComponent implements OnInit {
         const item = this.confirmItem;
         const newQty = item.qty - item.selectedQty;
 
-        this.browseService.updateFoodQty(item._id, newQty).subscribe({
+        this.browseService.updateFoodQty(item._id, newQty, 'used').subscribe({
           next: () => {
             // ✅ 更新前端 qty
             item.qty = newQty;
@@ -546,8 +546,8 @@ export class InventoryComponent implements OnInit {
         const markedQty = item.selectedQty;
         const newInventoryQty = item.qty - markedQty;
 
-        // First, reduce inventory quantity
-        this.browseService.updateFoodQty(item._id, newInventoryQty).subscribe({
+        // First, reduce inventory quantity (pass 'meal' action to prevent consumed item creation)
+        this.browseService.updateFoodQty(item._id, newInventoryQty, 'meal').subscribe({
           next: () => {
             console.log(`✅ Reduced inventory quantity by ${markedQty}`);
             
