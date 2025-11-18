@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { FoodService } from '../../services/food.service';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-food-inventory',
@@ -20,13 +21,25 @@ export class ManageFoodInventory {
     private foodService: FoodService, 
     private router: Router,
     private cdr: ChangeDetectorRef,
-    private route: ActivatedRoute   // ✅ 新增
+    private route: ActivatedRoute,   // ✅ 新增
+    private notificationService: NotificationService
+
   ){}
 
 
   ngOnInit(){
   this.loadFoods();
 
+  const userId = localStorage.getItem('userId');
+
+  if (userId) {
+      this.notificationService.checkExpiry(userId).subscribe({
+        next: () => {
+          console.log('Expiry check done on login.');
+        },
+        error: (err) => console.error('Error during expiry check:', err),
+      });
+    }
   this.route.queryParams.subscribe((params: any) => {
     const donateId = params['donateId'];
     if (donateId) {
