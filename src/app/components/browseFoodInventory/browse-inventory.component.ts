@@ -545,7 +545,6 @@ export class InventoryComponent implements OnInit {
 
         const markedQty = item.selectedQty;
         const newInventoryQty = item.qty - markedQty;
-
         // First, reduce inventory quantity (pass 'meal' action to prevent consumed item creation)
         this.browseService.updateFoodQty(item._id, newInventoryQty, 'meal').subscribe({
           next: () => {

@@ -5,33 +5,55 @@ const Food = require('../models/Food');
 const DonationList = require('../models/DonationList');
 
 /**
- * Auto-update food items that expire today to "expired" status
+ * Auto-update food items that have ALREADY expired (expiry date < today) to "expired" status
  * This ensures expired items don't show in inventory
+ * IMPORTANT: This function IGNORES startUTC/endUTC parameters and only expires foods that have already passed their expiry date
  */
 async function autoUpdateExpiredFoods(ownerId, startUTC, endUTC) {
   try {
-    // Find foods that expire today but status is still "inventory"
-    const foodsToExpire = await Food.find({
-      ...(ownerId && { owner: ownerId }),
-      expiry: { $gte: startUTC, $lte: endUTC },
-      status: { $in: ["inventory", "donation"] } // Only update if still in inventory or donation status
-    });
-
-    if (foodsToExpire.length > 0) {
-      const updateResult = await Food.updateMany(
-        {
-          ...(ownerId && { owner: ownerId }),
-          expiry: { $gte: startUTC, $lte: endUTC },
-          status: { $in: ["inventory", "donation"] }
-        },
-        { 
-          $set: { status: "expired" }
-        }
-      );
-      console.log(`🔄 Auto-updated ${updateResult.modifiedCount} food items to expired status`);
-      return updateResult.modifiedCount;
+    // Calculate today's start in Malaysia timezone (UTC+8), then convert to UTC
+    // This ensures we only expire foods that have ALREADY passed their expiry date
+    const now = new Date();
+    const MYT_OFFSET_MS = 8 * 60 * 60 * 1000; // +8 hours in milliseconds
+    
+    // Get current time in MYT (add 8 hours to UTC)
+    const nowMYT = new Date(now.getTime() + MYT_OFFSET_MS);
+    
+    // Extract year, month, day from MYT time
+    const year = nowMYT.getUTCFullYear();
+    const month = nowMYT.getUTCMonth();
+    const day = nowMYT.getUTCDate();
+    
+    // Create today's start (00:00:00) in MYT as UTC date
+    const todayStartMYT = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    
+    // Convert MYT 00:00:00 to UTC (subtract 8 hours)
+    const todayStartUTC = new Date(todayStartMYT.getTime() - MYT_OFFSET_MS);
+    
+    console.log(`📅 Auto-expire check (ignoring startUTC/endUTC parameters):`);
+    console.log(`   Current UTC: ${now.toISOString()}`);
+    console.log(`   Today start UTC: ${todayStartUTC.toISOString()}`);
+    console.log(`   Will expire foods with expiry < ${todayStartUTC.toISOString()}`);
+    
+    // Only update foods that have ALREADY expired (expiry < today's start in UTC)
+    // IGNORE the startUTC/endUTC parameters passed from analytics API
+    const updateResult = await Food.updateMany(
+      {
+        ...(ownerId && { owner: ownerId }),
+        expiry: { $lt: todayStartUTC }, // Only foods that expired BEFORE today
+        status: { $in: ["inventory", "donation"] } // Only update if still in inventory or donation status
+      },
+      { 
+        $set: { status: "expired" }
+      }
+    );
+    
+    if (updateResult.modifiedCount > 0) {
+      console.log(`🔄 Auto-updated ${updateResult.modifiedCount} food items to expired status (expired before today)`);
+    } else {
+      console.log(`✅ No foods to auto-expire (all foods are still valid)`);
     }
-    return 0;
+    return updateResult.modifiedCount;
   } catch (err) {
     console.error("🔥 Error auto-updating expired foods:", err);
     return 0;
