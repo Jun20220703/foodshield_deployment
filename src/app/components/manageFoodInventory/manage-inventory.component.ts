@@ -168,11 +168,21 @@ confirmDonate() {
     this.donateError = 'Pickup location and availability are required.';
     return;
   }
+  
+  if (!this.selectedDonateItem || !this.selectedDonateItem._id) {
+    this.donateError = 'No food item selected.';
+    return;
+  }
+  
+  if (!this.selectedDonateItem.qty || this.selectedDonateItem.qty <= 0) {
+    this.donateError = 'Invalid quantity.';
+    return;
+  }
+  
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   // Support both user.id and user._id (MongoDB uses _id)
-  // const userId = user?.id || user?._id;
-
-  const userId=localStorage.getItem('userId');
+  const userId = user?.id || user?._id || localStorage.getItem('userId');
+  
   if(!userId){
     this.donateError = 'User not logged in.';
     return;
@@ -182,9 +192,9 @@ confirmDonate() {
   const donationData = {
     foodId: this.selectedDonateItem._id,
     qty: this.selectedDonateItem.qty,
-    location: this.donationDetails.location,
-    availability: this.donationDetails.availability,
-    notes: this.donationDetails.notes,
+    location: this.donationDetails.location.trim(),
+    availability: this.donationDetails.availability.trim(),
+    notes: this.donationDetails.notes?.trim() || '',
     owner: userId
   };
 

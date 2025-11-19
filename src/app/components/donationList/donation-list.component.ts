@@ -1,18 +1,21 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { FoodService } from '../../services/food.service';
 import { ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, NavigationEnd } from '@angular/router';
 import { DonationService } from '../../services/donation.service';
+import { Subject } from 'rxjs';
+import { takeUntil, filter } from 'rxjs/operators';
 @Component({
   selector: 'app-donation-list',
   templateUrl: './donation-list.component.html',
   styleUrls: ['./donation-list.component.css'],
   imports: [CommonModule, SidebarComponent]
 })
-export class DonationListComponent implements OnInit{
+export class DonationListComponent implements OnInit, OnDestroy {
     donations: any[] = [];
+    private destroy$ = new Subject<void>();
 
     constructor(
         private cd: ChangeDetectorRef,
@@ -21,24 +24,43 @@ export class DonationListComponent implements OnInit{
         private donationService: DonationService){}
 
     ngOnInit() {
-        this.foodService.getDonations().subscribe({
-            next: (res) => {
-            console.log('Donations loaded: ', res);
-            this.donations = res;  // これを ngFor で表示
-            this.cd.detectChanges();
-            },
-            error: (err) => console.error(err)
-        });
+        this.loadDonations();
+        
+        // Reload donations when navigating to this page
+        this.router.events
+            .pipe(
+                filter(event => event instanceof NavigationEnd),
+                takeUntil(this.destroy$)
+            )
+            .subscribe(() => {
+                // Small delay to ensure any pending API calls complete
+                setTimeout(() => {
+                    this.loadDonations();
+                }, 200);
+            });
+    }
+    
+    ngOnDestroy() {
+        this.destroy$.next();
+        this.destroy$.complete();
     }
 
     loadDonations(){
+        console.log('🔄 Loading donations...');
         this.foodService.getDonations().subscribe({
             next:(data) => {
-                this.donations = data;
-                console.log('Donations loaded: ', data);
+                console.log('📦 Donations loaded from API:', data);
+                this.donations = data || [];
+                console.log('📋 Donations array length:', this.donations.length);
+                if (this.donations.length > 0) {
+                    console.log('📋 First donation:', this.donations[0]);
+                }
+                this.cd.detectChanges();
             },
             error: (err) =>{
-                console.error('Error loading donations:', err);
+                console.error('❌ Error loading donations:', err);
+                this.donations = [];
+                this.cd.detectChanges();
             }
         });
     }

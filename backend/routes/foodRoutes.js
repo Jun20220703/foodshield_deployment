@@ -30,11 +30,6 @@ async function autoUpdateExpiredFoods(ownerId, startUTC, endUTC) {
     // Convert MYT 00:00:00 to UTC (subtract 8 hours)
     const todayStartUTC = new Date(todayStartMYT.getTime() - MYT_OFFSET_MS);
     
-    console.log(`📅 Auto-expire check (ignoring startUTC/endUTC parameters):`);
-    console.log(`   Current UTC: ${now.toISOString()}`);
-    console.log(`   Today start UTC: ${todayStartUTC.toISOString()}`);
-    console.log(`   Will expire foods with expiry < ${todayStartUTC.toISOString()}`);
-    
     // Only update foods that have ALREADY expired (expiry < today's start in UTC)
     // IGNORE the startUTC/endUTC parameters passed from analytics API
     const updateResult = await Food.updateMany(
@@ -48,11 +43,6 @@ async function autoUpdateExpiredFoods(ownerId, startUTC, endUTC) {
       }
     );
     
-    if (updateResult.modifiedCount > 0) {
-      console.log(`🔄 Auto-updated ${updateResult.modifiedCount} food items to expired status (expired before today)`);
-    } else {
-      console.log(`✅ No foods to auto-expire (all foods are still valid)`);
-    }
     return updateResult.modifiedCount;
   } catch (err) {
     console.error("🔥 Error auto-updating expired foods:", err);
@@ -67,8 +57,6 @@ async function autoUpdateExpiredFoods(ownerId, startUTC, endUTC) {
  */
 async function processPastMeals(ownerId) {
   try {
-    console.log('🔍 processPastMeals: Starting to check for past meals...');
-    
     // Calculate today's start in Malaysia timezone (UTC+8), then convert to UTC
     const now = new Date();
     const MYT_OFFSET_MS = 8 * 60 * 60 * 1000; // +8 hours in milliseconds
@@ -80,11 +68,9 @@ async function processPastMeals(ownerId) {
     const todayStartUTC = new Date(todayStartMYT.getTime() - MYT_OFFSET_MS);
     
     const todayDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    console.log(`🔍 Today date (MYT): ${todayDateStr}`);
     
     // Find all custom meals for this owner where date < today
     const customMeals = await CustomMeal.find({ owner: ownerId });
-    console.log(`📅 Found ${customMeals.length} total custom meals`);
     
     const pastMeals = customMeals.filter((meal) => {
       if (!meal.date) {
@@ -97,39 +83,55 @@ async function processPastMeals(ownerId) {
       todayDate.setHours(0, 0, 0, 0);
       
       const isPast = mealDate < todayDate;
-      console.log(`🔍 Checking meal: ${meal.foodName}, date: ${meal.date}, isPast: ${isPast}`);
       return isPast;
     });
     
     if (pastMeals.length === 0) {
-      console.log('✅ No past planned meals found');
       return 0;
     }
-    
-    console.log(`📅 Found ${pastMeals.length} past planned meal(s), consuming their ingredients...`);
     
     let totalConsumed = 0;
     
     // Process each past meal
     for (const meal of pastMeals) {
       if (!meal.ingredients || !meal.ingredients.trim()) {
-        console.warn(`⚠️ Meal ${meal.foodName} has no ingredients`);
         continue;
       }
       
-      console.log(`🔄 Processing past planned meal: ${meal.foodName} (planned date: ${meal.date})`);
-      console.log(`📝 Ingredients string: "${meal.ingredients}"`);
+      // Check if this meal's ingredients have already been consumed
+      // by checking if consumed items exist with createdAt matching the meal date
+      // This prevents duplicate processing if processPastMeals is called multiple times
+      const mealDateStart = new Date(meal.date);
+      mealDateStart.setHours(0, 0, 0, 0);
+      const mealDateEnd = new Date(meal.date);
+      mealDateEnd.setHours(23, 59, 59, 999);
+      
+      // Parse ingredients to get count - if we have N ingredients, we expect at least N consumed items
+      const ingredientLines = meal.ingredients.split(/[,\n]/).filter(line => line.trim().length > 0);
+      const expectedMinConsumed = ingredientLines.length;
+      
+      // Check if there are already consumed items created on the meal date
+      // Only skip if there are significantly more consumed items than expected (suggesting already processed)
+      const existingConsumed = await Food.countDocuments({
+        owner: ownerId,
+        status: 'consumed',
+        createdAt: { $gte: mealDateStart, $lte: mealDateEnd }
+      });
+      
+      // Skip if there are already many consumed items for this date (likely already processed)
+      // Use a threshold: if existing consumed items >= expected ingredients * 2, skip
+      if (existingConsumed >= expectedMinConsumed * 2) {
+        continue;
+      }
       
       try {
         const consumed = await consumePastMealIngredients(meal.ingredients, meal.date, ownerId);
         totalConsumed += consumed;
-        console.log(`✅ Successfully processed past meal: ${meal.foodName}`);
       } catch (err) {
         console.error(`❌ Error processing past planned meal ${meal.foodName}:`, err);
       }
     }
     
-    console.log(`✅ processPastMeals completed. Total ingredients consumed: ${totalConsumed}`);
     return totalConsumed;
   } catch (err) {
     console.error('🔥 Error in processPastMeals:', err);

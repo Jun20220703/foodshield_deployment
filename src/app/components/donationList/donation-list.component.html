@@ -18,13 +18,18 @@
         </tr>
       </thead>
       <tbody>
+        <tr *ngIf="donations.length === 0">
+          <td colspan="7" style="text-align: center; padding: 2rem;">
+            No donations found.
+          </td>
+        </tr>
         <tr *ngFor="let donation of donations">
-          <td>{{ donation.foodId?.name }}</td>
+          <td>{{ donation.foodId?.name || 'N/A' }}</td>
           <td>{{ donation.qty }}</td>
-          <td>{{ donation.foodId?.expiry | date:'yyyy-MM-dd' }}</td>
-          <td>{{ donation.location }}</td>
-          <td>{{ donation.availability }}</td>
-          <td>{{ donation.notes }}</td>
+          <td>{{ donation.foodId?.expiry ? (donation.foodId.expiry | date:'yyyy-MM-dd') : 'N/A' }}</td>
+          <td>{{ donation.location || 'N/A' }}</td>
+          <td>{{ donation.availability || 'N/A' }}</td>
+          <td>{{ donation.notes || '-' }}</td>
           <td>
             <button (click)="edit(donation)">Edit</button>
             <button (click)="delete(donation)">Delete</button>

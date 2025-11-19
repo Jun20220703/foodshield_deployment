@@ -100,10 +100,7 @@ exports.getDaily = async (req, res) => {
 
     // ✅ Auto-update foods that expire today to "expired" status
     if (ownerId) {
-      const updatedCount = await autoUpdateExpiredFoods(ownerId, startUTC, endUTC);
-      if (updatedCount > 0) {
-        console.log(`✅ Auto-updated ${updatedCount} food items to expired status`);
-      }
+      await autoUpdateExpiredFoods(ownerId, startUTC, endUTC);
     }
 
     // Debug: Check total counts for this user (regardless of date)
@@ -444,10 +441,7 @@ exports.getMonthly = async (req, res) => {
 
     // ✅ Auto-update foods that expire this month to "expired" status
     if (ownerId) {
-      const updatedCount = await autoUpdateExpiredFoods(ownerId, startUTC, endUTC);
-      if (updatedCount > 0) {
-        console.log(`✅ Auto-updated ${updatedCount} food items to expired status`);
-      }
+      await autoUpdateExpiredFoods(ownerId, startUTC, endUTC);
     }
 
     // ====== ✅ MONTHLY DONATION (donationList.createdAt is this month) ======
@@ -483,12 +477,18 @@ exports.getMonthly = async (req, res) => {
 
     // ====== ✅ MONTHLY CONSUMED (status changed to consumed this month) ======
     // Sum qty of foods consumed this month (e.g., if 7 apples consumed, count = 7, not 1)
+    // IMPORTANT: Only count consumed items created THIS MONTH up to NOW (not future dates)
+    const nowUTC = new Date();
+    // Use the earlier of endUTC (end of month) or nowUTC (current time) to exclude future dates
+    const maxCreatedAt = nowUTC < endUTC ? nowUTC : endUTC;
+    
     const consumedMatch = {
       ...(ownerId && { owner: ownerId }),
       status: "consumed",
-      createdAt: { $gte: startUTC, $lte: endUTC }
+      createdAt: { $gte: startUTC, $lte: maxCreatedAt } // Only up to current time, not future
     };
     console.log("🔍 Monthly Consumed match filter:", JSON.stringify(consumedMatch, null, 2));
+    console.log("🔍 Monthly date range - startUTC:", startUTC, "maxCreatedAt:", maxCreatedAt, "endUTC:", endUTC, "nowUTC:", nowUTC);
     
     // ✅ IMPORTANT: Sum qty (quantity) not count documents
     // If 7 apples consumed, consumedCount = 7 (sum of qty), not 1 (count of items)
@@ -499,24 +499,42 @@ exports.getMonthly = async (req, res) => {
         {
           $group: {
             _id: null,
-            totalQty: { $sum: { $ifNull: ["$qty", 0] } } // Sum all qty values
+            totalQty: { $sum: { $ifNull: ["$qty", 0] } }, // Sum all qty values
+            itemCount: { $sum: 1 } // Count of items for debugging
           }
         }
       ]);
       
       console.log("🔍 Debug - Monthly consumed aggregation result:", JSON.stringify(consumedResult, null, 2));
       consumedCount = (consumedResult && consumedResult.length > 0 && consumedResult[0].totalQty) ? consumedResult[0].totalQty : 0;
-      console.log("📊 Monthly Consumed count (qty sum):", consumedCount);
+      const itemCount = (consumedResult && consumedResult.length > 0 && consumedResult[0].itemCount) ? consumedResult[0].itemCount : 0;
+      console.log("📊 Monthly Consumed count (qty sum):", consumedCount, "| items count:", itemCount);
       
       // Debug: Show consumed samples with qty
       if (ownerId) {
-        const consumedSamples = await Food.find(consumedMatch).select('name qty createdAt');
-        console.log("🔍 Debug - This month's consumed samples with qty:", JSON.stringify(consumedSamples, null, 2));
+        const consumedSamples = await Food.find(consumedMatch)
+          .select('name qty createdAt status')
+          .sort({ createdAt: -1 })
+          .limit(10);
+        console.log("🔍 Debug - This month's consumed samples (last 10):", JSON.stringify(consumedSamples, null, 2));
         const manualSum = consumedSamples.reduce((sum, item) => sum + (item.qty || 0), 0);
-        console.log("🔍 Debug - Manual qty sum:", manualSum);
-        console.log("🔍 Debug - Aggregation sum:", consumedCount);
-        if (manualSum !== consumedCount) {
-          console.error("⚠️ WARNING: Manual sum and aggregation sum don't match!");
+        console.log("🔍 Debug - Manual qty sum (from samples):", manualSum);
+        console.log("🔍 Debug - Aggregation sum (all items):", consumedCount);
+        
+        // Check for duplicate consumed items (same name, same createdAt within 1 second)
+        const duplicates = [];
+        for (let i = 0; i < consumedSamples.length; i++) {
+          for (let j = i + 1; j < consumedSamples.length; j++) {
+            const item1 = consumedSamples[i];
+            const item2 = consumedSamples[j];
+            if (item1.name === item2.name && 
+                Math.abs(new Date(item1.createdAt) - new Date(item2.createdAt)) < 1000) {
+              duplicates.push({ item1, item2 });
+            }
+          }
+        }
+        if (duplicates.length > 0) {
+          console.error("⚠️ WARNING: Found potential duplicate consumed items:", duplicates);
         }
       }
     } catch (err) {
@@ -526,8 +544,7 @@ exports.getMonthly = async (req, res) => {
 
     // ====== ✅ MONTHLY EXPIRED (expiry date is this month and has already expired) ======
     // Sum qty of foods that expired this month (e.g., if 5 watermelons expired, count = 5, not 1)
-    const nowUTC = new Date();
-    // Use the earlier of endUTC (end of month) or nowUTC (current time) to exclude future dates
+    // Reuse nowUTC from above (line 487) - use the earlier of endUTC (end of month) or nowUTC (current time) to exclude future dates
     const maxExpiryDate = nowUTC < endUTC ? nowUTC : endUTC;
     const expiredThisMonthQuery = {
       ...(ownerId && { owner: ownerId }),
@@ -617,14 +634,15 @@ exports.getMonthly = async (req, res) => {
     }
 
     // ====== ✅ TOP 3 CONSUMED FOODS (THIS MONTH, sorted by qty) ======
+    // Use the same maxCreatedAt to exclude future dates
     const topConsumedQuery = {
       ...(ownerId && { owner: ownerId }),
       status: "consumed",
-      createdAt: { $gte: startUTC, $lte: endUTC }
+      createdAt: { $gte: startUTC, $lte: maxCreatedAt } // Only up to current time, not future
     };
     
     console.log("🔍 Monthly Top Consumed Query:", JSON.stringify(topConsumedQuery, null, 2));
-    console.log("🔍 Monthly date range for top consumed - startUTC:", startUTC, "endUTC:", endUTC);
+    console.log("🔍 Monthly date range for top consumed - startUTC:", startUTC, "maxCreatedAt:", maxCreatedAt, "endUTC:", endUTC);
     
     let topConsumed = [];
     try {

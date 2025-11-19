@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 
 export interface Food {
   _id?: string;
@@ -37,8 +37,12 @@ export class FoodService {
   }
 
   donateFood(foodId: string, donationData: any): Observable<any> {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const ownerId = user.id; // ✅ _id ではなく id に戻す！
+  // Use owner from donationData if provided, otherwise get from localStorage
+  let ownerId = donationData.owner;
+  if (!ownerId) {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    ownerId = user.id || user._id;
+  }
 
   const donationPayload = {
     foodId: foodId,
@@ -46,7 +50,7 @@ export class FoodService {
     qty: donationData.qty,
     location: donationData.location,
     availability: donationData.availability,
-    notes: donationData.notes
+    notes: donationData.notes || ''
   };
 
   console.log('📤 Sending donation payload:', donationPayload);
@@ -56,7 +60,11 @@ export class FoodService {
 
 getDonations(): Observable<any[]> {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const userId = user.id;
+  const userId = user.id || user._id || localStorage.getItem('userId');
+  if (!userId) {
+    console.error('User ID not found for getting donations');
+    return of([]);
+  }
   return this.http.get<any[]>(`http://localhost:5001/api/donations?userId=${userId}`);
 }
 

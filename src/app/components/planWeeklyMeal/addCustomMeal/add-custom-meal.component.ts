@@ -258,6 +258,10 @@ export class AddCustomMealComponent implements OnInit {
   // Remove ingredient row
   removeIngredient(index: number) {
     this.ingredientList.splice(index, 1);
+    // Re-apply filters so the removed ingredient can reappear in the modal
+    if (this.showIngredientModal) {
+      this.applyFilters();
+    }
   }
 
   // Load maxQuantity for each ingredient from current inventory
@@ -1041,6 +1045,21 @@ export class AddCustomMealComponent implements OnInit {
       console.log('🔍 After search filter:', filtered.length, 'items (was', beforeSearchCount, ')');
     }
 
+    // Filter out ingredients that are already added to ingredientList
+    const beforeAddedFilterCount = filtered.length;
+    const addedIngredientNames = new Set(
+      this.ingredientList
+        .filter(ing => ing.name && ing.name.trim().length > 0)
+        .map(ing => ing.name.toLowerCase().trim())
+    );
+    filtered = filtered.filter(item => {
+      return !addedIngredientNames.has(item.name.toLowerCase().trim());
+    });
+    console.log('🔍 After excluding already added ingredients:', filtered.length, 'items (was', beforeAddedFilterCount, ')');
+    if (addedIngredientNames.size > 0) {
+      console.log('🔍 Excluded ingredient names:', Array.from(addedIngredientNames));
+    }
+
     this.filteredInventory = filtered;
     this.currentPage = 1; // Reset to first page when filtering
     this.updatePagination();
@@ -1107,7 +1126,9 @@ export class AddCustomMealComponent implements OnInit {
 
   openIngredientModal() {
     this.showIngredientModal = true;
-    // Initialize selected quantities
+    // Re-apply filters to exclude already added ingredients
+    this.applyFilters();
+    // Initialize selected quantities after filtering
     this.paginatedInventory.forEach(item => {
       if (!this.selectedIngredientQuantity[item.name]) {
         this.selectedIngredientQuantity[item.name] = item.quantity || 1;

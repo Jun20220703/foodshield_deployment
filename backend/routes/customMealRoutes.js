@@ -5,6 +5,7 @@ const CustomMeal = require('../models/CustomMeal');
 // Create a new custom meal
 router.post('/', async (req, res) => {
   try {
+    console.log('🔄 Creating custom meal...');
     const { foodName, ingredients, remark, kcal, photo, date, mealType, owner } = req.body;
 
     if (!foodName || !foodName.trim()) {
@@ -35,7 +36,7 @@ router.post('/', async (req, res) => {
     });
 
     const savedMeal = await customMeal.save();
-    console.log('✅ Custom meal created:', savedMeal.foodName);
+    console.log(`✅ Custom meal created: ${savedMeal.foodName} (date: ${savedMeal.date}, mealType: ${savedMeal.mealType})`);
     res.status(201).json(savedMeal);
   } catch (err) {
     console.error('❌ Error creating custom meal:', err);
@@ -83,6 +84,7 @@ router.get('/:id', async (req, res) => {
 // Update a custom meal
 router.put('/:id', async (req, res) => {
   try {
+    console.log(`🔄 Updating custom meal with ID: ${req.params.id}...`);
     const { foodName, ingredients, remark, kcal, photo, date, mealType } = req.body;
     
     const updateData = {
@@ -106,7 +108,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Custom meal not found' });
     }
     
-    console.log('✅ Custom meal updated:', customMeal.foodName);
+    console.log(`✅ Custom meal updated: ${customMeal.foodName} (date: ${customMeal.date}, mealType: ${customMeal.mealType})`);
     res.json(customMeal);
   } catch (err) {
     console.error('❌ Error updating custom meal:', err);
@@ -123,7 +125,7 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Custom meal not found' });
     }
     
-    console.log('✅ Custom meal deleted:', customMeal.foodName);
+    console.log(`✅ Custom meal deleted: ${customMeal.foodName} (date: ${customMeal.date}, mealType: ${customMeal.mealType})`);
     res.json({ message: 'Custom meal deleted successfully' });
   } catch (err) {
     console.error('❌ Error deleting custom meal:', err);
